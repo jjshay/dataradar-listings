@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""
+DATARADAR Listings - eBay Inventory Management with Key-Date Pricing
+
+A Flask application that helps eBay sellers maximize profits by automatically
+adjusting prices based on significant calendar events related to their inventory.
+
+Author: John Shay
+License: MIT
+"""
+
+from flask import Flask, render_template, jsonify, request
+from datetime import datetime, timedelta
+import os
+import json
+import base64
+import requests
+import pickle
+
+app = Flask(__name__, template_folder='templates')
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+def load_env():
+    """Load environment variables from .env file"""
+    env_vars = {}
+    env_path = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key] = value
+    return env_vars
+
+ENV = load_env()
+
+# eBay API Configuration
+EBAY_CONFIG = {
+    'client_id': ENV.get('EBAY_CLIENT_ID', ''),
+    'client_secret': ENV.get('EBAY_CLIENT_SECRET', ''),
+    'refresh_token': ENV.get('EBAY_REFRESH_TOKEN', ''),
+    'dev_id': ENV.get('EBAY_DEV_ID', '')
+}
+
+# Pricing Tiers
+TIER_BOOSTS = {
+    'MINOR': 5,    # Small events: +5%
+    'MEDIUM': 15,  # Notable events: +15%
+    'MAJOR': 25,   # Significant events: +25%
+    'PEAK': 35     # Peak demand events: +35%
+}
+
+# =============================================================================
+# eBay API Integration
+# =============================================================================
+
+class EbayAPI:
+    """eBay Trading API wrapper"""
+
+    def __init__(self, config):
+        self.config = config
+        self._token = None
+        self._token_expires = None
+
+    def get_access_token(self):
+        """Get OAuth access token, refreshing if needed"""
+        if self._token and self._token_expires and datetime.now() < self._token_expires:
+            return self._token
+
+        credentials = f"{self.config['client_id']}:{self.config['client_secret']}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+
+        response = requests.post(
+            'https://api.ebay.com/identity/v1/oauth2/token',
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {encoded}'
+            },
+            data={
+                'grant_type': 'refresh_token',
+                'refresh_token': self.config['refresh_token'],
+                'scope': 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory'
+            }
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            self._token = data.get('access_token')
+            expires_in = data.get('expires_in', 7200)
+            self._token_expires = datetime.now() + timedelta(seconds=expires_in - 300)
+            return self._token
+
+        return None
+
+    def get_listings(self, page=1, per_page=100):
+        """Fetch active listings from eBay"""
+        token = self.get_access_token()
+        if not token:
+            return []
+
+        # Using Trading API GetMyeBaySelling
+        headers = {
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+            'X-EBAY-API-CALL-NAME': 'GetMyeBaySelling',
+            'X-EBAY-API-IAF-TOKEN': token,
+            'Content-Type': 'text/xml'
+        }
+
+        xml_request = f'''<?xml version="1.0" encoding="utf-8"?>
+        <GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <ActiveList>
+                <Include>true</Include>
+                <Pagination>
+                    <EntriesPerPage>{per_page}</EntriesPerPage>
+                    <PageNumber>{page}</PageNumber>
+                </Pagination>
+            </ActiveList>
+        </GetMyeBaySellingRequest>'''
+
+        response = requests.post(
+            'https://api.ebay.com/ws/api.dll',
+            headers=headers,
+            data=xml_request
+        )
+
+        return self._parse_listings(response.text)
+
+    def _parse_listings(self, xml_response):
+        """Parse eBay XML response into listing objects"""
+        import xml.etree.ElementTree as ET
+        listings = []
+
+        try:
+            root = ET.fromstring(xml_response)
+            ns = {'ebay': 'urn:ebay:apis:eBLBaseComponents'}
+
+            for item in root.findall('.//ebay:Item', ns):
+                listing = {
+                    'id': self._get_text(item, 'ebay:ItemID', ns),
+                    'title': self._get_text(item, 'ebay:Title', ns),
+                    'price': float(self._get_text(item, './/ebay:CurrentPrice', ns) or 0),
+                    'quantity': int(self._get_text(item, 'ebay:Quantity', ns) or 0),
+                    'image': self._get_text(item, './/ebay:GalleryURL', ns),
+                    'url': self._get_text(item, './/ebay:ListingDetails/ebay:ViewItemURL', ns),
+                    'format': self._get_text(item, './/ebay:ListingType', ns),
+                    'end_time': self._get_text(item, './/ebay:EndTime', ns)
+                }
+                listings.append(listing)
+        except Exception as e:
+            print(f"Parse error: {e}")
+
+        return listings
+
+    def _get_text(self, element, path, ns):
+        """Safely get text from XML element"""
+        el = element.find(path, ns)
+        return el.text if el is not None else None
+
+    def update_price(self, item_id, new_price):
+        """Update listing price on eBay"""
+        token = self.get_access_token()
+        if not token:
+            return False
+
+        headers = {
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+            'X-EBAY-API-CALL-NAME': 'ReviseItem',
+            'X-EBAY-API-IAF-TOKEN': token,
+            'Content-Type': 'text/xml'
+        }
+
+        xml_request = f'''<?xml version="1.0" encoding="utf-8"?>
+        <ReviseItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <Item>
+                <ItemID>{item_id}</ItemID>
+                <StartPrice>{new_price:.2f}</StartPrice>
+            </Item>
+        </ReviseItemRequest>'''
+
+        response = requests.post(
+            'https://api.ebay.com/ws/api.dll',
+            headers=headers,
+            data=xml_request
+        )
+
+        return 'Success' in response.text
+
+
+# Initialize eBay API
+ebay = EbayAPI(EBAY_CONFIG)
+
+# =============================================================================
+# Pricing Engine
+# =============================================================================
+
+def load_pricing_rules():
+    """Load pricing rules from JSON file"""
+    rules_path = os.path.join(os.path.dirname(__file__), 'pricing_rules.json')
+    if os.path.exists(rules_path):
+        with open(rules_path, 'r') as f:
+            return json.load(f)
+    return []
+
+
+def get_active_events(date=None):
+    """Get pricing events active on a given date"""
+    if date is None:
+        date = datetime.now()
+
+    rules = load_pricing_rules()
+    active = []
+    current_mmdd = date.strftime('%m-%d')
+
+    for rule in rules:
+        start = rule.get('start_date', '')
+        end = rule.get('end_date', '')
+
+        if start <= current_mmdd <= end:
+            active.append(rule)
+
+    return active
+
+
+def calculate_suggested_price(base_price, title):
+    """Calculate suggested price based on active events and item title"""
+    active_events = get_active_events()
+    max_boost = 0
+
+    title_lower = title.lower()
+
+    for event in active_events:
+        keywords = event.get('keywords', [])
+        if any(kw.lower() in title_lower for kw in keywords):
+            boost = TIER_BOOSTS.get(event.get('tier', 'MINOR'), 0)
+            max_boost = max(max_boost, boost)
+
+    if max_boost > 0:
+        return base_price * (1 + max_boost / 100)
+
+    return base_price
+
+
+def get_matching_events(title):
+    """Get events that match an item's title"""
+    active_events = get_active_events()
+    title_lower = title.lower()
+    matches = []
+
+    for event in active_events:
+        keywords = event.get('keywords', [])
+        if any(kw.lower() in title_lower for kw in keywords):
+            matches.append(event)
+
+    return matches
+
+# =============================================================================
+# Flask Routes
+# =============================================================================
+
+@app.route('/')
+def index():
+    """Render main dashboard"""
+    return render_template('index.html')
+
+
+@app.route('/api/listings')
+def get_listings():
+    """Get all active eBay listings"""
+    search = request.args.get('search', '').lower()
+    listings = ebay.get_listings()
+
+    if search:
+        listings = [l for l in listings if search in l['title'].lower()]
+
+    # Add suggested prices
+    for listing in listings:
+        listing['suggested_price'] = calculate_suggested_price(
+            listing['price'],
+            listing['title']
+        )
+        listing['matching_events'] = get_matching_events(listing['title'])
+
+    return jsonify(listings)
+
+
+@app.route('/api/stats')
+def get_stats():
+    """Get inventory statistics"""
+    listings = ebay.get_listings()
+    total_value = sum(l['price'] for l in listings)
+    active_events = get_active_events()
+
+    # Count underpriced items
+    underpriced = 0
+    for listing in listings:
+        suggested = calculate_suggested_price(listing['price'], listing['title'])
+        if suggested > listing['price'] * 1.01:
+            underpriced += 1
+
+    return jsonify({
+        'total_listings': len(listings),
+        'total_value': total_value,
+        'active_events': len(active_events),
+        'underpriced': underpriced
+    })
+
+
+@app.route('/api/calendar')
+def get_calendar():
+    """Get pricing calendar events"""
+    rules = load_pricing_rules()
+    month = request.args.get('month')
+    year = request.args.get('year')
+
+    if month and year:
+        # Filter for specific month
+        month_str = f"{int(month):02d}"
+        rules = [r for r in rules if r.get('start_date', '').startswith(month_str)]
+
+    return jsonify(rules)
+
+
+@app.route('/api/underpriced')
+def get_underpriced():
+    """Get items that should be boosted based on active events"""
+    listings = ebay.get_listings()
+    underpriced = []
+
+    for listing in listings:
+        suggested = calculate_suggested_price(listing['price'], listing['title'])
+        if suggested > listing['price'] * 1.01:
+            events = get_matching_events(listing['title'])
+            boost = int((suggested / listing['price'] - 1) * 100)
+            underpriced.append({
+                **listing,
+                'suggested_price': suggested,
+                'boost_percent': boost,
+                'matching_events': events
+            })
+
+    return jsonify(underpriced)
+
+
+@app.route('/api/alerts')
+def get_alerts():
+    """Get system alerts"""
+    listings = ebay.get_listings()
+    alerts = []
+
+    # Low price alerts
+    for listing in listings:
+        if listing['price'] < 10:
+            alerts.append({
+                'type': 'low_price',
+                'message': f"Low price: {listing['title'][:40]}...",
+                'item': listing
+            })
+
+    # High value alerts
+    for listing in listings:
+        if listing['price'] > 1000:
+            alerts.append({
+                'type': 'high_value',
+                'message': f"High value item: {listing['title'][:40]}...",
+                'item': listing
+            })
+
+    return jsonify(alerts)
+
+
+@app.route('/api/update-price', methods=['POST'])
+def update_price():
+    """Update item price on eBay"""
+    data = request.get_json()
+    item_id = data.get('item_id')
+    new_price = data.get('price')
+
+    if not item_id or not new_price:
+        return jsonify({'success': False, 'error': 'Missing parameters'})
+
+    success = ebay.update_price(item_id, float(new_price))
+
+    return jsonify({'success': success})
+
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'ok', 'app': 'dataradar-listings'})
+
+
+# =============================================================================
+# Main
+# =============================================================================
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5050)

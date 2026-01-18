@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Elvis Presley Birthday",
+    "keywords": ["elvis", "presley", "king of rock"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "01-06",
+    "end_date": "01-10"
+  },
+  {
+    "name": "Beatles Breakup Anniversary",
+    "keywords": ["beatles", "lennon", "mccartney", "harrison", "starr"],
+    "tier": "MEDIUM",
+    "increase_percent": 15,
+    "start_date": "04-08",
+    "end_date": "04-12"
+  },
+  {
+    "name": "John Lennon Birthday",
+    "keywords": ["lennon", "beatles", "imagine"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "10-07",
+    "end_date": "10-11"
+  },
+  {
+    "name": "John Lennon Death Anniversary",
+    "keywords": ["lennon", "beatles"],
+    "tier": "PEAK",
+    "increase_percent": 35,
+    "start_date": "12-06",
+    "end_date": "12-10"
+  },
+  {
+    "name": "Marilyn Monroe Birthday",
+    "keywords": ["marilyn", "monroe"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "06-01",
+    "end_date": "06-03"
+  },
+  {
+    "name": "Apollo 11 Anniversary",
+    "keywords": ["apollo", "nasa", "moon landing", "armstrong", "aldrin", "collins"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "07-16",
+    "end_date": "07-24"
+  },
+  {
+    "name": "David Bowie Birthday",
+    "keywords": ["bowie", "ziggy", "starman"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "01-08",
+    "end_date": "01-12"
+  },
+  {
+    "name": "Valentine's Day",
+    "keywords": ["love", "heart", "romance", "valentine"],
+    "tier": "MEDIUM",
+    "increase_percent": 15,
+    "start_date": "02-10",
+    "end_date": "02-15"
+  },
+  {
+    "name": "Christmas Season",
+    "keywords": ["christmas", "holiday", "santa", "xmas"],
+    "tier": "PEAK",
+    "increase_percent": 35,
+    "start_date": "12-01",
+    "end_date": "12-26"
+  },
+  {
+    "name": "Taylor Swift Birthday",
+    "keywords": ["taylor swift", "swiftie"],
+    "tier": "MAJOR",
+    "increase_percent": 25,
+    "start_date": "12-11",
+    "end_date": "12-15"
+  }
+]
