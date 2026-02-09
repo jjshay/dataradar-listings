@@ -28,7 +28,7 @@ MASTER_INDEX_PATH = '/Users/johnshay/DATARADAR/master_pricing_index.json'
 # =============================================================================
 
 def load_env():
-    """Load environment variables from .env file"""
+    """Load environment variables from .env file, falling back to os.environ"""
     env_vars = {}
     env_path = os.path.join(os.path.dirname(__file__), '.env')
     if os.path.exists(env_path):
@@ -38,6 +38,11 @@ def load_env():
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     env_vars[key] = value
+    # Fall back to OS environment variables (for Railway, Heroku, etc.)
+    for key in ['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET', 'EBAY_REFRESH_TOKEN',
+                'EBAY_DEV_ID', 'DATARADAR_SHEET_ID']:
+        if key not in env_vars and os.environ.get(key):
+            env_vars[key] = os.environ[key]
     return env_vars
 
 ENV = load_env()
