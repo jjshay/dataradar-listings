@@ -471,7 +471,57 @@ def get_calendar():
         month_str = f"{int(month):02d}"
         rules = [r for r in rules if r.get('start_date', '').startswith(month_str)]
 
-    return jsonify(rules)
+    # Transform rules into the format the frontend expects
+    now = datetime.now()
+    events = []
+    for rule in rules:
+        start_mmdd = rule.get('start_date', '')
+        end_mmdd = rule.get('end_date', '')
+        events.append({
+            'event': rule.get('name', ''),
+            'tier': rule.get('tier', 'MINOR'),
+            'increase': rule.get('increase_percent', 0),
+            'item': ', '.join(rule.get('keywords', [])[:3]),
+            'start_date': f"{now.year}-{start_mmdd}",
+            'end_date': f"{now.year}-{end_mmdd}",
+        })
+
+    return jsonify(events)
+
+
+@app.route('/api/upcoming-dates')
+def get_upcoming_dates():
+    """Get upcoming pricing events sorted by nearest date"""
+    rules = load_pricing_rules()
+    now = datetime.now()
+    upcoming = []
+
+    for rule in rules:
+        start_mmdd = rule.get('start_date', '')
+        try:
+            event_date = datetime.strptime(f"{now.year}-{start_mmdd}", '%Y-%m-%d')
+            # If the event end date has already passed this year, use next year
+            end_mmdd = rule.get('end_date', '')
+            end_date = datetime.strptime(f"{now.year}-{end_mmdd}", '%Y-%m-%d')
+            if end_date < now:
+                event_date = datetime.strptime(f"{now.year + 1}-{start_mmdd}", '%Y-%m-%d')
+        except ValueError:
+            continue
+
+        upcoming.append({
+            'month': event_date.strftime('%b').upper(),
+            'day': event_date.day,
+            'event': rule.get('name', ''),
+            'tier': rule.get('tier', 'MINOR'),
+            '_sort': event_date,
+        })
+
+    upcoming.sort(key=lambda x: x['_sort'])
+    # Remove sort key before returning
+    for item in upcoming:
+        del item['_sort']
+
+    return jsonify(upcoming[:10])
 
 
 @app.route('/api/underpriced')
@@ -624,4 +674,6 @@ def price_check():
 # =============================================================================
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5050)
+    port = int(os.environ.get('PORT', 5050))
+    debug = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
+    app.run(debug=debug, host='0.0.0.0', port=port)
