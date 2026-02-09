@@ -16,8 +16,12 @@ import json
 import base64
 import requests
 import pickle
+import re
 
 app = Flask(__name__, template_folder='templates')
+
+# Master pricing index path (from main DATARADAR)
+MASTER_INDEX_PATH = '/Users/johnshay/DATARADAR/master_pricing_index.json'
 
 # =============================================================================
 # Configuration
@@ -260,6 +264,141 @@ def get_matching_events(title):
     return matches
 
 # =============================================================================
+# Market Pricing (from Master Index)
+# =============================================================================
+
+_market_index = None
+_market_index_loaded = None
+
+def load_market_index():
+    """Load or reload the master pricing index"""
+    global _market_index, _market_index_loaded
+
+    # Reload if file changed or not loaded
+    if os.path.exists(MASTER_INDEX_PATH):
+        mtime = os.path.getmtime(MASTER_INDEX_PATH)
+        if _market_index is None or _market_index_loaded != mtime:
+            with open(MASTER_INDEX_PATH, 'r') as f:
+                _market_index = json.load(f)
+            _market_index_loaded = mtime
+
+    return _market_index
+
+
+def categorize_for_market(title):
+    """Categorize item to match market index categories"""
+    title_lower = title.lower()
+
+    # KAWS categories
+    if 'kaws' in title_lower:
+        if '1000%' in title_lower or '1000 %' in title_lower:
+            return 'KAWS - Bearbrick 1000%'
+        if 'bearbrick' in title_lower or 'be@rbrick' in title_lower:
+            if '400%' in title_lower:
+                return 'KAWS - Bearbrick 400%'
+            if '100%' in title_lower:
+                return 'KAWS - Bearbrick 100%'
+            return 'KAWS - Bearbrick'
+        if 'companion' in title_lower:
+            return 'KAWS - Companion'
+        if 'chum' in title_lower:
+            return 'KAWS - Chum'
+        if 'bff' in title_lower:
+            return 'KAWS - BFF'
+        return 'KAWS - Other'
+
+    # Bearbrick (non-KAWS)
+    if 'bearbrick' in title_lower or 'be@rbrick' in title_lower:
+        if '1000%' in title_lower:
+            return 'Bearbrick - 1000%'
+        if '400%' in title_lower:
+            return 'Bearbrick - 400%'
+        if '100%' in title_lower:
+            return 'Bearbrick - 100%'
+        if 'basquiat' in title_lower:
+            return 'Bearbrick - Basquiat'
+        return 'Bearbrick - Other'
+
+    # Shepard Fairey / OBEY
+    if 'shepard fairey' in title_lower or 'obey giant' in title_lower:
+        if 'hope' in title_lower:
+            return 'Shepard Fairey - Hope'
+        if 'make art not war' in title_lower:
+            return 'Shepard Fairey - Make Art Not War'
+        if 'peace' in title_lower:
+            return 'Shepard Fairey - Peace'
+        return 'Shepard Fairey - Print'
+
+    # Death NYC
+    if 'death nyc' in title_lower:
+        return 'Death NYC - Print'
+
+    # Banksy
+    if 'banksy' in title_lower:
+        return 'Banksy - Print'
+
+    return None
+
+
+def get_market_price(title):
+    """Get market pricing data for an item based on title"""
+    index = load_market_index()
+    if not index:
+        return None
+
+    category = categorize_for_market(title)
+    if not category:
+        return None
+
+    categories = index.get('categories', {})
+    if category in categories:
+        data = categories[category]
+        return {
+            'category': category,
+            'count': data.get('count', 0),
+            'sold_count': data.get('sold_count', 0),
+            'min_price': data.get('min_price', 0),
+            'max_price': data.get('max_price', 0),
+            'avg_price': data.get('avg_price', 0),
+            'median_price': data.get('median_price', 0),
+            'sold_avg': data.get('sold_avg', 0),
+            'sold_median': data.get('sold_median', 0)
+        }
+
+    return None
+
+
+def get_price_assessment(current_price, title):
+    """Assess if current price is good compared to market"""
+    market = get_market_price(title)
+    if not market or market['sold_median'] == 0:
+        return None
+
+    sold_median = market['sold_median']
+    diff_pct = ((current_price - sold_median) / sold_median) * 100
+
+    if current_price < sold_median * 0.7:
+        status = 'underpriced'
+        suggestion = f"Consider raising to ${sold_median:.0f}"
+    elif current_price > sold_median * 1.5:
+        status = 'overpriced'
+        suggestion = f"Market median is ${sold_median:.0f}"
+    else:
+        status = 'fair'
+        suggestion = None
+
+    return {
+        'status': status,
+        'market_median': sold_median,
+        'market_avg': market['sold_avg'],
+        'diff_percent': round(diff_pct, 1),
+        'suggestion': suggestion,
+        'category': market['category'],
+        'sample_size': market['sold_count']
+    }
+
+
+# =============================================================================
 # Flask Routes
 # =============================================================================
 
@@ -278,13 +417,22 @@ def get_listings():
     if search:
         listings = [l for l in listings if search in l['title'].lower()]
 
-    # Add suggested prices
+    # Add suggested prices and market data
     for listing in listings:
         listing['suggested_price'] = calculate_suggested_price(
             listing['price'],
             listing['title']
         )
         listing['matching_events'] = get_matching_events(listing['title'])
+
+        # Add market pricing data
+        market = get_market_price(listing['title'])
+        if market:
+            listing['market_data'] = market
+            listing['price_assessment'] = get_price_assessment(
+                listing['price'],
+                listing['title']
+            )
 
     return jsonify(listings)
 
@@ -393,6 +541,82 @@ def update_price():
 def health():
     """Health check endpoint"""
     return jsonify({'status': 'ok', 'app': 'dataradar-listings'})
+
+
+@app.route('/api/market-lookup')
+def market_lookup():
+    """Look up market pricing for a search term"""
+    query = request.args.get('q', '')
+    if not query:
+        return jsonify({'error': 'Missing query parameter'}), 400
+
+    market = get_market_price(query)
+    if market:
+        return jsonify({
+            'query': query,
+            'found': True,
+            **market
+        })
+
+    return jsonify({
+        'query': query,
+        'found': False,
+        'message': 'No market data found for this item type'
+    })
+
+
+@app.route('/api/market-categories')
+def market_categories():
+    """Get all available market categories with stats"""
+    index = load_market_index()
+    if not index:
+        return jsonify({'error': 'Market index not loaded'}), 500
+
+    categories = []
+    for key, data in index.get('categories', {}).items():
+        categories.append({
+            'category': key,
+            'count': data.get('count', 0),
+            'sold_count': data.get('sold_count', 0),
+            'avg_price': round(data.get('avg_price', 0), 2),
+            'median_price': round(data.get('median_price', 0), 2),
+            'sold_median': round(data.get('sold_median', 0), 2)
+        })
+
+    # Sort by count descending
+    categories.sort(key=lambda x: x['count'], reverse=True)
+
+    return jsonify({
+        'generated': index.get('generated'),
+        'total_items': index.get('total_items', 0),
+        'categories': categories
+    })
+
+
+@app.route('/api/price-check', methods=['POST'])
+def price_check():
+    """Check if a price is good for a given item"""
+    data = request.get_json()
+    title = data.get('title', '')
+    price = data.get('price', 0)
+
+    if not title or not price:
+        return jsonify({'error': 'Missing title or price'}), 400
+
+    assessment = get_price_assessment(float(price), title)
+    if assessment:
+        return jsonify({
+            'title': title,
+            'your_price': price,
+            **assessment
+        })
+
+    return jsonify({
+        'title': title,
+        'your_price': price,
+        'status': 'unknown',
+        'message': 'No market data available for this item type'
+    })
 
 
 # =============================================================================
