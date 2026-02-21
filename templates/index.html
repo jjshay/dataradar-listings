@@ -6,6 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>DATARADAR</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --bg: #000;
@@ -17,6 +18,7 @@
             --orange: #ff9f0a;
             --red: #ff453a;
             --border: #38383a;
+            --purple: #bf5af2;
         }
 
         * {
@@ -38,7 +40,7 @@
             max-width: 430px;
             margin: 0 auto;
             min-height: 100vh;
-            padding-bottom: 90px;
+            padding-bottom: 80px;
         }
 
         /* Header */
@@ -62,21 +64,27 @@
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
             padding: 0 16px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
 
         .stat-card {
             background: var(--card);
-            border-radius: 16px;
-            padding: 16px;
+            border-radius: 14px;
+            padding: 14px;
             text-align: center;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+
+        .stat-card:active {
+            transform: scale(0.96);
         }
 
         .stat-card .value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 600;
         }
 
@@ -91,6 +99,8 @@
         .stat-card.green .value { color: var(--green); }
         .stat-card.orange .value { color: var(--orange); }
         .stat-card.red .value { color: var(--red); }
+        .stat-card.purple .value { color: var(--purple); }
+        .stat-card.accent .value { color: var(--accent); }
 
         /* Section */
         .section {
@@ -270,79 +280,39 @@
         .tier.medium { background: var(--accent); }
         .tier.minor { background: var(--dim); }
 
-        /* Action Buttons */
-        .actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            padding: 0 16px;
-            margin-bottom: 24px;
-        }
-
-        .action-btn {
-            padding: 16px;
-            border-radius: 14px;
-            border: none;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: transform 0.1s, opacity 0.1s;
-        }
-
-        .action-btn:active {
-            transform: scale(0.98);
-            opacity: 0.9;
-        }
-
-        .action-btn.primary {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .action-btn.secondary {
-            background: var(--card);
-            color: var(--text);
-        }
-
-        .action-btn:disabled {
-            opacity: 0.5;
-        }
-
-        /* Bottom Nav */
+        /* Bottom Nav — 6 tabs */
         .bottom-nav {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(28, 28, 30, 0.9);
+            background: rgba(28, 28, 30, 0.92);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             display: flex;
             justify-content: space-around;
-            padding: 12px 0 28px;
+            padding: 8px 0 24px;
             border-top: 1px solid var(--border);
+            z-index: 100;
         }
 
         .nav-item {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
             color: var(--dim);
             background: none;
             border: none;
-            font-size: 10px;
+            font-size: 9px;
             cursor: pointer;
-            padding: 0 16px;
+            padding: 0 6px;
+            min-width: 0;
         }
 
         .nav-item svg {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
         }
 
         .nav-item.active {
@@ -401,7 +371,7 @@
             transform: translateY(-120%);
             opacity: 0;
             transition: all 0.3s ease;
-            z-index: 1000;
+            z-index: 3000;
         }
 
         .toast.show {
@@ -451,17 +421,6 @@
 
         .badge.auction { background: var(--orange); color: #000; }
         .badge.deal { background: var(--green); color: #000; }
-
-        /* Clickable stat cards */
-        .stat-card.clickable {
-            cursor: pointer;
-            transition: transform 0.15s, background 0.15s;
-        }
-
-        .stat-card.clickable:active {
-            transform: scale(0.96);
-            background: #2c2c2e;
-        }
 
         /* Modal */
         .modal-overlay {
@@ -650,7 +609,7 @@
         }
 
         .category-checkbox input:checked + .checkmark::after {
-            content: '✓';
+            content: '\2713';
             color: #fff;
             font-size: 14px;
             font-weight: bold;
@@ -736,6 +695,40 @@
 
         .pricing-actions .action-btn {
             flex: 1;
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.1s, opacity 0.1s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+
+        .action-btn.primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .action-btn.secondary {
+            background: var(--card);
+            color: var(--text);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
         }
 
         /* Calendar Month View */
@@ -908,6 +901,302 @@
             color: var(--green);
         }
 
+        /* ==========================================
+           Art Deals Page Styles
+           ========================================== */
+        .art-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .art-controls select, .art-controls input {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .art-controls select {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .art-deal-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .art-deal-card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 14px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .art-deal-card:active {
+            transform: scale(0.98);
+        }
+
+        .art-deal-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .art-deal-artist {
+            font-size: 11px;
+            color: var(--purple);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .art-deal-discount {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--green);
+            background: rgba(48, 209, 88, 0.15);
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .art-deal-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .art-deal-prices {
+            display: flex;
+            gap: 12px;
+            align-items: baseline;
+        }
+
+        .art-deal-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .art-deal-median {
+            font-size: 13px;
+            color: var(--dim);
+        }
+
+        .art-deal-profit {
+            font-size: 13px;
+            color: var(--orange);
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        /* ==========================================
+           eBay Deals Page Styles
+           ========================================== */
+        .deal-tiles {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .deal-tile {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .deal-tile:active {
+            transform: scale(0.96);
+        }
+
+        .deal-tile.active {
+            border-color: var(--accent);
+            background: rgba(10, 132, 255, 0.1);
+        }
+
+        .deal-tile-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .deal-tile-label {
+            font-size: 11px;
+            color: var(--dim);
+            font-weight: 600;
+        }
+
+        .price-range-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .price-range-row label {
+            font-size: 12px;
+            color: var(--dim);
+            min-width: 30px;
+        }
+
+        .price-range-row input[type="number"] {
+            flex: 1;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            padding: 10px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .deal-result-card {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            text-decoration: none;
+            color: inherit;
+            gap: 12px;
+        }
+
+        .deal-result-card:last-child {
+            border-bottom: none;
+        }
+
+        .deal-result-card:active {
+            background: #2c2c2e;
+        }
+
+        .deal-result-img {
+            width: 56px;
+            height: 56px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #2c2c2e;
+            flex-shrink: 0;
+        }
+
+        .deal-result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .deal-result-title {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .deal-result-meta {
+            font-size: 12px;
+            color: var(--dim);
+            margin-top: 2px;
+        }
+
+        .deal-result-price {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--green);
+            white-space: nowrap;
+        }
+
+        /* ==========================================
+           Watchlist Page Styles
+           ========================================== */
+        .watch-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+        }
+
+        .watch-item:last-child {
+            border-bottom: none;
+        }
+
+        .watch-item-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #2c2c2e;
+            flex-shrink: 0;
+        }
+
+        .watch-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .watch-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .watch-item-meta {
+            font-size: 12px;
+            color: var(--dim);
+            margin-top: 2px;
+        }
+
+        .watch-item-price {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--green);
+            white-space: nowrap;
+        }
+
+        .watch-item-delete {
+            background: none;
+            border: none;
+            color: var(--red);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .add-watch-btn {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 52px;
+            height: 52px;
+            background: var(--accent);
+            border: none;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 28px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(10, 132, 255, 0.4);
+            z-index: 50;
+        }
+
         /* Underpriced Items */
         .underpriced-row {
             display: flex;
@@ -1021,7 +1310,9 @@
 </head>
 <body>
     <div class="app">
-        <!-- Home Page -->
+        <!-- ==========================================
+             HOME PAGE
+             ========================================== -->
         <div class="page active" id="page-home">
             <div class="header">
                 <h1>DATARADAR</h1>
@@ -1029,35 +1320,28 @@
             </div>
 
             <div class="stats-grid">
-                <div class="stat-card clickable" id="stat-listings-card" onclick="showListingsModal()">
+                <div class="stat-card" onclick="showPage('items')">
                     <div class="value" id="stat-listings">--</div>
                     <div class="label">Listings</div>
                 </div>
-                <div class="stat-card green clickable" onclick="showPage('calendar')">
-                    <div class="value" id="stat-rules">--</div>
-                    <div class="label">Active</div>
+                <div class="stat-card green" onclick="showPage('art')">
+                    <div class="value" id="stat-art">--</div>
+                    <div class="label">Art Deals</div>
                 </div>
-                <div class="stat-card orange clickable" onclick="showAlertsModal()">
-                    <div class="value" id="stat-alerts">--</div>
-                    <div class="label">Alerts</div>
+                <div class="stat-card purple" onclick="showPage('deals')">
+                    <div class="value" id="stat-targets">--</div>
+                    <div class="label">Deal Targets</div>
                 </div>
-            </div>
-
-            <div class="actions">
-                <button class="action-btn primary" id="btn-pricing" onclick="showPricingModal()">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v2M4.93 4.93l2.83 2.83M14.24 14.24l2.83 2.83M2 12h4M18 12h2M4.93 19.07l2.83-2.83M14.24 7.76l2.83-2.83"/></svg>
-                    Update Prices
-                </button>
-                <button class="action-btn secondary" id="btn-refresh">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-                    Refresh
-                </button>
+                <div class="stat-card orange" onclick="showPage('watch')">
+                    <div class="value" id="stat-watch">--</div>
+                    <div class="label">Watching</div>
+                </div>
             </div>
 
             <div class="section">
                 <div class="section-header">
                     <h2 class="section-title">Upcoming Events</h2>
-                    <button class="section-action" onclick="showPage('calendar')">See All</button>
+                    <button class="section-action" onclick="showPage('dates')">See All</button>
                 </div>
                 <div class="date-scroll" id="upcoming-dates">
                     <div class="loading"><div class="spinner"></div></div>
@@ -1066,19 +1350,21 @@
 
             <div class="section">
                 <div class="section-header">
-                    <h2 class="section-title">Recent Listings</h2>
-                    <button class="section-action" onclick="showPage('inventory')">See All</button>
+                    <h2 class="section-title">Top Art Deals</h2>
+                    <button class="section-action" onclick="showPage('art')">See All</button>
                 </div>
-                <div class="card" id="recent-listings">
+                <div id="home-art-deals">
                     <div class="loading"><div class="spinner"></div></div>
                 </div>
             </div>
         </div>
 
-        <!-- Inventory Page -->
-        <div class="page" id="page-inventory">
+        <!-- ==========================================
+             ITEMS PAGE (Inventory)
+             ========================================== -->
+        <div class="page" id="page-items">
             <div class="header">
-                <h1>Inventory</h1>
+                <h1>Items</h1>
             </div>
 
             <div class="section">
@@ -1101,42 +1387,128 @@
             </div>
         </div>
 
-        <!-- Deals Page (Underpriced Inventory) -->
-        <div class="page" id="page-deals">
+        <!-- ==========================================
+             ART DEALS PAGE
+             ========================================== -->
+        <div class="page" id="page-art">
             <div class="header">
-                <h1>Underpriced</h1>
-                <div class="time">Items to boost based on active events</div>
+                <h1>Art Deals</h1>
+                <div class="time">Market deals with price history</div>
             </div>
 
             <div class="section">
                 <div class="search-bar">
                     <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input type="text" id="underpriced-search" placeholder="Search underpriced items...">
+                    <input type="text" id="art-search" placeholder="Search art deals...">
                 </div>
 
-                <div id="underpriced-summary" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <span id="underpriced-count" style="color: var(--dim); font-size: 14px;">Loading...</span>
-                    <button class="action-btn primary" id="boost-all-btn" onclick="boostAllUnderpriced()" style="padding: 10px 20px; font-size: 14px;">
-                        Boost All
-                    </button>
+                <div class="art-controls">
+                    <select id="art-artist-filter">
+                        <option value="">All Artists</option>
+                    </select>
+                    <select id="art-sort">
+                        <option value="profit">Top Profit</option>
+                        <option value="discount">Best Discount</option>
+                        <option value="price_low">Price: Low</option>
+                        <option value="price_high">Price: High</option>
+                    </select>
                 </div>
 
-                <div class="card" id="underpriced-results">
+                <div id="art-count" style="color: var(--dim); font-size: 13px; margin-bottom: 12px;">Loading...</div>
+
+                <div class="art-deal-grid" id="art-results">
                     <div class="loading"><div class="spinner"></div></div>
                 </div>
             </div>
         </div>
 
-        <!-- Calendar Page -->
-        <div class="page" id="page-calendar">
+        <!-- ==========================================
+             EBAY DEALS PAGE
+             ========================================== -->
+        <div class="page" id="page-deals">
+            <div class="header">
+                <h1>Deals</h1>
+                <div class="time">Real-time eBay deal finder</div>
+            </div>
+
+            <div class="section">
+                <div class="search-bar">
+                    <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="deal-search" placeholder="Search eBay deals...">
+                </div>
+
+                <div class="deal-tiles" id="deal-tiles">
+                    <div class="deal-tile" onclick="dealQuickSearch('Mr Brainwash signed', this)">
+                        <div class="deal-tile-icon">&#127912;</div>
+                        <div class="deal-tile-label">MBW</div>
+                    </div>
+                    <div class="deal-tile" onclick="dealQuickSearch('Shepard Fairey signed', this)">
+                        <div class="deal-tile-icon">&#9734;</div>
+                        <div class="deal-tile-label">Fairey</div>
+                    </div>
+                    <div class="deal-tile" onclick="dealQuickSearch('signed pickguard COA', this)">
+                        <div class="deal-tile-icon">&#127928;</div>
+                        <div class="deal-tile-label">Pickguards</div>
+                    </div>
+                    <div class="deal-tile" onclick="dealQuickSearch('signed vinyl COA', this)">
+                        <div class="deal-tile-icon">&#127926;</div>
+                        <div class="deal-tile-label">Vinyl</div>
+                    </div>
+                    <div class="deal-tile" onclick="dealQuickSearch('Apollo astronaut signed', this)">
+                        <div class="deal-tile-icon">&#128640;</div>
+                        <div class="deal-tile-label">Space</div>
+                    </div>
+                    <div class="deal-tile" onclick="dealQuickSearch('Taylor Swift signed', this)">
+                        <div class="deal-tile-icon">&#127925;</div>
+                        <div class="deal-tile-label">T Swift</div>
+                    </div>
+                </div>
+
+                <div class="price-range-row">
+                    <label>Min $</label>
+                    <input type="number" id="deal-min-price" value="75" min="0">
+                    <label>Max $</label>
+                    <input type="number" id="deal-max-price" value="500" min="0">
+                </div>
+
+                <div class="card" id="deal-results">
+                    <div class="empty">Tap a category or search to find deals</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             WATCHLIST PAGE
+             ========================================== -->
+        <div class="page" id="page-watch">
+            <div class="header">
+                <h1>Watchlist</h1>
+                <div class="time">Items you're tracking</div>
+            </div>
+
+            <div class="section">
+                <div id="watch-count" style="color: var(--dim); font-size: 13px; margin-bottom: 12px;">Loading...</div>
+                <div class="card" id="watch-results">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating add button for watchlist -->
+        <button class="add-watch-btn" id="add-watch-btn" onclick="showAddWatchModal()">+</button>
+
+        <!-- ==========================================
+             DATES PAGE (Calendar)
+             ========================================== -->
+        <div class="page" id="page-dates">
             <div class="header" style="padding-bottom: 10px;">
                 <h1>Key Dates</h1>
             </div>
 
             <div class="calendar-nav">
-                <button class="calendar-nav-btn" onclick="prevMonth()">‹</button>
+                <button class="calendar-nav-btn" onclick="prevMonth()">&#8249;</button>
                 <span class="calendar-month-title" id="calendar-month-title">January 2026</span>
-                <button class="calendar-nav-btn" onclick="nextMonth()">›</button>
+                <button class="calendar-nav-btn" onclick="nextMonth()">&#8250;</button>
             </div>
 
             <div class="calendar-grid" id="calendar-grid">
@@ -1147,7 +1519,6 @@
                 <div class="calendar-day-header">Thu</div>
                 <div class="calendar-day-header">Fri</div>
                 <div class="calendar-day-header">Sat</div>
-                <!-- Days will be populated by JS -->
             </div>
 
             <div class="month-events" id="month-events">
@@ -1159,27 +1530,91 @@
         </div>
     </div>
 
-    <!-- Bottom Navigation -->
+    <!-- Bottom Navigation (6 tabs) -->
     <nav class="bottom-nav">
         <button class="nav-item active" data-page="home">
             <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
             Home
         </button>
-        <button class="nav-item" data-page="inventory">
+        <button class="nav-item" data-page="items">
             <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            Inventory
+            Items
+        </button>
+        <button class="nav-item" data-page="art">
+            <svg fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Art
         </button>
         <button class="nav-item" data-page="deals">
             <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            Boost
+            Deals
         </button>
-        <button class="nav-item" data-page="calendar">
+        <button class="nav-item" data-page="watch">
+            <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Watch
+        </button>
+        <button class="nav-item" data-page="dates">
             <svg fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Calendar
+            Dates
         </button>
     </nav>
 
     <div class="toast" id="toast"></div>
+
+    <!-- ==========================================
+         MODALS
+         ========================================== -->
+
+    <!-- Art Deal Detail Modal -->
+    <div class="modal-overlay" id="art-detail-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="art-detail-title" style="font-size: 16px;">Deal Detail</h2>
+                <button class="modal-close" onclick="closeArtDetail()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <div id="art-detail-content"></div>
+                <div style="margin-top: 16px;">
+                    <canvas id="art-price-chart" height="200"></canvas>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 10px;">
+                    <a id="art-detail-link" href="#" target="_blank" class="action-btn primary" style="flex:1; text-decoration:none; text-align:center;">View on eBay</a>
+                    <button class="action-btn secondary" style="flex:1;" onclick="watchFromArt()">Add to Watch</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add to Watchlist Modal -->
+    <div class="modal-overlay" id="add-watch-modal">
+        <div class="modal" style="max-height: 60vh;">
+            <div class="modal-header">
+                <h2>Add to Watchlist</h2>
+                <button class="modal-close" onclick="closeAddWatchModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <div class="pricing-section">
+                    <label class="pricing-label">Title</label>
+                    <input type="text" id="watch-add-title" class="pricing-input" style="width:100%;text-align:left;" placeholder="Item title...">
+                </div>
+                <div class="pricing-section">
+                    <label class="pricing-label">Price</label>
+                    <input type="number" id="watch-add-price" class="pricing-input" style="width:100%;text-align:left;" placeholder="0.00" step="0.01">
+                </div>
+                <div class="pricing-section">
+                    <label class="pricing-label">URL</label>
+                    <input type="text" id="watch-add-url" class="pricing-input" style="width:100%;text-align:left;" placeholder="https://...">
+                </div>
+                <div class="pricing-section">
+                    <label class="pricing-label">Notes</label>
+                    <input type="text" id="watch-add-notes" class="pricing-input" style="width:100%;text-align:left;" placeholder="Optional notes...">
+                </div>
+                <div class="pricing-actions">
+                    <button class="action-btn secondary" onclick="closeAddWatchModal()">Cancel</button>
+                    <button class="action-btn primary" onclick="saveWatchItem()">Add Item</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Pricing Modal -->
     <div class="modal-overlay" id="pricing-modal">
@@ -1191,11 +1626,8 @@
             <div class="modal-body" style="padding: 16px;">
                 <div class="pricing-section">
                     <label class="pricing-label">Select Categories</label>
-                    <div class="category-grid" id="category-checkboxes">
-                        <!-- Categories will be populated dynamically -->
-                    </div>
+                    <div class="category-grid" id="category-checkboxes"></div>
                 </div>
-
                 <div class="pricing-section">
                     <label class="pricing-label">Price Adjustment</label>
                     <div class="adjustment-row">
@@ -1209,7 +1641,6 @@
                         <input type="number" id="adjustment-value" class="pricing-input" placeholder="0" min="0" step="0.01">
                     </div>
                 </div>
-
                 <div class="pricing-section">
                     <label class="pricing-label">Preview</label>
                     <div class="preview-box" id="pricing-preview">
@@ -1217,12 +1648,9 @@
                         <div class="preview-example"></div>
                     </div>
                 </div>
-
                 <div class="pricing-actions">
                     <button class="action-btn secondary" onclick="closePricingModal()">Cancel</button>
-                    <button class="action-btn primary" id="apply-pricing-btn" onclick="applyPricingChanges()">
-                        Apply Changes
-                    </button>
+                    <button class="action-btn primary" id="apply-pricing-btn" onclick="applyPricingChanges()">Apply Changes</button>
                 </div>
             </div>
         </div>
@@ -1237,52 +1665,6 @@
             </div>
             <div class="modal-body" id="alerts-list">
                 <div class="loading"><div class="spinner"></div></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Price Edit Modal -->
-    <div class="modal-overlay" id="price-edit-modal">
-        <div class="modal" style="max-height: 60vh;">
-            <div class="modal-header">
-                <h2>Edit Price</h2>
-                <button class="modal-close" onclick="closePriceEditModal()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 16px;">
-                <div id="price-edit-item-title" style="font-size: 14px; color: var(--dim); margin-bottom: 16px;"></div>
-
-                <div class="pricing-section">
-                    <label class="pricing-label">Current Price</label>
-                    <div id="price-edit-current" style="font-size: 18px; color: var(--dim); text-decoration: line-through;"></div>
-                </div>
-
-                <div class="pricing-section">
-                    <label class="pricing-label">Suggested Price (+<span id="price-edit-boost">0</span>%)</label>
-                    <div id="price-edit-suggested" style="font-size: 18px; color: var(--green); margin-bottom: 8px;"></div>
-                </div>
-
-                <div class="pricing-section">
-                    <label class="pricing-label">New Price</label>
-                    <input type="number" id="price-edit-input" class="pricing-input" style="width: 100%; text-align: left; font-size: 24px; padding: 16px;" step="0.01" min="0.99">
-                </div>
-
-                <div class="pricing-section" style="margin-top: 8px;">
-                    <label class="pricing-label">Quick Adjust</label>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="chip" onclick="quickAdjustPrice(-10)">-$10</button>
-                        <button class="chip" onclick="quickAdjustPrice(-5)">-$5</button>
-                        <button class="chip" onclick="quickAdjustPrice(5)">+$5</button>
-                        <button class="chip" onclick="quickAdjustPrice(10)">+$10</button>
-                        <button class="chip" onclick="setToSuggested()">Suggested</button>
-                    </div>
-                </div>
-
-                <div class="pricing-actions">
-                    <button class="action-btn secondary" onclick="closePriceEditModal()">Cancel</button>
-                    <button class="action-btn primary" id="price-edit-save-btn" onclick="savePriceEdit()">
-                        Update on eBay
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -1304,14 +1686,16 @@
     </div>
 
     <script>
+        // ==========================================
         // State
+        // ==========================================
         let currentPage = 'home';
-        let currentCat = 'all';
-        let currentTier = 'all';
         let invFilter = 'all';
         let allListings = [];
+        let artDealsData = [];
+        let currentArtDeal = null;
+        let artPriceChart = null;
 
-        // Elements
         const toast = document.getElementById('toast');
 
         // Artist detection patterns
@@ -1347,339 +1731,26 @@
             return 'Art';
         }
 
-        function extractTitle(fullTitle, artist) {
-            // Remove common prefixes and the artist name
-            let title = fullTitle
-                .replace(/^(death\s*nyc|shepard\s*fairey|obey)\s*[-–—]\s*/i, '')
-                .replace(/signed\s*(print|art|lithograph|poster)?\s*/i, '')
-                .replace(/limited\s*edition\s*/i, '')
-                .replace(/\s*[-–—]\s*signed.*$/i, '')
-                .replace(/\s*w\/?coa.*$/i, '')
-                .replace(/\s*\d+\/\d+\s*$/i, '')  // Remove edition numbers
-                .trim();
-            return title || fullTitle;
-        }
-
-        // Alerts Modal
-        async function showAlertsModal() {
-            const modal = document.getElementById('alerts-modal');
-            const alertsList = document.getElementById('alerts-list');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            alertsList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/alerts');
-                const alerts = await resp.json();
-
-                if (!alerts.length) {
-                    alertsList.innerHTML = '<div class="empty">No alerts - everything looks good!</div>';
-                    return;
-                }
-
-                const icons = {
-                    'low_price': '💰',
-                    'high_price': '💎',
-                    'update_failed': '⚠️'
-                };
-
-                alertsList.innerHTML = alerts.map(alert => `
-                    <a href="${alert.url}" target="_blank" class="alert-row">
-                        <div class="alert-icon ${alert.type}">${icons[alert.type] || '!'}</div>
-                        <div class="alert-info">
-                            <div class="alert-title">${alert.title}</div>
-                            <div class="alert-message">${alert.message}</div>
-                        </div>
-                        <span class="item-arrow">›</span>
-                    </a>
-                `).join('');
-            } catch (e) {
-                alertsList.innerHTML = '<div class="empty">Failed to load alerts</div>';
-            }
-        }
-
-        function closeAlertsModal() {
-            document.getElementById('alerts-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('alerts-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'alerts-modal') closeAlertsModal();
-        });
-
-        // Modal functions
-        async function showListingsModal() {
-            const modal = document.getElementById('listings-modal');
-            const modalBody = document.getElementById('modal-listings');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            modalBody.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/search?q=');
-                allListings = await resp.json();
-                renderModalListings(allListings);
-            } catch (e) {
-                modalBody.innerHTML = '<div class="empty">Failed to load listings</div>';
-            }
-        }
-
-        function closeListingsModal() {
-            const modal = document.getElementById('listings-modal');
-            modal.classList.remove('show');
-            document.body.style.overflow = '';
-            document.getElementById('modal-search').value = '';
-        }
-
-        function filterModalListings() {
-            const query = document.getElementById('modal-search').value.toLowerCase();
-            const filtered = allListings.filter(item =>
-                item.title.toLowerCase().includes(query) ||
-                item.id.includes(query)
-            );
-            renderModalListings(filtered);
-        }
-
-        function renderModalListings(listings) {
-            const modalBody = document.getElementById('modal-listings');
-
-            if (!listings.length) {
-                modalBody.innerHTML = '<div class="empty">No listings found</div>';
-                return;
-            }
-
-            modalBody.innerHTML = listings.map(item => {
-                const artist = detectArtist(item.title);
-                const artTitle = extractTitle(item.title, artist);
-                const sku = item.id.replace(/^v1\|/, '').split('|')[0];
-
-                return `
-                    <a href="${item.url}" target="_blank" class="listing-row">
-                        <div class="listing-info">
-                            <div class="listing-artist">${artist}</div>
-                            <div class="listing-title">${artTitle}</div>
-                            <div class="listing-sku">SKU: ${sku}</div>
-                        </div>
-                        <div class="listing-price">$${item.price.toFixed(2)}</div>
-                    </a>
-                `;
-            }).join('');
-        }
-
-        // Close modal on overlay click
-        document.getElementById('listings-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'listings-modal') closeListingsModal();
-        });
-
-        // Pricing Modal Functions
-        let pricingListings = [];
-        let categoryData = {};
-
-        async function showPricingModal() {
-            const modal = document.getElementById('pricing-modal');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            // Load listings if not already loaded
-            if (!allListings.length) {
-                try {
-                    const resp = await fetch('/api/search?q=');
-                    allListings = await resp.json();
-                } catch (e) {
-                    showToast('Failed to load listings');
-                    return;
-                }
-            }
-
-            pricingListings = [...allListings];
-
-            // Build category counts
-            categoryData = {};
-            for (const item of pricingListings) {
-                const cat = detectArtist(item.title);
-                if (!categoryData[cat]) {
-                    categoryData[cat] = { count: 0, items: [] };
-                }
-                categoryData[cat].count++;
-                categoryData[cat].items.push(item);
-            }
-
-            // Sort by count descending
-            const sortedCats = Object.entries(categoryData)
-                .sort((a, b) => b[1].count - a[1].count);
-
-            // Render category checkboxes
-            document.getElementById('category-checkboxes').innerHTML = sortedCats.map(([cat, data]) => `
-                <label class="category-checkbox">
-                    <input type="checkbox" value="${cat}" onchange="updatePricingPreview()">
-                    <span class="checkmark"></span>
-                    <span class="cat-name">${cat}</span>
-                    <span class="cat-count">${data.count}</span>
-                </label>
-            `).join('');
-
-            // Reset form
-            document.getElementById('adjustment-type').value = 'percent_increase';
-            document.getElementById('adjustment-value').value = '';
-            updatePricingPreview();
-        }
-
-        function closePricingModal() {
-            document.getElementById('pricing-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('pricing-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'pricing-modal') closePricingModal();
-        });
-
-        // Update preview when inputs change
-        document.getElementById('adjustment-type')?.addEventListener('change', updatePricingPreview);
-        document.getElementById('adjustment-value')?.addEventListener('input', updatePricingPreview);
-
-        function updatePricingPreview() {
-            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
-            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
-            const adjustType = document.getElementById('adjustment-type').value;
-            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
-
-            // Count selected items
-            let selectedItems = [];
-            for (const cat of selectedCats) {
-                if (categoryData[cat]) {
-                    selectedItems = selectedItems.concat(categoryData[cat].items);
-                }
-            }
-
-            const previewDiv = document.getElementById('pricing-preview');
-            const countText = `${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''} selected`;
-
-            if (selectedItems.length === 0 || adjustValue === 0) {
-                previewDiv.innerHTML = `
-                    <div class="preview-count">${countText}</div>
-                    <div class="preview-example" style="color: var(--dim);">Select categories and enter an adjustment value</div>
-                `;
-                return;
-            }
-
-            // Calculate example
-            const exampleItem = selectedItems[0];
-            const oldPrice = exampleItem.price;
-            let newPrice = oldPrice;
-            let changeText = '';
-
-            switch (adjustType) {
-                case 'percent_increase':
-                    newPrice = oldPrice * (1 + adjustValue / 100);
-                    changeText = `+${adjustValue}%`;
-                    break;
-                case 'percent_decrease':
-                    newPrice = oldPrice * (1 - adjustValue / 100);
-                    changeText = `-${adjustValue}%`;
-                    break;
-                case 'fixed_increase':
-                    newPrice = oldPrice + adjustValue;
-                    changeText = `+$${adjustValue.toFixed(2)}`;
-                    break;
-                case 'fixed_decrease':
-                    newPrice = oldPrice - adjustValue;
-                    changeText = `-$${adjustValue.toFixed(2)}`;
-                    break;
-                case 'set_price':
-                    newPrice = adjustValue;
-                    changeText = `set to $${adjustValue.toFixed(2)}`;
-                    break;
-            }
-
-            newPrice = Math.max(0.99, newPrice); // Min price $0.99
-
-            previewDiv.innerHTML = `
-                <div class="preview-count">${countText}</div>
-                <div class="preview-example">
-                    Example: <span class="old-price">$${oldPrice.toFixed(2)}</span>
-                    <span class="new-price">$${newPrice.toFixed(2)}</span>
-                    <span class="change">(${changeText})</span>
-                </div>
-            `;
-        }
-
-        async function applyPricingChanges() {
-            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
-            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
-            const adjustType = document.getElementById('adjustment-type').value;
-            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
-
-            if (selectedCats.length === 0) {
-                showToast('Select at least one category');
-                return;
-            }
-
-            if (adjustValue === 0) {
-                showToast('Enter an adjustment value');
-                return;
-            }
-
-            // Get items to update
-            let itemsToUpdate = [];
-            for (const cat of selectedCats) {
-                if (categoryData[cat]) {
-                    itemsToUpdate = itemsToUpdate.concat(categoryData[cat].items);
-                }
-            }
-
-            const btn = document.getElementById('apply-pricing-btn');
-            btn.disabled = true;
-            btn.textContent = `Updating ${itemsToUpdate.length} items...`;
-
-            try {
-                const resp = await fetch('/api/update-category-pricing', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        item_ids: itemsToUpdate.map(i => i.id),
-                        adjustment_type: adjustType,
-                        adjustment_value: adjustValue
-                    })
-                });
-
-                const data = await resp.json();
-
-                if (data.success) {
-                    showToast(`Updated ${data.updated} items, ${data.failed} failed`);
-                    closePricingModal();
-                    loadStats();
-                    // Clear cache so next listing view shows new prices
-                    allListings = [];
-                } else {
-                    showToast(data.error || 'Update failed');
-                }
-            } catch (e) {
-                showToast('Update failed');
-            }
-
-            btn.disabled = false;
-            btn.textContent = 'Apply Changes';
-        }
-
+        // ==========================================
         // Initialize
+        // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
             updateTime();
             setInterval(updateTime, 60000);
             loadStats();
-            loadRecentListings();
             loadUpcomingDates();
+            loadHomeArtDeals();
         });
 
-        // Time display
         function updateTime() {
             const now = new Date();
             document.getElementById('current-time').textContent =
                 now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         }
 
+        // ==========================================
         // Navigation
+        // ==========================================
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', () => showPage(item.dataset.page));
         });
@@ -1691,22 +1762,102 @@
             document.getElementById(`page-${page}`).classList.add('active');
             document.querySelector(`[data-page="${page}"]`).classList.add('active');
 
-            if (page === 'calendar') loadCalendar();
-            if (page === 'inventory') loadInventory();
-            if (page === 'deals') loadUnderpriced();
+            // Show/hide floating add button
+            document.getElementById('add-watch-btn').style.display = (page === 'watch') ? 'flex' : 'none';
+
+            if (page === 'dates') loadCalendar();
+            if (page === 'items') loadInventory();
+            if (page === 'art') loadArtDeals();
+            if (page === 'watch') loadWatchlist();
         }
 
-        // Load all inventory items
+        // ==========================================
+        // Stats
+        // ==========================================
+        async function loadStats() {
+            try {
+                const resp = await fetch('/api/stats');
+                const data = await resp.json();
+                document.getElementById('stat-listings').textContent = data.total_listings;
+                document.getElementById('stat-art').textContent = data.art_deals;
+                document.getElementById('stat-targets').textContent = data.deal_targets;
+                document.getElementById('stat-watch').textContent = data.watchlist_count;
+            } catch (e) {
+                console.error('Stats error:', e);
+            }
+        }
+
+        // ==========================================
+        // Home - Upcoming Dates
+        // ==========================================
+        async function loadUpcomingDates() {
+            try {
+                const resp = await fetch('/api/upcoming-dates');
+                const dates = await resp.json();
+
+                if (!dates.length) {
+                    document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px;width:100%">No upcoming events</div>';
+                    return;
+                }
+
+                document.getElementById('upcoming-dates').innerHTML = dates.map(d => `
+                    <div class="date-card">
+                        <div class="month">${d.month}</div>
+                        <div class="day">${d.day}</div>
+                        <div class="event">${d.event}</div>
+                        <span class="tier ${d.tier}">${d.tier}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px">Failed to load</div>';
+            }
+        }
+
+        // ==========================================
+        // Home - Top Art Deals preview
+        // ==========================================
+        async function loadHomeArtDeals() {
+            try {
+                const resp = await fetch('/api/art-deals?sort=profit');
+                const deals = await resp.json();
+                const top = deals.slice(0, 3);
+
+                if (!top.length) {
+                    document.getElementById('home-art-deals').innerHTML = '<div class="empty">No art deals</div>';
+                    return;
+                }
+
+                document.getElementById('home-art-deals').innerHTML = top.map((d, i) => `
+                    <div class="art-deal-card" onclick="showPage('art')" style="margin-bottom: 8px;">
+                        <div class="art-deal-top">
+                            <span class="art-deal-artist">${d.artist || 'Unknown'}</span>
+                            <span class="art-deal-discount">${d.discount_pct || 0}% off</span>
+                        </div>
+                        <div class="art-deal-title">${d.title}</div>
+                        <div class="art-deal-prices">
+                            <span class="art-deal-price">$${(d.price || 0).toLocaleString()}</span>
+                            <span class="art-deal-median">Median: $${(d.median || 0).toLocaleString()}</span>
+                            <span class="art-deal-profit">+$${(d.profit || 0).toLocaleString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('home-art-deals').innerHTML = '<div class="empty">Failed to load</div>';
+            }
+        }
+
+        // ==========================================
+        // Items Page (Inventory)
+        // ==========================================
         async function loadInventory() {
             const resultsDiv = document.getElementById('inv-results');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
-                const resp = await fetch('/api/search?q=');
+                const resp = await fetch('/api/listings');
                 let items = await resp.json();
                 allListings = items;
 
-                // Apply filter if set
                 if (invFilter !== 'all') {
                     items = items.filter(i => i.title.toLowerCase().includes(invFilter));
                 }
@@ -1735,79 +1886,10 @@
                             <div class="item-title">${item.title}</div>
                         </div>
                         <div class="item-price">$${item.price.toFixed(2)}</div>
-                        <span class="item-arrow">›</span>
+                        <span class="item-arrow">&#8250;</span>
                     </a>
                 `;
             }).join('');
-        }
-
-        // Stats
-        async function loadStats() {
-            try {
-                const resp = await fetch('/api/stats');
-                const data = await resp.json();
-                document.getElementById('stat-listings').textContent = data.listings;
-                document.getElementById('stat-rules').textContent = data.rules;
-                document.getElementById('stat-alerts').textContent = data.alerts;
-            } catch (e) {
-                console.error('Stats error:', e);
-            }
-        }
-
-        // Recent Listings
-        async function loadRecentListings() {
-            try {
-                const resp = await fetch('/api/search?q=');
-                const items = await resp.json();
-                renderListings(items.slice(0, 5), 'recent-listings');
-            } catch (e) {
-                document.getElementById('recent-listings').innerHTML = '<div class="empty">Failed to load</div>';
-            }
-        }
-
-        // Upcoming Dates - fetches from API
-        async function loadUpcomingDates() {
-            try {
-                const resp = await fetch('/api/upcoming-dates');
-                const dates = await resp.json();
-
-                if (!dates.length) {
-                    document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px;width:100%">No upcoming events</div>';
-                    return;
-                }
-
-                document.getElementById('upcoming-dates').innerHTML = dates.map(d => `
-                    <div class="date-card">
-                        <div class="month">${d.month}</div>
-                        <div class="day">${d.day}</div>
-                        <div class="event">${d.event}</div>
-                        <span class="tier ${d.tier}">${d.tier}</span>
-                    </div>
-                `).join('');
-            } catch (e) {
-                console.error('Upcoming dates error:', e);
-                document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px">Failed to load</div>';
-            }
-        }
-
-        // Render listings helper
-        function renderListings(items, containerId) {
-            const container = document.getElementById(containerId);
-            if (!items.length) {
-                container.innerHTML = '<div class="empty">No items found</div>';
-                return;
-            }
-            container.innerHTML = items.map(item => `
-                <a href="${item.url}" target="_blank" class="card-item">
-                    <img src="${item.image || ''}" class="item-image" onerror="this.style.visibility='hidden'">
-                    <div class="item-info">
-                        <div class="item-title">${item.title}</div>
-                        <div class="item-meta">${item.condition || ''}</div>
-                    </div>
-                    <div class="item-price">$${item.price.toFixed(2)}</div>
-                    <span class="item-arrow">›</span>
-                </a>
-            `).join('');
         }
 
         // Inventory search
@@ -1830,20 +1912,17 @@
         async function searchInventory(query) {
             document.getElementById('inv-results').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             try {
-                // Use cached listings if available, otherwise fetch
                 let items = allListings.length ? [...allListings] : [];
                 if (!items.length) {
-                    const resp = await fetch('/api/search?q=');
+                    const resp = await fetch('/api/listings');
                     items = await resp.json();
                     allListings = items;
                 }
 
-                // Apply search filter
                 if (query) {
                     items = items.filter(i => i.title.toLowerCase().includes(query.toLowerCase()));
                 }
 
-                // Apply category filter
                 if (invFilter !== 'all') {
                     items = items.filter(i => i.title.toLowerCase().includes(invFilter));
                 }
@@ -1854,231 +1933,376 @@
             }
         }
 
-        // Underpriced Items
-        let underpricedItems = [];
+        // ==========================================
+        // Art Deals Page
+        // ==========================================
+        let artLoaded = false;
 
-        async function loadUnderpriced() {
-            const resultsDiv = document.getElementById('underpriced-results');
-            const countSpan = document.getElementById('underpriced-count');
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+        async function loadArtDeals() {
+            const resultsDiv = document.getElementById('art-results');
+            const countDiv = document.getElementById('art-count');
 
-            try {
-                const resp = await fetch('/api/underpriced');
-                underpricedItems = await resp.json();
-
-                if (underpricedItems.length === 0) {
-                    countSpan.textContent = 'No underpriced items';
-                    document.getElementById('boost-all-btn').style.display = 'none';
-                } else {
-                    const totalPotential = underpricedItems.reduce((sum, item) =>
-                        sum + (item.suggested_price - item.current_price), 0);
-                    countSpan.textContent = `${underpricedItems.length} items (+$${totalPotential.toFixed(2)} potential)`;
-                    document.getElementById('boost-all-btn').style.display = 'block';
-                }
-
-                renderUnderpriced(underpricedItems);
-            } catch (e) {
-                console.error('Underpriced error:', e);
-                resultsDiv.innerHTML = '<div class="empty">Failed to load underpriced items</div>';
-                countSpan.textContent = 'Error loading';
-            }
-        }
-
-        function renderUnderpriced(items) {
-            const container = document.getElementById('underpriced-results');
-
-            if (!items.length) {
-                container.innerHTML = '<div class="empty">All items are priced correctly for current events</div>';
+            if (artLoaded && artDealsData.length) {
+                renderArtDeals(artDealsData);
                 return;
             }
 
-            container.innerHTML = items.map((item, index) => `
-                <div class="underpriced-row" onclick="openPriceEdit(${index})" style="cursor: pointer;">
-                    <div class="underpriced-info">
-                        <div class="underpriced-event">${item.event} (+${item.boost_percent}%)</div>
-                        <div class="underpriced-title">${item.title}</div>
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/art-deals?sort=profit');
+                artDealsData = await resp.json();
+                artLoaded = true;
+
+                // Populate artist dropdown
+                const artists = [...new Set(artDealsData.map(d => d.artist).filter(Boolean))].sort();
+                const artistSelect = document.getElementById('art-artist-filter');
+                artistSelect.innerHTML = '<option value="">All Artists</option>' +
+                    artists.map(a => `<option value="${a}">${a}</option>`).join('');
+
+                renderArtDeals(artDealsData);
+            } catch (e) {
+                resultsDiv.innerHTML = '<div class="empty">Failed to load art deals</div>';
+                countDiv.textContent = 'Error';
+            }
+        }
+
+        function renderArtDeals(deals) {
+            const resultsDiv = document.getElementById('art-results');
+            const countDiv = document.getElementById('art-count');
+            countDiv.textContent = `${deals.length} deals found`;
+
+            if (!deals.length) {
+                resultsDiv.innerHTML = '<div class="empty">No deals match your filters</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = deals.slice(0, 50).map((d, i) => `
+                <div class="art-deal-card" onclick="openArtDetail(${i})">
+                    <div class="art-deal-top">
+                        <span class="art-deal-artist">${d.artist || 'Unknown'}</span>
+                        <span class="art-deal-discount">${d.discount_pct || 0}% off</span>
                     </div>
-                    <div class="underpriced-prices">
-                        <div class="underpriced-current">$${item.current_price.toFixed(2)}</div>
-                        <div class="underpriced-suggested">$${item.suggested_price.toFixed(2)}</div>
+                    <div class="art-deal-title">${d.title}</div>
+                    <div class="art-deal-prices">
+                        <span class="art-deal-price">$${(d.price || 0).toLocaleString()}</span>
+                        <span class="art-deal-median">Median: $${(d.median || 0).toLocaleString()}</span>
+                        <span class="art-deal-profit">+$${(d.profit || 0).toLocaleString()}</span>
                     </div>
-                    <span class="item-arrow">›</span>
                 </div>
             `).join('');
         }
 
-        // Search underpriced items
-        const underpricedSearch = document.getElementById('underpriced-search');
-        if (underpricedSearch) {
-            let underpricedTimeout;
-            underpricedSearch.addEventListener('input', () => {
-                clearTimeout(underpricedTimeout);
-                underpricedTimeout = setTimeout(() => {
-                    const query = underpricedSearch.value.toLowerCase();
-                    const filtered = underpricedItems.filter(item =>
-                        item.title.toLowerCase().includes(query) ||
-                        item.event.toLowerCase().includes(query)
-                    );
-                    renderUnderpriced(filtered);
-                }, 300);
-            });
+        // Art filters
+        document.getElementById('art-search').addEventListener('input', debounce(filterArtDeals, 300));
+        document.getElementById('art-artist-filter').addEventListener('change', filterArtDeals);
+        document.getElementById('art-sort').addEventListener('change', filterArtDeals);
+
+        function filterArtDeals() {
+            let filtered = [...artDealsData];
+            const search = document.getElementById('art-search').value.toLowerCase();
+            const artist = document.getElementById('art-artist-filter').value;
+            const sort = document.getElementById('art-sort').value;
+
+            if (search) {
+                filtered = filtered.filter(d => (d.title || '').toLowerCase().includes(search));
+            }
+
+            if (artist) {
+                filtered = filtered.filter(d => d.artist === artist);
+            }
+
+            if (sort === 'profit') filtered.sort((a, b) => (b.profit || 0) - (a.profit || 0));
+            else if (sort === 'discount') filtered.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
+            else if (sort === 'price_low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+            else if (sort === 'price_high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+
+            renderArtDeals(filtered);
         }
 
-        // Price Edit Modal
-        let currentEditItem = null;
-        let currentEditIndex = -1;
+        // Art Detail Modal with Chart.js
+        function openArtDetail(index) {
+            const filtered = getFilteredArtDeals();
+            const deal = filtered[index];
+            if (!deal) return;
 
-        function openPriceEdit(index) {
-            currentEditIndex = index;
-            currentEditItem = underpricedItems[index];
+            currentArtDeal = deal;
 
-            document.getElementById('price-edit-item-title').textContent = currentEditItem.title;
-            document.getElementById('price-edit-current').textContent = `$${currentEditItem.current_price.toFixed(2)}`;
-            document.getElementById('price-edit-suggested').textContent = `$${currentEditItem.suggested_price.toFixed(2)}`;
-            document.getElementById('price-edit-boost').textContent = currentEditItem.boost_percent;
-            document.getElementById('price-edit-input').value = currentEditItem.suggested_price.toFixed(2);
+            document.getElementById('art-detail-title').textContent = deal.artist || 'Deal Detail';
+            document.getElementById('art-detail-link').href = deal.url || '#';
 
-            document.getElementById('price-edit-modal').classList.add('show');
+            // Build content
+            let html = `
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${deal.title}</div>
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div><span style="color: var(--dim); font-size: 12px;">PRICE</span><br><span style="font-size: 20px; font-weight: 700; color: var(--green);">$${(deal.price || 0).toLocaleString()}</span></div>
+                        <div><span style="color: var(--dim); font-size: 12px;">MEDIAN</span><br><span style="font-size: 20px; font-weight: 600;">$${(deal.median || 0).toLocaleString()}</span></div>
+                        <div><span style="color: var(--dim); font-size: 12px;">PROFIT</span><br><span style="font-size: 20px; font-weight: 700; color: var(--orange);">+$${(deal.profit || 0).toLocaleString()}</span></div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 13px; color: var(--dim);">
+                        Sales: ${deal.sales_count || 0} | Low: $${(deal.low || 0).toLocaleString()} | High: $${(deal.high || 0).toLocaleString()}
+                    </div>
+                </div>
+            `;
+            document.getElementById('art-detail-content').innerHTML = html;
+
+            // Draw chart
+            const ctx = document.getElementById('art-price-chart').getContext('2d');
+            if (artPriceChart) artPriceChart.destroy();
+
+            const history = deal.history || [];
+            if (history.length > 0) {
+                const labels = history.map((h, i) => h.name ? h.name.substring(0, 20) : `Sale ${i + 1}`);
+                const prices = history.map(h => h.price || 0);
+
+                artPriceChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Sale Price',
+                            data: prices,
+                            backgroundColor: 'rgba(10, 132, 255, 0.6)',
+                            borderColor: 'rgba(10, 132, 255, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }, {
+                            label: 'Listing Price',
+                            data: prices.map(() => deal.price || 0),
+                            type: 'line',
+                            borderColor: 'rgba(48, 209, 88, 0.8)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45 },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#8e8e93',
+                                    callback: v => '$' + v.toLocaleString()
+                                },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            document.getElementById('art-detail-modal').classList.add('show');
             document.body.style.overflow = 'hidden';
         }
 
-        function closePriceEditModal() {
-            document.getElementById('price-edit-modal').classList.remove('show');
-            document.body.style.overflow = '';
-            currentEditItem = null;
-            currentEditIndex = -1;
+        function getFilteredArtDeals() {
+            let filtered = [...artDealsData];
+            const search = document.getElementById('art-search').value.toLowerCase();
+            const artist = document.getElementById('art-artist-filter').value;
+            const sort = document.getElementById('art-sort').value;
+
+            if (search) filtered = filtered.filter(d => (d.title || '').toLowerCase().includes(search));
+            if (artist) filtered = filtered.filter(d => d.artist === artist);
+
+            if (sort === 'profit') filtered.sort((a, b) => (b.profit || 0) - (a.profit || 0));
+            else if (sort === 'discount') filtered.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
+            else if (sort === 'price_low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+            else if (sort === 'price_high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+
+            return filtered;
         }
 
-        document.getElementById('price-edit-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'price-edit-modal') closePriceEditModal();
+        function closeArtDetail() {
+            document.getElementById('art-detail-modal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('art-detail-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'art-detail-modal') closeArtDetail();
         });
 
-        function quickAdjustPrice(amount) {
-            const input = document.getElementById('price-edit-input');
-            let currentVal = parseFloat(input.value) || 0;
-            currentVal = Math.max(0.99, currentVal + amount);
-            input.value = currentVal.toFixed(2);
+        function watchFromArt() {
+            if (!currentArtDeal) return;
+            addToWatchlist({
+                title: currentArtDeal.title,
+                price: currentArtDeal.price,
+                url: currentArtDeal.url
+            });
+            closeArtDetail();
         }
 
-        function setToSuggested() {
-            if (currentEditItem) {
-                document.getElementById('price-edit-input').value = currentEditItem.suggested_price.toFixed(2);
+        // ==========================================
+        // eBay Deals Page
+        // ==========================================
+        const dealSearch = document.getElementById('deal-search');
+        let dealTimeout;
+
+        dealSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                runDealSearch(dealSearch.value);
             }
+        });
+
+        dealSearch.addEventListener('input', () => {
+            clearTimeout(dealTimeout);
+            dealTimeout = setTimeout(() => {
+                if (dealSearch.value.length > 2) runDealSearch(dealSearch.value);
+            }, 500);
+        });
+
+        function dealQuickSearch(query, el) {
+            // Clear active tiles
+            document.querySelectorAll('.deal-tile').forEach(t => t.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            dealSearch.value = query;
+            runDealSearch(query);
         }
 
-        async function savePriceEdit() {
-            if (!currentEditItem) return;
+        async function runDealSearch(query) {
+            if (!query) return;
 
-            const newPrice = parseFloat(document.getElementById('price-edit-input').value);
-            if (!newPrice || newPrice < 0.99) {
-                showToast('Invalid price');
-                return;
-            }
+            const resultsDiv = document.getElementById('deal-results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-            const btn = document.getElementById('price-edit-save-btn');
-            btn.disabled = true;
-            btn.textContent = 'Updating...';
+            const minPrice = document.getElementById('deal-min-price').value || 75;
+            const maxPrice = document.getElementById('deal-max-price').value || 500;
 
             try {
-                const resp = await fetch('/api/update-category-pricing', {
+                const resp = await fetch(`/api/deals/search?q=${encodeURIComponent(query)}&min_price=${minPrice}&max_price=${maxPrice}`);
+                const deals = await resp.json();
+
+                if (!deals.length) {
+                    resultsDiv.innerHTML = '<div class="empty">No deals found for this search</div>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = deals.map(deal => `
+                    <a href="${deal.url}" target="_blank" class="deal-result-card">
+                        <img src="${deal.image || ''}" class="deal-result-img" onerror="this.style.visibility='hidden'">
+                        <div class="deal-result-info">
+                            <div class="deal-result-title">${deal.title}</div>
+                            <div class="deal-result-meta">${deal.condition || ''} ${deal.buying_option === 'AUCTION' ? '<span class="badge auction">Auction</span>' : ''}</div>
+                        </div>
+                        <div class="deal-result-price">$${deal.price.toFixed(2)}</div>
+                    </a>
+                `).join('');
+            } catch (e) {
+                resultsDiv.innerHTML = '<div class="empty">Search failed</div>';
+            }
+        }
+
+        // ==========================================
+        // Watchlist Page
+        // ==========================================
+        async function loadWatchlist() {
+            const resultsDiv = document.getElementById('watch-results');
+            const countDiv = document.getElementById('watch-count');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/watchlist');
+                const items = await resp.json();
+
+                countDiv.textContent = `${items.length} item${items.length !== 1 ? 's' : ''} watching`;
+
+                if (!items.length) {
+                    resultsDiv.innerHTML = '<div class="empty">No items in your watchlist.<br>Add items from Art or Deals tabs.</div>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = items.map(item => `
+                    <div class="watch-item">
+                        ${item.image ? `<img src="${item.image}" class="watch-item-img" onerror="this.style.visibility='hidden'">` : ''}
+                        <div class="watch-item-info">
+                            <div class="watch-item-title">${item.url ? `<a href="${item.url}" target="_blank" style="color:inherit;text-decoration:none;">${item.title}</a>` : item.title}</div>
+                            <div class="watch-item-meta">${item.notes || ''} ${item.added ? '&middot; ' + new Date(item.added).toLocaleDateString() : ''}</div>
+                        </div>
+                        <div class="watch-item-price">$${(item.price || 0).toFixed(2)}</div>
+                        <button class="watch-item-delete" onclick="removeWatchItem('${item.id}')">&times;</button>
+                    </div>
+                `).join('');
+            } catch (e) {
+                resultsDiv.innerHTML = '<div class="empty">Failed to load watchlist</div>';
+                countDiv.textContent = 'Error';
+            }
+        }
+
+        async function removeWatchItem(id) {
+            try {
+                await fetch('/api/watchlist/remove', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        item_ids: [currentEditItem.id],
-                        adjustment_type: 'set_price',
-                        adjustment_value: newPrice
-                    })
+                    body: JSON.stringify({ id })
                 });
-
-                const data = await resp.json();
-
-                if (data.updated > 0) {
-                    showToast(`Updated to $${newPrice.toFixed(2)}`);
-                    closePriceEditModal();
-
-                    // Update the item in our local list
-                    if (currentEditIndex >= 0) {
-                        underpricedItems[currentEditIndex].current_price = newPrice;
-                        // Remove from list if price matches suggested
-                        if (Math.abs(newPrice - underpricedItems[currentEditIndex].suggested_price) < 0.01) {
-                            underpricedItems.splice(currentEditIndex, 1);
-                        }
-                        renderUnderpriced(underpricedItems);
-
-                        // Update count
-                        const countSpan = document.getElementById('underpriced-count');
-                        if (underpricedItems.length === 0) {
-                            countSpan.textContent = 'No underpriced items';
-                            document.getElementById('boost-all-btn').style.display = 'none';
-                        } else {
-                            const totalPotential = underpricedItems.reduce((sum, item) =>
-                                sum + (item.suggested_price - item.current_price), 0);
-                            countSpan.textContent = `${underpricedItems.length} items (+$${totalPotential.toFixed(2)} potential)`;
-                        }
-                    }
-
-                    loadStats();
-                } else {
-                    showToast('Update failed');
-                }
+                showToast('Removed from watchlist');
+                loadWatchlist();
+                loadStats();
             } catch (e) {
-                showToast('Update failed');
+                showToast('Failed to remove');
             }
-
-            btn.disabled = false;
-            btn.textContent = 'Update on eBay';
         }
 
-        async function boostAllUnderpriced() {
-            if (!underpricedItems.length) {
-                showToast('No items to boost');
+        async function addToWatchlist(item) {
+            try {
+                await fetch('/api/watchlist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(item)
+                });
+                showToast('Added to watchlist');
+                loadStats();
+            } catch (e) {
+                showToast('Failed to add');
+            }
+        }
+
+        // Add Watch Modal
+        function showAddWatchModal() {
+            document.getElementById('add-watch-modal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+            document.getElementById('watch-add-title').value = '';
+            document.getElementById('watch-add-price').value = '';
+            document.getElementById('watch-add-url').value = '';
+            document.getElementById('watch-add-notes').value = '';
+        }
+
+        function closeAddWatchModal() {
+            document.getElementById('add-watch-modal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('add-watch-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'add-watch-modal') closeAddWatchModal();
+        });
+
+        async function saveWatchItem() {
+            const title = document.getElementById('watch-add-title').value.trim();
+            const price = parseFloat(document.getElementById('watch-add-price').value) || 0;
+            const url = document.getElementById('watch-add-url').value.trim();
+            const notes = document.getElementById('watch-add-notes').value.trim();
+
+            if (!title) {
+                showToast('Title is required');
                 return;
             }
 
-            const btn = document.getElementById('boost-all-btn');
-            btn.disabled = true;
-            btn.textContent = `Boosting ${underpricedItems.length}...`;
-
-            try {
-                // Group items by boost percent and update
-                let updated = 0;
-                let failed = 0;
-
-                // Update each item to its suggested price
-                for (const item of underpricedItems) {
-                    try {
-                        const resp = await fetch('/api/update-category-pricing', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                item_ids: [item.id],
-                                adjustment_type: 'set_price',
-                                adjustment_value: item.suggested_price
-                            })
-                        });
-
-                        const data = await resp.json();
-                        if (data.updated > 0) updated++;
-                        else failed++;
-                    } catch (e) {
-                        failed++;
-                    }
-                }
-
-                showToast(`Boosted ${updated} items, ${failed} failed`);
-
-                // Refresh the list
-                loadUnderpriced();
-                loadStats();
-            } catch (e) {
-                showToast('Boost failed');
-            }
-
-            btn.disabled = false;
-            btn.textContent = 'Boost All';
+            await addToWatchlist({ title, price, url, notes });
+            closeAddWatchModal();
+            loadWatchlist();
         }
 
-        // Calendar Month View
+        // ==========================================
+        // Calendar (Dates Page)
+        // ==========================================
         let calendarData = [];
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
@@ -2111,7 +2335,6 @@
                 calendarData = await resp.json();
                 renderCalendarMonth();
             } catch (e) {
-                console.error('Calendar error:', e);
                 document.getElementById('events-list').innerHTML = '<div class="empty">Failed to load calendar</div>';
             }
         }
@@ -2123,32 +2346,26 @@
 
             monthTitle.textContent = `${monthNames[currentMonth]} ${currentYear}`;
 
-            // Clear existing days (keep headers)
             const headers = grid.querySelectorAll('.calendar-day-header');
             grid.innerHTML = '';
             headers.forEach(h => grid.appendChild(h));
 
-            // Get first day of month and total days
             const firstDay = new Date(currentYear, currentMonth, 1).getDay();
             const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
             const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
 
-            // Build events map for this month
             const eventsMap = {};
             const monthEvents = [];
 
             calendarData.forEach(event => {
                 const startDate = new Date(event.start_date);
                 const endDate = new Date(event.end_date);
-
-                // Check if event overlaps with current month
                 const monthStart = new Date(currentYear, currentMonth, 1);
                 const monthEnd = new Date(currentYear, currentMonth + 1, 0);
 
                 if (startDate <= monthEnd && endDate >= monthStart) {
                     monthEvents.push(event);
 
-                    // Mark each day in the event range
                     for (let d = new Date(Math.max(startDate, monthStart)); d <= Math.min(endDate, monthEnd); d.setDate(d.getDate() + 1)) {
                         if (d.getMonth() === currentMonth) {
                             const dayNum = d.getDate();
@@ -2164,13 +2381,11 @@
             const today = new Date();
             const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
 
-            // Add previous month days
             for (let i = firstDay - 1; i >= 0; i--) {
                 const day = daysInPrevMonth - i;
                 grid.innerHTML += `<div class="calendar-day other-month"><span class="day-num">${day}</span></div>`;
             }
 
-            // Add current month days
             for (let day = 1; day <= daysInMonth; day++) {
                 const isToday = isCurrentMonth && day === today.getDate();
                 const dayEvents = eventsMap[day] || [];
@@ -2178,7 +2393,6 @@
 
                 let dotsHtml = '';
                 if (hasEvent) {
-                    // Show up to 3 dots for different tier events
                     const uniqueTiers = [...new Set(dayEvents.map(e => e.tier.toLowerCase()))].slice(0, 3);
                     dotsHtml = `<div class="day-dots">${uniqueTiers.map(t => `<span class="day-dot ${t}"></span>`).join('')}</div>`;
                 }
@@ -2192,20 +2406,17 @@
                 `;
             }
 
-            // Add next month days to fill grid
             const totalCells = firstDay + daysInMonth;
             const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
             for (let i = 1; i <= remainingCells; i++) {
                 grid.innerHTML += `<div class="calendar-day other-month"><span class="day-num">${i}</span></div>`;
             }
 
-            // Render month events list
             if (!monthEvents.length) {
                 eventsList.innerHTML = '<div class="empty">No events this month</div>';
                 return;
             }
 
-            // Sort by start date
             monthEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
 
             eventsList.innerHTML = monthEvents.map(e => {
@@ -2227,7 +2438,6 @@
         }
 
         function showDayEvents(day) {
-            // Show events for a specific day with price boost
             const dayEvents = calendarData.filter(e => {
                 const start = new Date(e.start_date);
                 const end = new Date(e.end_date);
@@ -2241,46 +2451,303 @@
             }
         }
 
-        // Actions
-        document.getElementById('btn-pricing').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-pricing');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;margin:0"></div> Updating...';
+        // ==========================================
+        // Modals - Pricing, Alerts, Listings
+        // ==========================================
+
+        // Alerts Modal
+        async function showAlertsModal() {
+            const modal = document.getElementById('alerts-modal');
+            const alertsList = document.getElementById('alerts-list');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+
+            alertsList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
-                const resp = await fetch('/api/run-pricing', { method: 'POST' });
+                const resp = await fetch('/api/alerts');
+                const alerts = await resp.json();
+
+                if (!alerts.length) {
+                    alertsList.innerHTML = '<div class="empty">No alerts - everything looks good!</div>';
+                    return;
+                }
+
+                const icons = { 'low_price': '&#x1F4B0;', 'high_price': '&#x1F48E;', 'update_failed': '&#x26A0;&#xFE0F;' };
+
+                alertsList.innerHTML = alerts.map(alert => `
+                    <a href="${alert.url}" target="_blank" class="alert-row">
+                        <div class="alert-icon ${alert.type}">${icons[alert.type] || '!'}</div>
+                        <div class="alert-info">
+                            <div class="alert-title">${alert.title}</div>
+                            <div class="alert-message">${alert.message}</div>
+                        </div>
+                        <span class="item-arrow">&#8250;</span>
+                    </a>
+                `).join('');
+            } catch (e) {
+                alertsList.innerHTML = '<div class="empty">Failed to load alerts</div>';
+            }
+        }
+
+        function closeAlertsModal() {
+            document.getElementById('alerts-modal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('alerts-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'alerts-modal') closeAlertsModal();
+        });
+
+        // Listings Modal
+        async function showListingsModal() {
+            const modal = document.getElementById('listings-modal');
+            const modalBody = document.getElementById('modal-listings');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+
+            modalBody.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/listings');
+                allListings = await resp.json();
+                renderModalListings(allListings);
+            } catch (e) {
+                modalBody.innerHTML = '<div class="empty">Failed to load listings</div>';
+            }
+        }
+
+        function closeListingsModal() {
+            document.getElementById('listings-modal').classList.remove('show');
+            document.body.style.overflow = '';
+            document.getElementById('modal-search').value = '';
+        }
+
+        function filterModalListings() {
+            const query = document.getElementById('modal-search').value.toLowerCase();
+            const filtered = allListings.filter(item =>
+                item.title.toLowerCase().includes(query) ||
+                (item.id && item.id.includes(query))
+            );
+            renderModalListings(filtered);
+        }
+
+        function renderModalListings(listings) {
+            const modalBody = document.getElementById('modal-listings');
+
+            if (!listings.length) {
+                modalBody.innerHTML = '<div class="empty">No listings found</div>';
+                return;
+            }
+
+            modalBody.innerHTML = listings.map(item => {
+                const artist = detectArtist(item.title);
+                const sku = (item.id || '').replace(/^v1\|/, '').split('|')[0];
+
+                return `
+                    <a href="${item.url}" target="_blank" class="listing-row">
+                        <div class="listing-info">
+                            <div class="listing-artist">${artist}</div>
+                            <div class="listing-title">${item.title}</div>
+                            <div class="listing-sku">SKU: ${sku}</div>
+                        </div>
+                        <div class="listing-price">$${item.price.toFixed(2)}</div>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('listings-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'listings-modal') closeListingsModal();
+        });
+
+        // Pricing Modal
+        let pricingListings = [];
+        let categoryData = {};
+
+        async function showPricingModal() {
+            const modal = document.getElementById('pricing-modal');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+
+            if (!allListings.length) {
+                try {
+                    const resp = await fetch('/api/listings');
+                    allListings = await resp.json();
+                } catch (e) {
+                    showToast('Failed to load listings');
+                    return;
+                }
+            }
+
+            pricingListings = [...allListings];
+
+            categoryData = {};
+            for (const item of pricingListings) {
+                const cat = detectArtist(item.title);
+                if (!categoryData[cat]) {
+                    categoryData[cat] = { count: 0, items: [] };
+                }
+                categoryData[cat].count++;
+                categoryData[cat].items.push(item);
+            }
+
+            const sortedCats = Object.entries(categoryData).sort((a, b) => b[1].count - a[1].count);
+
+            document.getElementById('category-checkboxes').innerHTML = sortedCats.map(([cat, data]) => `
+                <label class="category-checkbox">
+                    <input type="checkbox" value="${cat}" onchange="updatePricingPreview()">
+                    <span class="checkmark"></span>
+                    <span class="cat-name">${cat}</span>
+                    <span class="cat-count">${data.count}</span>
+                </label>
+            `).join('');
+
+            document.getElementById('adjustment-type').value = 'percent_increase';
+            document.getElementById('adjustment-value').value = '';
+            updatePricingPreview();
+        }
+
+        function closePricingModal() {
+            document.getElementById('pricing-modal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('pricing-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'pricing-modal') closePricingModal();
+        });
+
+        document.getElementById('adjustment-type')?.addEventListener('change', updatePricingPreview);
+        document.getElementById('adjustment-value')?.addEventListener('input', updatePricingPreview);
+
+        function updatePricingPreview() {
+            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
+            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
+            const adjustType = document.getElementById('adjustment-type').value;
+            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
+
+            let selectedItems = [];
+            for (const cat of selectedCats) {
+                if (categoryData[cat]) {
+                    selectedItems = selectedItems.concat(categoryData[cat].items);
+                }
+            }
+
+            const previewDiv = document.getElementById('pricing-preview');
+            const countText = `${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''} selected`;
+
+            if (selectedItems.length === 0 || adjustValue === 0) {
+                previewDiv.innerHTML = `
+                    <div class="preview-count">${countText}</div>
+                    <div class="preview-example" style="color: var(--dim);">Select categories and enter an adjustment value</div>
+                `;
+                return;
+            }
+
+            const exampleItem = selectedItems[0];
+            const oldPrice = exampleItem.price;
+            let newPrice = oldPrice;
+            let changeText = '';
+
+            switch (adjustType) {
+                case 'percent_increase':
+                    newPrice = oldPrice * (1 + adjustValue / 100);
+                    changeText = `+${adjustValue}%`;
+                    break;
+                case 'percent_decrease':
+                    newPrice = oldPrice * (1 - adjustValue / 100);
+                    changeText = `-${adjustValue}%`;
+                    break;
+                case 'fixed_increase':
+                    newPrice = oldPrice + adjustValue;
+                    changeText = `+$${adjustValue.toFixed(2)}`;
+                    break;
+                case 'fixed_decrease':
+                    newPrice = oldPrice - adjustValue;
+                    changeText = `-$${adjustValue.toFixed(2)}`;
+                    break;
+                case 'set_price':
+                    newPrice = adjustValue;
+                    changeText = `set to $${adjustValue.toFixed(2)}`;
+                    break;
+            }
+
+            newPrice = Math.max(0.99, newPrice);
+
+            previewDiv.innerHTML = `
+                <div class="preview-count">${countText}</div>
+                <div class="preview-example">
+                    Example: <span class="old-price">$${oldPrice.toFixed(2)}</span>
+                    <span class="new-price">$${newPrice.toFixed(2)}</span>
+                    <span class="change">(${changeText})</span>
+                </div>
+            `;
+        }
+
+        async function applyPricingChanges() {
+            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
+            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
+            const adjustType = document.getElementById('adjustment-type').value;
+            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
+
+            if (selectedCats.length === 0) { showToast('Select at least one category'); return; }
+            if (adjustValue === 0) { showToast('Enter an adjustment value'); return; }
+
+            let itemsToUpdate = [];
+            for (const cat of selectedCats) {
+                if (categoryData[cat]) {
+                    itemsToUpdate = itemsToUpdate.concat(categoryData[cat].items);
+                }
+            }
+
+            const btn = document.getElementById('apply-pricing-btn');
+            btn.disabled = true;
+            btn.textContent = `Updating ${itemsToUpdate.length} items...`;
+
+            try {
+                const resp = await fetch('/api/update-category-pricing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        item_ids: itemsToUpdate.map(i => i.id),
+                        adjustment_type: adjustType,
+                        adjustment_value: adjustValue
+                    })
+                });
+
                 const data = await resp.json();
-                showToast(`Updated ${data.updated} items`);
-                loadStats();
+
+                if (data.success) {
+                    showToast(`Updated ${data.updated} items, ${data.failed} failed`);
+                    closePricingModal();
+                    loadStats();
+                    allListings = [];
+                } else {
+                    showToast(data.error || 'Update failed');
+                }
             } catch (e) {
                 showToast('Update failed');
             }
 
             btn.disabled = false;
-            btn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v2M4.93 4.93l2.83 2.83M14.24 14.24l2.83 2.83M2 12h4M18 12h2M4.93 19.07l2.83-2.83M14.24 7.76l2.83-2.83"/></svg> Update Prices';
-        });
+            btn.textContent = 'Apply Changes';
+        }
 
-        document.getElementById('btn-refresh').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-refresh');
-            btn.disabled = true;
-
-            try {
-                await fetch('/api/refresh');
-                showToast('Refreshed');
-                loadStats();
-                loadRecentListings();
-            } catch (e) {
-                showToast('Refresh failed');
-            }
-
-            btn.disabled = false;
-        });
-
-        // Toast
+        // ==========================================
+        // Utility
+        // ==========================================
         function showToast(msg) {
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function debounce(fn, ms) {
+            let timer;
+            return function(...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), ms);
+            };
         }
     </script>
 </body>

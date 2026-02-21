@@ -36,3 +36,4 @@ logs/
 # Local data
 *.db
 *.sqlite
+data/watchlist.json

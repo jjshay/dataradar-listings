@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-DATARADAR Listings - eBay Inventory Management with Key-Date Pricing
+DATARADAR Listings - eBay Inventory Management with Key-Date Pricing,
+Art Market Deals, eBay Deal Finder & Watchlist
 
 A Flask application that helps eBay sellers maximize profits by automatically
 adjusting prices based on significant calendar events related to their inventory.
@@ -20,8 +21,8 @@ import re
 
 app = Flask(__name__, template_folder='templates')
 
-# Master pricing index path (from main DATARADAR)
-MASTER_INDEX_PATH = '/Users/johnshay/DATARADAR/master_pricing_index.json'
+# Data directory
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 # =============================================================================
 # Configuration
@@ -63,8 +64,12 @@ TIER_BOOSTS = {
     'PEAK': 35     # Peak demand events: +35%
 }
 
+# Default deal price range
+DEFAULT_MIN_PRICE = 100
+DEFAULT_MAX_PRICE = 700
+
 # =============================================================================
-# eBay API Integration
+# eBay Trading API (Inventory Management)
 # =============================================================================
 
 class EbayAPI:
@@ -201,8 +206,173 @@ class EbayAPI:
         return 'Success' in response.text
 
 
-# Initialize eBay API
+# Initialize eBay Trading API
 ebay = EbayAPI(EBAY_CONFIG)
+
+# =============================================================================
+# eBay Browse API (Deal Finding)
+# =============================================================================
+
+_browse_token = None
+_browse_token_expires = None
+
+
+def get_browse_token():
+    """Get client credentials token for eBay Browse API"""
+    global _browse_token, _browse_token_expires
+
+    if _browse_token and _browse_token_expires and datetime.now() < _browse_token_expires:
+        return _browse_token
+
+    client_id = EBAY_CONFIG['client_id']
+    client_secret = EBAY_CONFIG['client_secret']
+    if not client_id or not client_secret:
+        return None
+
+    credentials = f"{client_id}:{client_secret}"
+    encoded_creds = base64.b64encode(credentials.encode()).decode()
+
+    response = requests.post(
+        'https://api.ebay.com/identity/v1/oauth2/token',
+        headers={
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': f'Basic {encoded_creds}'
+        },
+        data={
+            'grant_type': 'client_credentials',
+            'scope': 'https://api.ebay.com/oauth/api_scope'
+        }
+    )
+
+    if response.status_code == 200:
+        data = response.json()
+        _browse_token = data.get('access_token')
+        expires_in = data.get('expires_in', 7200)
+        _browse_token_expires = datetime.now() + timedelta(seconds=expires_in - 300)
+        return _browse_token
+
+    return None
+
+
+def search_ebay(query, max_price, min_price=0, limit=20):
+    """Search eBay for items using Browse API"""
+    token = get_browse_token()
+    if not token:
+        return []
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+        'Content-Type': 'application/json'
+    }
+
+    if min_price > 0:
+        price_filter = f'price:[{min_price}..{max_price}]'
+    else:
+        price_filter = f'price:[..{max_price}]'
+
+    params = {
+        'q': query,
+        'filter': f'{price_filter},priceCurrency:USD,buyingOptions:{{FIXED_PRICE|AUCTION}}',
+        'sort': 'price',
+        'limit': limit
+    }
+
+    try:
+        response = requests.get(
+            'https://api.ebay.com/buy/browse/v1/item_summary/search',
+            headers=headers,
+            params=params
+        )
+
+        if response.status_code != 200:
+            return []
+
+        data = response.json()
+        items = data.get('itemSummaries', [])
+
+        deals = []
+        for item in items:
+            price_info = item.get('price', {})
+            price = float(price_info.get('value', 0))
+
+            if price <= 0 or price > max_price:
+                continue
+
+            deals.append({
+                'id': item.get('itemId', ''),
+                'title': item.get('title', 'Unknown'),
+                'price': price,
+                'image': item.get('image', {}).get('imageUrl', ''),
+                'url': item.get('itemWebUrl', ''),
+                'condition': item.get('condition', 'Unknown'),
+                'seller': item.get('seller', {}).get('username', 'Unknown'),
+                'buying_option': item.get('buyingOptions', [''])[0] if item.get('buyingOptions') else '',
+                'location': item.get('itemLocation', {}).get('country', '')
+            })
+
+        return deals
+
+    except Exception as e:
+        print(f"Search error: {e}")
+        return []
+
+# =============================================================================
+# Watchlist Management
+# =============================================================================
+
+WATCHLIST_FILE = os.path.join(DATA_DIR, 'watchlist.json')
+
+
+def load_watchlist():
+    """Load watchlist from JSON file"""
+    try:
+        if os.path.exists(WATCHLIST_FILE):
+            with open(WATCHLIST_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
+def save_watchlist(items):
+    """Save watchlist to JSON file"""
+    with open(WATCHLIST_FILE, 'w') as f:
+        json.dump(items, f, indent=2)
+
+# =============================================================================
+# Art Deals Data
+# =============================================================================
+
+_art_deals = None
+_art_deals_loaded = None
+
+
+def load_art_deals():
+    """Load art deals from JSON file with caching"""
+    global _art_deals, _art_deals_loaded
+
+    art_path = os.path.join(DATA_DIR, 'art_deals.json')
+    if os.path.exists(art_path):
+        mtime = os.path.getmtime(art_path)
+        if _art_deals is None or _art_deals_loaded != mtime:
+            with open(art_path, 'r') as f:
+                _art_deals = json.load(f)
+            _art_deals_loaded = mtime
+
+    return _art_deals or []
+
+# =============================================================================
+# Deal Targets
+# =============================================================================
+
+def load_deal_targets():
+    """Load deal search targets from JSON file"""
+    targets_path = os.path.join(DATA_DIR, 'deal_targets.json')
+    if os.path.exists(targets_path):
+        with open(targets_path, 'r') as f:
+            return json.load(f)
+    return []
 
 # =============================================================================
 # Pricing Engine
@@ -210,7 +380,7 @@ ebay = EbayAPI(EBAY_CONFIG)
 
 def load_pricing_rules():
     """Load pricing rules from JSON file"""
-    rules_path = os.path.join(os.path.dirname(__file__), 'pricing_rules.json')
+    rules_path = os.path.join(DATA_DIR, 'pricing_rules.json')
     if os.path.exists(rules_path):
         with open(rules_path, 'r') as f:
             return json.load(f)
@@ -275,11 +445,13 @@ def get_matching_events(title):
 _market_index = None
 _market_index_loaded = None
 
+MASTER_INDEX_PATH = os.path.join(DATA_DIR, 'master_pricing_index.json')
+
+
 def load_market_index():
     """Load or reload the master pricing index"""
     global _market_index, _market_index_loaded
 
-    # Reload if file changed or not loaded
     if os.path.exists(MASTER_INDEX_PATH):
         mtime = os.path.getmtime(MASTER_INDEX_PATH)
         if _market_index is None or _market_index_loaded != mtime:
@@ -404,7 +576,7 @@ def get_price_assessment(current_price, title):
 
 
 # =============================================================================
-# Flask Routes
+# Flask Routes - Core
 # =============================================================================
 
 @app.route('/')
@@ -444,7 +616,7 @@ def get_listings():
 
 @app.route('/api/stats')
 def get_stats():
-    """Get inventory statistics"""
+    """Get combined statistics from all features"""
     listings = ebay.get_listings()
     total_value = sum(l['price'] for l in listings)
     active_events = get_active_events()
@@ -456,11 +628,26 @@ def get_stats():
         if suggested > listing['price'] * 1.01:
             underpriced += 1
 
+    # Art deals count
+    art_deals = load_art_deals()
+    art_count = len(art_deals)
+
+    # Deal targets count
+    deal_targets = load_deal_targets()
+    target_count = len(deal_targets)
+
+    # Watchlist count
+    watchlist = load_watchlist()
+    watch_count = len(watchlist)
+
     return jsonify({
         'total_listings': len(listings),
         'total_value': total_value,
         'active_events': len(active_events),
-        'underpriced': underpriced
+        'underpriced': underpriced,
+        'art_deals': art_count,
+        'deal_targets': target_count,
+        'watchlist_count': watch_count
     })
 
 
@@ -472,11 +659,9 @@ def get_calendar():
     year = request.args.get('year')
 
     if month and year:
-        # Filter for specific month
         month_str = f"{int(month):02d}"
         rules = [r for r in rules if r.get('start_date', '').startswith(month_str)]
 
-    # Transform rules into the format the frontend expects
     now = datetime.now()
     events = []
     for rule in rules:
@@ -505,7 +690,6 @@ def get_upcoming_dates():
         start_mmdd = rule.get('start_date', '')
         try:
             event_date = datetime.strptime(f"{now.year}-{start_mmdd}", '%Y-%m-%d')
-            # If the event end date has already passed this year, use next year
             end_mmdd = rule.get('end_date', '')
             end_date = datetime.strptime(f"{now.year}-{end_mmdd}", '%Y-%m-%d')
             if end_date < now:
@@ -522,7 +706,6 @@ def get_upcoming_dates():
         })
 
     upcoming.sort(key=lambda x: x['_sort'])
-    # Remove sort key before returning
     for item in upcoming:
         del item['_sort']
 
@@ -556,7 +739,6 @@ def get_alerts():
     listings = ebay.get_listings()
     alerts = []
 
-    # Low price alerts
     for listing in listings:
         if listing['price'] < 10:
             alerts.append({
@@ -565,7 +747,6 @@ def get_alerts():
                 'item': listing
             })
 
-    # High value alerts
     for listing in listings:
         if listing['price'] > 1000:
             alerts.append({
@@ -638,7 +819,6 @@ def market_categories():
             'sold_median': round(data.get('sold_median', 0), 2)
         })
 
-    # Sort by count descending
     categories.sort(key=lambda x: x['count'], reverse=True)
 
     return jsonify({
@@ -672,6 +852,122 @@ def price_check():
         'status': 'unknown',
         'message': 'No market data available for this item type'
     })
+
+
+# =============================================================================
+# Flask Routes - Art Deals
+# =============================================================================
+
+@app.route('/api/art-deals')
+def get_art_deals():
+    """Get art market deals with optional filtering"""
+    deals = load_art_deals()
+
+    # Optional filters
+    artist = request.args.get('artist', '')
+    min_price = request.args.get('min_price', type=float)
+    max_price = request.args.get('max_price', type=float)
+    search = request.args.get('search', '').lower()
+    sort_by = request.args.get('sort', 'profit')
+
+    if artist:
+        deals = [d for d in deals if d.get('artist', '').lower() == artist.lower()]
+
+    if search:
+        deals = [d for d in deals if search in d.get('title', '').lower()]
+
+    if min_price is not None:
+        deals = [d for d in deals if d.get('price', 0) >= min_price]
+
+    if max_price is not None:
+        deals = [d for d in deals if d.get('price', 0) <= max_price]
+
+    # Sort
+    if sort_by == 'profit':
+        deals.sort(key=lambda d: d.get('profit', 0), reverse=True)
+    elif sort_by == 'price_low':
+        deals.sort(key=lambda d: d.get('price', 0))
+    elif sort_by == 'price_high':
+        deals.sort(key=lambda d: d.get('price', 0), reverse=True)
+    elif sort_by == 'discount':
+        deals.sort(key=lambda d: d.get('discount_pct', 0), reverse=True)
+
+    return jsonify(deals)
+
+
+# =============================================================================
+# Flask Routes - eBay Deals (Browse API)
+# =============================================================================
+
+@app.route('/api/deals/search')
+def deals_search():
+    """Search eBay for deals using Browse API"""
+    query = request.args.get('q', '')
+    min_price = float(request.args.get('min_price', DEFAULT_MIN_PRICE))
+    max_price = float(request.args.get('max_price', DEFAULT_MAX_PRICE))
+
+    if not query:
+        return jsonify([])
+
+    deals = search_ebay(query, max_price, min_price, limit=20)
+    return jsonify(deals)
+
+
+@app.route('/api/deals/targets')
+def deals_targets():
+    """Get all deal search targets"""
+    targets = load_deal_targets()
+    return jsonify(targets)
+
+
+# =============================================================================
+# Flask Routes - Watchlist
+# =============================================================================
+
+@app.route('/api/watchlist')
+def get_watchlist():
+    """Get all watchlist items"""
+    items = load_watchlist()
+    return jsonify(items)
+
+
+@app.route('/api/watchlist/add', methods=['POST'])
+def add_to_watchlist():
+    """Add item to watchlist"""
+    data = request.get_json()
+
+    item = {
+        'id': data.get('id', str(datetime.now().timestamp())),
+        'title': data.get('title', ''),
+        'price': data.get('price', 0),
+        'url': data.get('url', ''),
+        'image': data.get('image', ''),
+        'notes': data.get('notes', ''),
+        'added': datetime.now().isoformat(),
+        'status': 'watching'
+    }
+
+    items = load_watchlist()
+
+    # Check for duplicates
+    if not any(i['id'] == item['id'] for i in items):
+        items.append(item)
+        save_watchlist(items)
+
+    return jsonify({'success': True, 'count': len(items)})
+
+
+@app.route('/api/watchlist/remove', methods=['POST'])
+def remove_from_watchlist():
+    """Remove item from watchlist"""
+    data = request.get_json()
+    item_id = data.get('id', '')
+
+    items = load_watchlist()
+    items = [i for i in items if i['id'] != item_id]
+    save_watchlist(items)
+
+    return jsonify({'success': True, 'count': len(items)})
 
 
 # =============================================================================
