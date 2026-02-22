@@ -14,6 +14,7 @@ from flask import Flask, render_template, jsonify, request
 from datetime import datetime, timedelta
 import os
 import json
+import csv
 import base64
 import requests
 import pickle
@@ -576,6 +577,248 @@ def get_price_assessment(current_price, title):
 
 
 # =============================================================================
+# Personal Inventory Data
+# =============================================================================
+
+_personal_inventory = None
+_personal_inventory_loaded = None
+
+
+def load_personal_inventory():
+    """Load personal inventory from SF enriched JSON + Death NYC CSV, cached by mtime"""
+    global _personal_inventory, _personal_inventory_loaded
+
+    sf_path = os.path.join(DATA_DIR, 'inventory_enriched.json')
+    dnyc_path = os.path.join(DATA_DIR, 'death_nyc_inventory.csv')
+
+    # Check mtimes for cache invalidation
+    sf_mtime = os.path.getmtime(sf_path) if os.path.exists(sf_path) else 0
+    dnyc_mtime = os.path.getmtime(dnyc_path) if os.path.exists(dnyc_path) else 0
+    combined_mtime = (sf_mtime, dnyc_mtime)
+
+    if _personal_inventory is not None and _personal_inventory_loaded == combined_mtime:
+        return _personal_inventory
+
+    items = []
+
+    # Load Shepard Fairey inventory
+    if os.path.exists(sf_path):
+        with open(sf_path, 'r') as f:
+            sf_data = json.load(f)
+        for rec in sf_data:
+            market = rec.get('market_data', {})
+            ebay_supply = rec.get('ebay_supply', {})
+            items.append({
+                'id': f"sf-{rec.get('id', len(items))}",
+                'name': rec.get('name', 'Unknown'),
+                'artist': rec.get('artist', 'Shepard Fairey'),
+                'source': 'personal',
+                'suggested_price': rec.get('suggested_price'),
+                'price_range': rec.get('price_range', ''),
+                'your_price': rec.get('your_price'),
+                'year': rec.get('year'),
+                'edition': rec.get('edition'),
+                'comparable_sales': rec.get('comparable_sales', 0),
+                'recent_sales': rec.get('recent_sales', 0),
+                'market_data': market,
+                'recommendation': ebay_supply.get('recommendation', 'RESEARCH'),
+                'recommendation_reason': ebay_supply.get('reason', ''),
+                'ebay_supply': ebay_supply,
+                'category': 'Shepard Fairey',
+            })
+
+    # Load Death NYC inventory
+    if os.path.exists(dnyc_path):
+        with open(dnyc_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                price = 0
+                try:
+                    price = float(row.get('CURRENT_PRICE', 0))
+                except (ValueError, TypeError):
+                    pass
+                suggested = 0
+                try:
+                    suggested = float(row.get('SUGGESTED_PRICE', 0))
+                except (ValueError, TypeError):
+                    pass
+
+                items.append({
+                    'id': f"dnyc-{row.get('ITEM_ID', len(items))}",
+                    'name': row.get('TITLE', 'Unknown'),
+                    'artist': 'Death NYC',
+                    'source': 'personal',
+                    'suggested_price': suggested,
+                    'price_range': f"${price:.0f} - ${suggested:.0f}" if price and suggested else '',
+                    'your_price': price,
+                    'category': row.get('CATEGORY', 'Print'),
+                    'subjects': row.get('SUBJECTS', ''),
+                    'ebay_link': row.get('EBAY_LINK', ''),
+                    'recommendation': 'HOLD',
+                    'recommendation_reason': '',
+                    'market_data': {},
+                    'ebay_supply': {},
+                    'comparable_sales': 0,
+                    'recent_sales': 0,
+                })
+
+    _personal_inventory = items
+    _personal_inventory_loaded = combined_mtime
+    return items
+
+
+# =============================================================================
+# Historical Price Data
+# =============================================================================
+
+_historical_prices = None
+_historical_prices_loaded = None
+
+
+def load_historical_prices():
+    """Load Shepard Fairey historical price data, cached by mtime"""
+    global _historical_prices, _historical_prices_loaded
+
+    path = os.path.join(DATA_DIR, 'shepard_fairey_data.json')
+    if not os.path.exists(path):
+        return []
+
+    mtime = os.path.getmtime(path)
+    if _historical_prices is not None and _historical_prices_loaded == mtime:
+        return _historical_prices
+
+    with open(path, 'r') as f:
+        _historical_prices = json.load(f)
+    _historical_prices_loaded = mtime
+    return _historical_prices
+
+
+_worthpoint_data = None
+_worthpoint_data_loaded = None
+
+
+def load_worthpoint_data():
+    """Load WorthPoint sold price data, cached by mtime"""
+    global _worthpoint_data, _worthpoint_data_loaded
+
+    path = os.path.join(DATA_DIR, 'worthpoint_sf_data.json')
+    if not os.path.exists(path):
+        return []
+
+    mtime = os.path.getmtime(path)
+    if _worthpoint_data is not None and _worthpoint_data_loaded == mtime:
+        return _worthpoint_data
+
+    with open(path, 'r') as f:
+        _worthpoint_data = json.load(f)
+    _worthpoint_data_loaded = mtime
+    return _worthpoint_data
+
+
+_artist_summaries = None
+_artist_summaries_loaded = None
+
+
+def load_artist_summaries():
+    """Load pre-computed artist price summaries, cached by mtime"""
+    global _artist_summaries, _artist_summaries_loaded
+
+    path = os.path.join(DATA_DIR, 'artist_price_summaries.json')
+    if not os.path.exists(path):
+        return {}
+
+    mtime = os.path.getmtime(path)
+    if _artist_summaries is not None and _artist_summaries_loaded == mtime:
+        return _artist_summaries
+
+    with open(path, 'r') as f:
+        _artist_summaries = json.load(f)
+    _artist_summaries_loaded = mtime
+    return _artist_summaries
+
+
+def lookup_historical_prices(title, artist='', limit=50):
+    """Fuzzy word-overlap matching against historical prices + WorthPoint data"""
+    title_words = set(re.findall(r'\w+', title.lower()))
+    if len(title_words) < 2:
+        return []
+
+    results = []
+
+    # Search main historical prices (Shepard Fairey)
+    if not artist or 'fairey' in artist.lower() or 'shepard' in artist.lower():
+        historical = load_historical_prices()
+        for rec in historical:
+            name = rec.get('name', '')
+            rec_words = set(re.findall(r'\w+', name.lower()))
+            overlap = len(title_words & rec_words)
+            if overlap >= 2 and overlap >= len(title_words) * 0.4:
+                results.append({
+                    'name': name,
+                    'price': rec.get('price'),
+                    'date': rec.get('date', ''),
+                    'source': rec.get('source', 'eBay'),
+                    'url': rec.get('url', ''),
+                    'signed': rec.get('signed'),
+                    'medium': rec.get('medium', ''),
+                    '_score': overlap,
+                })
+
+        # Also search WorthPoint data
+        wp_data = load_worthpoint_data()
+        for rec in wp_data:
+            wp_title = rec.get('title', '')
+            rec_words = set(re.findall(r'\w+', wp_title.lower()))
+            overlap = len(title_words & rec_words)
+            if overlap >= 2 and overlap >= len(title_words) * 0.4:
+                results.append({
+                    'name': wp_title,
+                    'price': rec.get('price'),
+                    'date': rec.get('date_imported', ''),
+                    'source': 'WorthPoint',
+                    'url': rec.get('url', ''),
+                    '_score': overlap,
+                })
+
+    # Search artist summaries for non-SF artists
+    if artist and 'fairey' not in artist.lower():
+        summaries = load_artist_summaries()
+        for artist_key, artworks in summaries.items():
+            if artist.lower() not in artist_key.lower():
+                continue
+            for name, stats in artworks.items():
+                rec_words = set(re.findall(r'\w+', name.lower()))
+                overlap = len(title_words & rec_words)
+                if overlap >= 2 and overlap >= len(title_words) * 0.4:
+                    for sale in stats.get('recent_sales', []):
+                        results.append({
+                            'name': name,
+                            'price': sale.get('price'),
+                            'date': sale.get('date', ''),
+                            'source': sale.get('source', 'WorthPoint'),
+                            '_score': overlap,
+                        })
+
+    # Sort by score desc, then date desc
+    results.sort(key=lambda x: (-x['_score'], x.get('date', '') or ''), reverse=False)
+    results.sort(key=lambda x: x['_score'], reverse=True)
+
+    # Remove score field and deduplicate
+    seen = set()
+    deduped = []
+    for r in results:
+        r.pop('_score', None)
+        key = (r.get('name', ''), r.get('price'), r.get('date', ''))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+
+    # Sort final by date desc
+    deduped.sort(key=lambda x: x.get('date', '') or '', reverse=True)
+    return deduped[:limit]
+
+
+# =============================================================================
 # Flask Routes - Core
 # =============================================================================
 
@@ -640,6 +883,11 @@ def get_stats():
     watchlist = load_watchlist()
     watch_count = len(watchlist)
 
+    # Personal inventory
+    inventory = load_personal_inventory()
+    inv_count = len(inventory)
+    inv_value = sum(i.get('suggested_price') or 0 for i in inventory)
+
     return jsonify({
         'total_listings': len(listings),
         'total_value': total_value,
@@ -647,7 +895,9 @@ def get_stats():
         'underpriced': underpriced,
         'art_deals': art_count,
         'deal_targets': target_count,
-        'watchlist_count': watch_count
+        'watchlist_count': watch_count,
+        'my_inventory': inv_count,
+        'inventory_value': round(inv_value, 2),
     })
 
 
@@ -852,6 +1102,50 @@ def price_check():
         'status': 'unknown',
         'message': 'No market data available for this item type'
     })
+
+
+# =============================================================================
+# Flask Routes - Personal Inventory & Historical Prices
+# =============================================================================
+
+@app.route('/api/my-inventory')
+def get_my_inventory():
+    """Get full personal inventory list"""
+    items = load_personal_inventory()
+    artist = request.args.get('artist', '').lower()
+    search = request.args.get('search', '').lower()
+
+    if artist:
+        items = [i for i in items if artist in i.get('artist', '').lower()]
+
+    if search:
+        items = [i for i in items if search in i.get('name', '').lower()]
+
+    return jsonify(items)
+
+
+@app.route('/api/my-inventory/<item_id>')
+def get_inventory_item(item_id):
+    """Get single inventory item with full market data"""
+    items = load_personal_inventory()
+    for item in items:
+        if item['id'] == item_id:
+            return jsonify(item)
+    return jsonify({'error': 'Item not found'}), 404
+
+
+@app.route('/api/historical-prices')
+def get_historical_prices():
+    """Fuzzy search historical prices for a given title/artist"""
+    title = request.args.get('title', '')
+    artist = request.args.get('artist', '')
+    limit = request.args.get('limit', 50, type=int)
+
+    if not title:
+        return jsonify({'error': 'Missing title parameter'}), 400
+
+    results = lookup_historical_prices(title, artist, limit)
+    return jsonify(results)
 
 
 # =============================================================================

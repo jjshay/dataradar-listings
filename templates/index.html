@@ -1306,6 +1306,213 @@
             color: var(--dim);
             margin-top: 2px;
         }
+
+        /* ==========================================
+           Personal Inventory Styles
+           ========================================== */
+        .inv-section-label {
+            font-size: 13px;
+            color: var(--dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin: 16px 0 8px;
+        }
+
+        .inv-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .inv-card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 14px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .inv-card:active {
+            transform: scale(0.98);
+        }
+
+        .inv-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .inv-card-artist {
+            font-size: 11px;
+            color: var(--purple);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .rec-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .rec-badge.buy { background: rgba(48, 209, 88, 0.2); color: var(--green); }
+        .rec-badge.hold { background: rgba(255, 159, 10, 0.2); color: var(--orange); }
+        .rec-badge.sell { background: rgba(255, 69, 58, 0.2); color: var(--red); }
+        .rec-badge.research { background: rgba(142, 142, 147, 0.2); color: var(--dim); }
+
+        .inv-card-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .inv-card-prices {
+            display: flex;
+            gap: 12px;
+            align-items: baseline;
+        }
+
+        .inv-card-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .inv-card-range {
+            font-size: 13px;
+            color: var(--dim);
+        }
+
+        .inv-card-comps {
+            font-size: 12px;
+            color: var(--dim);
+            margin-top: 4px;
+        }
+
+        /* Inventory Detail Modal Content */
+        .inv-detail-rec {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .inv-detail-rec.buy { background: rgba(48, 209, 88, 0.1); border-left: 3px solid var(--green); }
+        .inv-detail-rec.hold { background: rgba(255, 159, 10, 0.1); border-left: 3px solid var(--orange); }
+        .inv-detail-rec.sell { background: rgba(255, 69, 58, 0.1); border-left: 3px solid var(--red); }
+        .inv-detail-rec.research { background: rgba(142, 142, 147, 0.1); border-left: 3px solid var(--dim); }
+
+        .inv-detail-rec .rec-label {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .inv-detail-rec.buy .rec-label { color: var(--green); }
+        .inv-detail-rec.hold .rec-label { color: var(--orange); }
+        .inv-detail-rec.sell .rec-label { color: var(--red); }
+        .inv-detail-rec.research .rec-label { color: var(--dim); }
+
+        .inv-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .inv-stat-box {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .inv-stat-box .stat-label {
+            font-size: 10px;
+            color: var(--dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .inv-stat-box .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .comp-list {
+            margin-top: 12px;
+        }
+
+        .comp-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .comp-item:last-child {
+            border-bottom: none;
+        }
+
+        .comp-date {
+            color: var(--dim);
+            font-size: 11px;
+        }
+
+        .comp-price {
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .comp-source {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(10, 132, 255, 0.15);
+            color: var(--accent);
+        }
+
+        .comp-source.worthpoint { background: rgba(191, 90, 242, 0.15); color: var(--purple); }
+        .comp-source.ebay { background: rgba(48, 209, 88, 0.15); color: var(--green); }
+        .comp-source.artsy { background: rgba(255, 159, 10, 0.15); color: var(--orange); }
+
+        .load-history-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 12px;
+            background: rgba(10, 132, 255, 0.1);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .load-history-btn:active {
+            opacity: 0.7;
+        }
+
+        .load-history-btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -1328,9 +1535,9 @@
                     <div class="value" id="stat-art">--</div>
                     <div class="label">Art Deals</div>
                 </div>
-                <div class="stat-card purple" onclick="showPage('deals')">
-                    <div class="value" id="stat-targets">--</div>
-                    <div class="label">Deal Targets</div>
+                <div class="stat-card purple" onclick="showPage('items')">
+                    <div class="value" id="stat-inventory">--</div>
+                    <div class="label">My Collection</div>
                 </div>
                 <div class="stat-card orange" onclick="showPage('watch')">
                     <div class="value" id="stat-watch">--</div>
@@ -1370,19 +1577,27 @@
             <div class="section">
                 <div class="search-bar">
                     <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input type="text" id="inv-search" placeholder="Search listings...">
+                    <input type="text" id="inv-search" placeholder="Search items...">
                 </div>
 
                 <div class="chips" id="inv-chips">
                     <button class="chip active" data-filter="all">All</button>
+                    <button class="chip" data-filter="shepard fairey">Shepard Fairey</button>
                     <button class="chip" data-filter="death nyc">Death NYC</button>
-                    <button class="chip" data-filter="fairey">Shepard Fairey</button>
-                    <button class="chip" data-filter="beatles">Beatles</button>
-                    <button class="chip" data-filter="space">Space</button>
+                    <button class="chip" data-filter="ebay">eBay Listings</button>
                 </div>
 
-                <div class="card" id="inv-results">
-                    <div class="empty">Search for items</div>
+                <!-- My Collection -->
+                <div id="inv-collection">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+
+                <!-- eBay Listings -->
+                <div id="inv-ebay" style="display:none;">
+                    <div class="inv-section-label">eBay Active Listings</div>
+                    <div class="card" id="inv-ebay-results">
+                        <div class="loading"><div class="spinner"></div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1576,10 +1791,29 @@
                 <div style="margin-top: 16px;">
                     <canvas id="art-price-chart" height="200"></canvas>
                 </div>
+                <button class="load-history-btn" id="art-load-history-btn" onclick="loadArtFullHistory()">Load Full Price History</button>
                 <div style="margin-top: 16px; display: flex; gap: 10px;">
                     <a id="art-detail-link" href="#" target="_blank" class="action-btn primary" style="flex:1; text-decoration:none; text-align:center;">View on eBay</a>
                     <button class="action-btn secondary" style="flex:1;" onclick="watchFromArt()">Add to Watch</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Detail Modal -->
+    <div class="modal-overlay" id="inv-detail-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="inv-detail-title" style="font-size: 16px;">Item Detail</h2>
+                <button class="modal-close" onclick="closeInvDetail()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <div id="inv-detail-content"></div>
+                <div style="margin-top: 16px;">
+                    <canvas id="inv-price-chart" height="200"></canvas>
+                </div>
+                <button class="load-history-btn" id="inv-load-history-btn" onclick="loadInvFullHistory()">Load Full Price History</button>
+                <div id="inv-comps-list"></div>
             </div>
         </div>
     </div>
@@ -1695,6 +1929,9 @@
         let artDealsData = [];
         let currentArtDeal = null;
         let artPriceChart = null;
+        let myInventory = [];
+        let currentInvItem = null;
+        let invPriceChart = null;
 
         const toast = document.getElementById('toast');
 
@@ -1780,7 +2017,7 @@
                 const data = await resp.json();
                 document.getElementById('stat-listings').textContent = data.total_listings;
                 document.getElementById('stat-art').textContent = data.art_deals;
-                document.getElementById('stat-targets').textContent = data.deal_targets;
+                document.getElementById('stat-inventory').textContent = data.my_inventory || 0;
                 document.getElementById('stat-watch').textContent = data.watchlist_count;
             } catch (e) {
                 console.error('Stats error:', e);
@@ -1847,70 +2084,89 @@
         }
 
         // ==========================================
-        // Items Page (Inventory)
+        // Items Page (My Collection + eBay Listings)
         // ==========================================
+        let invLoaded = false;
+
         async function loadInventory() {
-            const resultsDiv = document.getElementById('inv-results');
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/listings');
-                let items = await resp.json();
-                allListings = items;
-
-                if (invFilter !== 'all') {
-                    items = items.filter(i => i.title.toLowerCase().includes(invFilter));
+            if (!invLoaded) {
+                // Load personal inventory
+                try {
+                    const resp = await fetch('/api/my-inventory');
+                    myInventory = await resp.json();
+                } catch (e) {
+                    myInventory = [];
                 }
-
-                renderInventory(items);
-            } catch (e) {
-                resultsDiv.innerHTML = '<div class="empty">Failed to load inventory</div>';
+                invLoaded = true;
             }
+            renderItemsPage();
         }
 
-        function renderInventory(items) {
-            const resultsDiv = document.getElementById('inv-results');
+        function renderItemsPage() {
+            const query = document.getElementById('inv-search').value.toLowerCase();
+            const collectionDiv = document.getElementById('inv-collection');
+            const ebayDiv = document.getElementById('inv-ebay');
+            const ebayResults = document.getElementById('inv-ebay-results');
 
-            if (!items.length) {
-                resultsDiv.innerHTML = '<div class="empty">No items found</div>';
+            if (invFilter === 'ebay') {
+                // Show only eBay listings
+                collectionDiv.style.display = 'none';
+                ebayDiv.style.display = 'block';
+                loadEbayListings(query);
                 return;
             }
 
-            resultsDiv.innerHTML = items.map(item => {
-                const artist = detectArtist(item.title);
-                return `
-                    <a href="${item.url}" target="_blank" class="card-item">
-                        <img src="${item.image || ''}" class="item-image" onerror="this.style.visibility='hidden'">
-                        <div class="item-info">
-                            <div class="listing-artist">${artist}</div>
-                            <div class="item-title">${item.title}</div>
-                        </div>
-                        <div class="item-price">$${item.price.toFixed(2)}</div>
-                        <span class="item-arrow">&#8250;</span>
-                    </a>
-                `;
-            }).join('');
+            // Show collection
+            collectionDiv.style.display = 'block';
+            ebayDiv.style.display = invFilter === 'all' ? 'block' : 'none';
+
+            let items = [...myInventory];
+
+            if (invFilter === 'shepard fairey') {
+                items = items.filter(i => i.artist === 'Shepard Fairey');
+            } else if (invFilter === 'death nyc') {
+                items = items.filter(i => i.artist === 'Death NYC');
+            }
+
+            if (query) {
+                items = items.filter(i => i.name.toLowerCase().includes(query));
+            }
+
+            if (!items.length) {
+                collectionDiv.innerHTML = '<div class="empty">No items found</div>';
+            } else {
+                collectionDiv.innerHTML =
+                    `<div class="inv-section-label">My Collection (${items.length})</div>` +
+                    '<div class="inv-grid">' + items.map((item, i) => {
+                        const recClass = (item.recommendation || 'research').toLowerCase();
+                        const price = item.suggested_price ? `$${item.suggested_price.toLocaleString()}` : '--';
+                        return `
+                            <div class="inv-card" onclick="openInvDetail('${item.id}')">
+                                <div class="inv-card-top">
+                                    <span class="inv-card-artist">${item.artist}</span>
+                                    <span class="rec-badge ${recClass}">${item.recommendation || 'RESEARCH'}</span>
+                                </div>
+                                <div class="inv-card-name">${item.name}</div>
+                                <div class="inv-card-prices">
+                                    <span class="inv-card-price">${price}</span>
+                                    <span class="inv-card-range">${item.price_range || ''}</span>
+                                </div>
+                                ${item.comparable_sales ? `<div class="inv-card-comps">${item.comparable_sales} comps &middot; ${item.recent_sales || 0} recent</div>` : ''}
+                            </div>
+                        `;
+                    }).join('') + '</div>';
+            }
+
+            // Also load eBay listings if showing All
+            if (invFilter === 'all') {
+                loadEbayListings(query);
+            }
         }
 
-        // Inventory search
-        const invSearch = document.getElementById('inv-search');
-        let invTimeout;
-        invSearch.addEventListener('input', () => {
-            clearTimeout(invTimeout);
-            invTimeout = setTimeout(() => searchInventory(invSearch.value), 300);
-        });
+        async function loadEbayListings(query) {
+            const ebayResults = document.getElementById('inv-ebay-results');
+            ebayResults.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-        document.querySelectorAll('#inv-chips .chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                document.querySelectorAll('#inv-chips .chip').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                invFilter = chip.dataset.filter;
-                searchInventory(invSearch.value);
-            });
-        });
-
-        async function searchInventory(query) {
-            document.getElementById('inv-results').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             try {
                 let items = allListings.length ? [...allListings] : [];
                 if (!items.length) {
@@ -1920,16 +2176,297 @@
                 }
 
                 if (query) {
-                    items = items.filter(i => i.title.toLowerCase().includes(query.toLowerCase()));
+                    items = items.filter(i => i.title.toLowerCase().includes(query));
                 }
 
-                if (invFilter !== 'all') {
-                    items = items.filter(i => i.title.toLowerCase().includes(invFilter));
+                if (!items.length) {
+                    ebayResults.innerHTML = '<div class="empty">No eBay listings found</div>';
+                    return;
                 }
 
-                renderInventory(items);
+                ebayResults.innerHTML = items.map(item => {
+                    const artist = detectArtist(item.title);
+                    return `
+                        <a href="${item.url}" target="_blank" class="card-item">
+                            <img src="${item.image || ''}" class="item-image" onerror="this.style.visibility='hidden'">
+                            <div class="item-info">
+                                <div class="listing-artist">${artist}</div>
+                                <div class="item-title">${item.title}</div>
+                            </div>
+                            <div class="item-price">$${item.price.toFixed(2)}</div>
+                            <span class="item-arrow">&#8250;</span>
+                        </a>
+                    `;
+                }).join('');
             } catch (e) {
-                document.getElementById('inv-results').innerHTML = '<div class="empty">Search failed</div>';
+                ebayResults.innerHTML = '<div class="empty">Failed to load eBay listings</div>';
+            }
+        }
+
+        // Inventory search
+        const invSearch = document.getElementById('inv-search');
+        let invTimeout;
+        invSearch.addEventListener('input', () => {
+            clearTimeout(invTimeout);
+            invTimeout = setTimeout(() => renderItemsPage(), 300);
+        });
+
+        document.querySelectorAll('#inv-chips .chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('#inv-chips .chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                invFilter = chip.dataset.filter;
+                renderItemsPage();
+            });
+        });
+
+        // ==========================================
+        // Inventory Detail Modal
+        // ==========================================
+        async function openInvDetail(itemId) {
+            const item = myInventory.find(i => i.id === itemId);
+            if (!item) return;
+
+            currentInvItem = item;
+            document.getElementById('inv-detail-title').textContent = item.artist || 'Item Detail';
+
+            const recClass = (item.recommendation || 'research').toLowerCase();
+            const market = item.market_data || {};
+            const supply = item.ebay_supply || {};
+
+            let html = `
+                <div style="font-size: 15px; font-weight: 500; margin-bottom: 12px;">${item.name}</div>
+            `;
+
+            // Recommendation banner
+            if (item.recommendation) {
+                html += `
+                    <div class="inv-detail-rec ${recClass}">
+                        <div class="rec-label">${item.recommendation}</div>
+                        <div>${item.recommendation_reason || ''}</div>
+                    </div>
+                `;
+            }
+
+            // Price stats
+            html += `<div class="inv-stat-grid">`;
+            html += `<div class="inv-stat-box"><div class="stat-label">Suggested</div><div class="stat-value" style="color:var(--green);">$${(item.suggested_price || 0).toLocaleString()}</div></div>`;
+            if (market.min !== undefined) {
+                html += `<div class="inv-stat-box"><div class="stat-label">Low</div><div class="stat-value">$${market.min.toLocaleString()}</div></div>`;
+                html += `<div class="inv-stat-box"><div class="stat-label">High</div><div class="stat-value">$${market.max.toLocaleString()}</div></div>`;
+            } else {
+                html += `<div class="inv-stat-box"><div class="stat-label">Range</div><div class="stat-value" style="font-size:13px;">${item.price_range || '--'}</div></div>`;
+                html += `<div class="inv-stat-box"><div class="stat-label">Category</div><div class="stat-value" style="font-size:13px;">${item.category || '--'}</div></div>`;
+            }
+            html += `</div>`;
+
+            // eBay supply info
+            if (supply.ebay_count) {
+                html += `<div style="font-size:13px; color:var(--dim); margin-bottom:12px;">eBay Supply: ${supply.ebay_count} listings &middot; Avg: $${(supply.ebay_avg_price || 0).toFixed(0)}</div>`;
+            }
+
+            document.getElementById('inv-detail-content').innerHTML = html;
+
+            // Draw price history chart
+            const ctx = document.getElementById('inv-price-chart').getContext('2d');
+            if (invPriceChart) invPriceChart.destroy();
+
+            const history = (market.price_history || []).filter(h => h.price && h.date);
+            if (history.length > 0) {
+                history.sort((a, b) => a.date.localeCompare(b.date));
+
+                const sourceColors = {
+                    'WorthPoint': { bg: 'rgba(191, 90, 242, 0.8)', border: 'var(--purple)' },
+                    'eBay': { bg: 'rgba(48, 209, 88, 0.8)', border: 'var(--green)' },
+                    'Artsy': { bg: 'rgba(255, 159, 10, 0.8)', border: 'var(--orange)' },
+                };
+
+                invPriceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: history.map(h => h.date),
+                        datasets: [{
+                            label: 'Price History',
+                            data: history.map(h => h.price),
+                            borderColor: 'rgba(10, 132, 255, 1)',
+                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: history.map(h => {
+                                const s = sourceColors[h.source] || sourceColors['eBay'];
+                                return s.bg;
+                            }),
+                            pointRadius: 5,
+                        }, {
+                            label: 'Suggested Price',
+                            data: history.map(() => item.suggested_price || 0),
+                            borderColor: 'rgba(48, 209, 88, 0.6)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 8 },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            },
+                            y: {
+                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            }
+                        }
+                    }
+                });
+            } else {
+                invPriceChart = null;
+                document.getElementById('inv-price-chart').style.display = 'none';
+            }
+
+            // Show/reset load history button
+            const histBtn = document.getElementById('inv-load-history-btn');
+            histBtn.textContent = 'Load Full Price History';
+            histBtn.disabled = false;
+            histBtn.style.display = 'block';
+            document.getElementById('inv-price-chart').style.display = '';
+
+            // Comparable sales
+            const comps = market.price_history || [];
+            if (comps.length > 0) {
+                document.getElementById('inv-comps-list').innerHTML =
+                    '<div class="inv-section-label" style="margin-top:16px;">Comparable Sales</div>' +
+                    '<div class="comp-list">' + comps.map(c => {
+                        const srcClass = (c.source || '').toLowerCase().includes('worthpoint') ? 'worthpoint' :
+                                         (c.source || '').toLowerCase().includes('artsy') ? 'artsy' : 'ebay';
+                        return `
+                            <div class="comp-item">
+                                <div>
+                                    <div class="comp-date">${c.date || ''}</div>
+                                    <span class="comp-source ${srcClass}">${c.source || 'Unknown'}</span>
+                                </div>
+                                <span class="comp-price">$${(c.price || 0).toLocaleString()}</span>
+                            </div>
+                        `;
+                    }).join('') + '</div>';
+            } else {
+                document.getElementById('inv-comps-list').innerHTML = '';
+            }
+
+            document.getElementById('inv-detail-modal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeInvDetail() {
+            document.getElementById('inv-detail-modal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('inv-detail-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'inv-detail-modal') closeInvDetail();
+        });
+
+        async function loadInvFullHistory() {
+            if (!currentInvItem) return;
+
+            const btn = document.getElementById('inv-load-history-btn');
+            btn.textContent = 'Loading...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch(`/api/historical-prices?title=${encodeURIComponent(currentInvItem.name)}&artist=${encodeURIComponent(currentInvItem.artist)}&limit=50`);
+                const data = await resp.json();
+
+                if (!data.length) {
+                    btn.textContent = 'No additional data found';
+                    return;
+                }
+
+                // Merge with existing chart data
+                const existing = (currentInvItem.market_data || {}).price_history || [];
+                const existingKeys = new Set(existing.map(e => `${e.date}-${e.price}`));
+
+                const newPoints = data.filter(d => d.price && d.date && !existingKeys.has(`${d.date}-${d.price}`));
+                const allPoints = [...existing, ...newPoints].filter(p => p.price && p.date);
+                allPoints.sort((a, b) => a.date.localeCompare(b.date));
+
+                // Redraw chart
+                const ctx = document.getElementById('inv-price-chart').getContext('2d');
+                if (invPriceChart) invPriceChart.destroy();
+                document.getElementById('inv-price-chart').style.display = '';
+
+                const sourceColors = {
+                    'WorthPoint': 'rgba(191, 90, 242, 0.8)',
+                    'eBay': 'rgba(48, 209, 88, 0.8)',
+                    'Artsy': 'rgba(255, 159, 10, 0.8)',
+                };
+
+                invPriceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: allPoints.map(h => h.date),
+                        datasets: [{
+                            label: `Price History (${allPoints.length} records)`,
+                            data: allPoints.map(h => h.price),
+                            borderColor: 'rgba(10, 132, 255, 1)',
+                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: allPoints.map(h => sourceColors[h.source] || sourceColors['eBay']),
+                            pointRadius: 4,
+                        }, {
+                            label: 'Suggested Price',
+                            data: allPoints.map(() => currentInvItem.suggested_price || 0),
+                            borderColor: 'rgba(48, 209, 88, 0.6)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 10 },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            },
+                            y: {
+                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            }
+                        }
+                    }
+                });
+
+                btn.textContent = `Loaded ${newPoints.length} additional records`;
+
+                // Update comps list
+                document.getElementById('inv-comps-list').innerHTML =
+                    `<div class="inv-section-label" style="margin-top:16px;">All Sales (${allPoints.length})</div>` +
+                    '<div class="comp-list">' + allPoints.slice().reverse().slice(0, 20).map(c => {
+                        const srcClass = (c.source || '').toLowerCase().includes('worthpoint') ? 'worthpoint' :
+                                         (c.source || '').toLowerCase().includes('artsy') ? 'artsy' : 'ebay';
+                        return `
+                            <div class="comp-item">
+                                <div>
+                                    <div class="comp-date">${c.date || ''}</div>
+                                    <span class="comp-source ${srcClass}">${c.source || 'Unknown'}</span>
+                                </div>
+                                <span class="comp-price">$${(c.price || 0).toLocaleString()}</span>
+                            </div>
+                        `;
+                    }).join('') + '</div>';
+
+            } catch (e) {
+                btn.textContent = 'Failed to load history';
+                console.error('History load error:', e);
             }
         }
 
@@ -2137,6 +2674,96 @@
                 url: currentArtDeal.url
             });
             closeArtDetail();
+        }
+
+        async function loadArtFullHistory() {
+            if (!currentArtDeal) return;
+
+            const btn = document.getElementById('art-load-history-btn');
+            btn.textContent = 'Loading...';
+            btn.disabled = true;
+
+            try {
+                const artist = currentArtDeal.artist || '';
+                const resp = await fetch(`/api/historical-prices?title=${encodeURIComponent(currentArtDeal.title)}&artist=${encodeURIComponent(artist)}&limit=50`);
+                const data = await resp.json();
+
+                if (!data.length) {
+                    btn.textContent = 'No additional data found';
+                    return;
+                }
+
+                // Build combined dataset
+                const existing = (currentArtDeal.history || []).map(h => ({
+                    price: h.price,
+                    date: h.date || '',
+                    source: h.source || 'eBay',
+                    name: h.name || '',
+                }));
+
+                const existingKeys = new Set(existing.map(e => `${e.date}-${e.price}`));
+                const newPoints = data.filter(d => d.price && !existingKeys.has(`${d.date}-${d.price}`));
+                const allPoints = [...existing, ...newPoints].filter(p => p.price);
+
+                // Sort by date
+                allPoints.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+                // Redraw chart with combined data
+                const ctx = document.getElementById('art-price-chart').getContext('2d');
+                if (artPriceChart) artPriceChart.destroy();
+
+                const sourceColors = {
+                    'WorthPoint': 'rgba(191, 90, 242, 0.8)',
+                    'eBay': 'rgba(48, 209, 88, 0.8)',
+                    'Artsy': 'rgba(255, 159, 10, 0.8)',
+                };
+
+                artPriceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: allPoints.map(h => h.date || h.name?.substring(0, 15) || ''),
+                        datasets: [{
+                            label: `Full History (${allPoints.length})`,
+                            data: allPoints.map(h => h.price),
+                            borderColor: 'rgba(10, 132, 255, 1)',
+                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: allPoints.map(h => sourceColors[h.source] || sourceColors['eBay']),
+                            pointRadius: 4,
+                        }, {
+                            label: 'Listing Price',
+                            data: allPoints.map(() => currentArtDeal.price || 0),
+                            borderColor: 'rgba(48, 209, 88, 0.6)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 10 },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            },
+                            y: {
+                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
+                                grid: { color: 'rgba(56,56,58,0.3)' }
+                            }
+                        }
+                    }
+                });
+
+                btn.textContent = `Loaded ${newPoints.length} additional records`;
+
+            } catch (e) {
+                btn.textContent = 'Failed to load history';
+                console.error('Art history load error:', e);
+            }
         }
 
         // ==========================================
