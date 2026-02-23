@@ -25,6 +25,38 @@ app = Flask(__name__, template_folder='templates')
 # Data directory
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
+# Remote data URLs (GitHub Release assets for files too large for git)
+REMOTE_DATA = {
+    'shepard_fairey_data.json': 'https://github.com/jjshay/dataradar-listings/releases/download/v1.1-data/shepard_fairey_data.json',
+    'artist_price_summaries.json': 'https://github.com/jjshay/dataradar-listings/releases/download/v1.1-data/artist_price_summaries.json',
+}
+
+
+def ensure_data_file(filename):
+    """Download a data file from GitHub Release if not present locally"""
+    local_path = os.path.join(DATA_DIR, filename)
+    if os.path.exists(local_path):
+        return local_path
+
+    url = REMOTE_DATA.get(filename)
+    if not url:
+        return local_path
+
+    print(f"Downloading {filename} from GitHub Release...")
+    try:
+        resp = requests.get(url, stream=True, timeout=120)
+        resp.raise_for_status()
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(local_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        size_mb = os.path.getsize(local_path) / (1024 * 1024)
+        print(f"  Downloaded {filename} ({size_mb:.1f} MB)")
+    except Exception as e:
+        print(f"  Failed to download {filename}: {e}")
+
+    return local_path
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -679,7 +711,7 @@ def load_historical_prices():
     """Load Shepard Fairey historical price data, cached by mtime"""
     global _historical_prices, _historical_prices_loaded
 
-    path = os.path.join(DATA_DIR, 'shepard_fairey_data.json')
+    path = ensure_data_file('shepard_fairey_data.json')
     if not os.path.exists(path):
         return []
 
@@ -723,7 +755,7 @@ def load_artist_summaries():
     """Load pre-computed artist price summaries, cached by mtime"""
     global _artist_summaries, _artist_summaries_loaded
 
-    path = os.path.join(DATA_DIR, 'artist_price_summaries.json')
+    path = ensure_data_file('artist_price_summaries.json')
     if not os.path.exists(path):
         return {}
 
