@@ -9,3373 +9,1011 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --bg: #000;
-            --card: #1c1c1e;
-            --text: #fff;
-            --dim: #8e8e93;
-            --accent: #0a84ff;
-            --green: #30d158;
-            --orange: #ff9f0a;
-            --red: #ff453a;
-            --border: #38383a;
-            --purple: #bf5af2;
+            --bg: #000; --card: #1c1c1e; --card2: #2c2c2e; --text: #f5f5f7;
+            --dim: #86868b; --accent: #0a84ff; --green: #30d158; --orange: #ff9f0a;
+            --red: #ff453a; --purple: #bf5af2; --border: rgba(255,255,255,0.08);
         }
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
+        .app { max-width:1200px; margin:0 auto; padding-bottom:80px; }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+        /* Nav */
+        .nav { position:fixed; bottom:0; left:0; right:0; background:rgba(28,28,30,0.95); backdrop-filter:blur(20px); display:flex; justify-content:space-around; padding:8px 0 24px; border-top:1px solid var(--border); z-index:100; max-width:1200px; margin:0 auto; }
+        .nav-btn { display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--dim); background:none; border:none; font-size:10px; font-weight:500; cursor:pointer; padding:0 12px; transition:color 0.2s; }
+        .nav-btn svg { width:22px; height:22px; }
+        .nav-btn.active { color:var(--accent); }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .app {
-            max-width: 430px;
-            margin: 0 auto;
-            min-height: 100vh;
-            padding-bottom: 80px;
-        }
-
-        /* Header */
-        .header {
-            padding: 60px 20px 20px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .header .time {
-            font-size: 13px;
-            color: var(--dim);
-            margin-top: 4px;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            padding: 0 16px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: var(--card);
-            border-radius: 14px;
-            padding: 14px;
-            text-align: center;
-            cursor: pointer;
-            transition: transform 0.15s;
-        }
-
-        .stat-card:active {
-            transform: scale(0.96);
-        }
-
-        .stat-card .value {
-            font-size: 26px;
-            font-weight: 600;
-        }
-
-        .stat-card .label {
-            font-size: 11px;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 4px;
-        }
-
-        .stat-card.green .value { color: var(--green); }
-        .stat-card.orange .value { color: var(--orange); }
-        .stat-card.red .value { color: var(--red); }
-        .stat-card.purple .value { color: var(--purple); }
-        .stat-card.accent .value { color: var(--accent); }
-
-        /* Section */
-        .section {
-            padding: 0 16px;
-            margin-bottom: 24px;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .section-title {
-            font-size: 20px;
-            font-weight: 600;
-        }
-
-        .section-action {
-            font-size: 15px;
-            color: var(--accent);
-            background: none;
-            border: none;
-            cursor: pointer;
-        }
-
-        /* Search */
-        .search-bar {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-
-        .search-bar svg {
-            width: 18px;
-            height: 18px;
-            color: var(--dim);
-            flex-shrink: 0;
-        }
-
-        .search-bar input {
-            flex: 1;
-            background: none;
-            border: none;
-            color: var(--text);
-            font-size: 16px;
-            outline: none;
-        }
-
-        .search-bar input::placeholder {
-            color: var(--dim);
-        }
+        /* Layout */
+        .page { display:none; }
+        .page.active { display:block; }
+        .header { padding:50px 20px 16px; }
+        .header h1 { font-size:32px; font-weight:700; letter-spacing:-0.8px; }
+        .header p { font-size:13px; color:var(--dim); margin-top:4px; }
+        .section { padding:0 16px; margin-bottom:20px; }
+        .section-title { font-size:18px; font-weight:700; margin-bottom:10px; letter-spacing:-0.3px; }
 
         /* Cards */
-        .card {
-            background: var(--card);
-            border-radius: 16px;
-            overflow: hidden;
-        }
+        .grid { display:grid; gap:10px; padding:0 16px; margin-bottom:16px; }
+        .grid-2 { grid-template-columns:1fr 1fr; }
+        .grid-3 { grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
+        .card { background:var(--card); border-radius:14px; padding:16px; border:1px solid var(--border); }
+        .card-click { cursor:pointer; transition:transform 0.15s,background 0.15s; }
+        .card-click:active { transform:scale(0.97); }
+        .card-click:hover { background:var(--card2); }
+        .stat-val { font-size:26px; font-weight:700; letter-spacing:-0.5px; }
+        .stat-lbl { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px; font-weight:500; }
 
-        .card-item {
-            display: flex;
-            align-items: center;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border);
-            text-decoration: none;
-            color: inherit;
-        }
+        /* Tables */
+        .table-wrap { overflow-x:auto; border-radius:12px; background:var(--card); border:1px solid var(--border); }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        th { text-align:left; padding:10px 8px; font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:var(--dim); border-bottom:1px solid var(--border); cursor:pointer; font-weight:600; position:sticky; top:0; background:var(--card); user-select:none; }
+        th:hover { color:var(--text); }
+        td { padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }
+        tbody tr { cursor:pointer; transition:background 0.1s; }
+        tbody tr:hover td { background:rgba(255,255,255,0.03); }
+        .r { text-align:right; font-variant-numeric:tabular-nums; }
+        .trunc { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .g { color:var(--green); } .o { color:var(--orange); } .rd { color:var(--red); } .d { color:var(--dim); } .b { font-weight:700; }
+        .pill { font-size:9px; font-weight:700; padding:3px 10px; border-radius:20px; display:inline-block; white-space:nowrap; }
+        .pill-green { background:rgba(48,209,88,0.15); color:var(--green); }
+        .pill-orange { background:rgba(255,159,10,0.15); color:var(--orange); }
+        .pill-red { background:rgba(255,69,58,0.15); color:var(--red); }
+        .pill-blue { background:rgba(10,132,255,0.15); color:var(--accent); }
+        .pill-dim { background:rgba(142,142,147,0.12); color:var(--dim); }
 
-        .card-item:last-child {
-            border-bottom: none;
-        }
+        /* Buttons */
+        .btn { padding:12px 20px; border-radius:12px; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:transform 0.1s,opacity 0.1s; display:inline-flex; align-items:center; gap:8px; }
+        .btn:active { transform:scale(0.97); opacity:0.9; }
+        .btn-primary { background:var(--accent); color:#fff; }
+        .btn-green { background:var(--green); color:#000; }
+        .btn-red { background:var(--red); color:#fff; }
+        .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--dim); font-size:12px; padding:8px 14px; border-radius:20px; }
+        .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+        .btn-big { width:100%; padding:16px; font-size:16px; justify-content:center; border-radius:14px; }
 
-        .card-item:active {
-            background: #2c2c2e;
-        }
+        /* Chips */
+        .chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; }
+        .chips::-webkit-scrollbar { display:none; }
+        .chip { flex-shrink:0; padding:7px 16px; background:transparent; border:1px solid var(--border); border-radius:20px; color:var(--dim); font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; }
+        .chip:hover { border-color:rgba(255,255,255,0.2); color:var(--text); }
+        .chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
-        .item-image {
-            width: 50px;
-            height: 50px;
-            border-radius: 8px;
-            object-fit: cover;
-            background: #2c2c2e;
-            margin-right: 12px;
-            flex-shrink: 0;
-        }
-
-        .item-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .item-title {
-            font-size: 15px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .item-meta {
-            font-size: 13px;
-            color: var(--dim);
-            margin-top: 2px;
-        }
-
-        .item-price {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--green);
-            margin-left: 8px;
-        }
-
-        .item-arrow {
-            color: var(--dim);
-            margin-left: 8px;
-        }
-
-        /* Key Dates */
-        .date-scroll {
-            display: flex;
-            gap: 12px;
-            overflow-x: auto;
-            padding: 4px 0;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-        }
-
-        .date-scroll::-webkit-scrollbar {
-            display: none;
-        }
-
-        .date-card {
-            flex-shrink: 0;
-            width: 140px;
-            background: var(--card);
-            border-radius: 16px;
-            padding: 16px;
-        }
-
-        .date-card .month {
-            font-size: 11px;
-            color: var(--red);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .date-card .day {
-            font-size: 32px;
-            font-weight: 700;
-            margin: 4px 0;
-        }
-
-        .date-card .event {
-            font-size: 13px;
-            color: var(--dim);
-            line-height: 1.3;
-        }
-
-        .date-card .tier {
-            display: inline-block;
-            font-size: 10px;
-            font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 6px;
-            margin-top: 8px;
-            text-transform: uppercase;
-        }
-
-        .tier.peak { background: var(--red); }
-        .tier.major { background: var(--orange); }
-        .tier.medium { background: var(--accent); }
-        .tier.minor { background: var(--dim); }
-
-        /* Bottom Nav — 6 tabs */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(28, 28, 30, 0.92);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            display: flex;
-            justify-content: space-around;
-            padding: 8px 0 24px;
-            border-top: 1px solid var(--border);
-            z-index: 100;
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            color: var(--dim);
-            background: none;
-            border: none;
-            font-size: 9px;
-            cursor: pointer;
-            padding: 0 6px;
-            min-width: 0;
-        }
-
-        .nav-item svg {
-            width: 22px;
-            height: 22px;
-        }
-
-        .nav-item.active {
-            color: var(--accent);
-        }
-
-        /* Pages */
-        .page {
-            display: none;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        /* Empty State */
-        .empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--dim);
-        }
-
-        /* Loading */
-        .loading {
-            text-align: center;
-            padding: 30px;
-            color: var(--dim);
-        }
-
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 12px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Toast */
-        .toast {
-            position: fixed;
-            top: 60px;
-            left: 16px;
-            right: 16px;
-            background: var(--card);
-            color: var(--text);
-            padding: 14px 20px;
-            border-radius: 14px;
-            text-align: center;
-            font-size: 15px;
-            transform: translateY(-120%);
-            opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 3000;
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        /* Quick Search Chips */
-        .chips {
-            display: flex;
-            gap: 8px;
-            overflow-x: auto;
-            padding: 0 0 12px;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .chips::-webkit-scrollbar {
-            display: none;
-        }
-
-        .chip {
-            flex-shrink: 0;
-            padding: 8px 16px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            color: var(--text);
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .chip.active {
-            background: var(--accent);
-            border-color: var(--accent);
-        }
-
-        /* Badge */
-        .badge {
-            display: inline-block;
-            padding: 2px 6px;
-            font-size: 10px;
-            font-weight: 600;
-            border-radius: 4px;
-            margin-left: 6px;
-            text-transform: uppercase;
-        }
-
-        .badge.auction { background: var(--orange); color: #000; }
-        .badge.deal { background: var(--green); color: #000; }
+        /* Search */
+        .search { background:var(--card); border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:10px; border:1px solid var(--border); }
+        .search input { flex:1; background:none; border:none; color:var(--text); font-size:15px; outline:none; }
+        .search input::placeholder { color:var(--dim); }
 
         /* Modal */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 2000;
-            display: none;
-            align-items: flex-end;
-            justify-content: center;
-        }
-
-        .modal-overlay.show {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--card);
-            width: 100%;
-            max-width: 500px;
-            max-height: 85vh;
-            border-radius: 20px 20px 0 0;
-            display: flex;
-            flex-direction: column;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .modal-header h2 {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            color: var(--dim);
-            font-size: 28px;
-            cursor: pointer;
-            padding: 0 8px;
-        }
-
-        .modal-search {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .modal-search input {
-            width: 100%;
-            background: var(--bg);
-            border: none;
-            border-radius: 10px;
-            padding: 12px 16px;
-            color: var(--text);
-            font-size: 15px;
-            outline: none;
-        }
-
-        .modal-search input::placeholder {
-            color: var(--dim);
-        }
-
-        .modal-body {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* Listing table rows */
-        .listing-row {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border);
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .listing-row:active {
-            background: #2c2c2e;
-        }
-
-        .listing-info {
-            min-width: 0;
-        }
-
-        .listing-artist {
-            font-size: 11px;
-            color: var(--accent);
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .listing-title {
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin: 2px 0;
-        }
-
-        .listing-sku {
-            font-size: 11px;
-            color: var(--dim);
-            font-family: monospace;
-        }
-
-        .listing-price {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--green);
-            text-align: right;
-        }
-
-        /* Pricing Modal Styles */
-        .pricing-section {
-            margin-bottom: 20px;
-        }
-
-        .pricing-label {
-            display: block;
-            font-size: 13px;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-        }
-
-        .category-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-
-        .category-checkbox {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: var(--bg);
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-
-        .category-checkbox:active {
-            background: #2c2c2e;
-        }
-
-        .category-checkbox input {
-            display: none;
-        }
-
-        .category-checkbox .checkmark {
-            width: 22px;
-            height: 22px;
-            border: 2px solid var(--dim);
-            border-radius: 6px;
-            margin-right: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.15s;
-        }
-
-        .category-checkbox input:checked + .checkmark {
-            background: var(--accent);
-            border-color: var(--accent);
-        }
-
-        .category-checkbox input:checked + .checkmark::after {
-            content: '\2713';
-            color: #fff;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        .category-checkbox .cat-name {
-            font-size: 14px;
-            flex: 1;
-        }
-
-        .category-checkbox .cat-count {
-            font-size: 12px;
-            color: var(--dim);
-        }
-
-        .adjustment-row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .pricing-select {
-            flex: 1;
-            padding: 14px 16px;
-            background: var(--bg);
-            border: none;
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 15px;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .pricing-input {
-            width: 100px;
-            padding: 14px 16px;
-            background: var(--bg);
-            border: none;
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 15px;
-            outline: none;
-            text-align: center;
-        }
-
-        .preview-box {
-            background: var(--bg);
-            border-radius: 12px;
-            padding: 16px;
-        }
-
-        .preview-count {
-            font-size: 14px;
-            color: var(--dim);
-            margin-bottom: 8px;
-        }
-
-        .preview-example {
-            font-size: 13px;
-            color: var(--text);
-        }
-
-        .preview-example .old-price {
-            color: var(--dim);
-            text-decoration: line-through;
-            margin-right: 8px;
-        }
-
-        .preview-example .new-price {
-            color: var(--green);
-            font-weight: 600;
-        }
-
-        .preview-example .change {
-            color: var(--accent);
-            margin-left: 8px;
-        }
-
-        .pricing-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .pricing-actions .action-btn {
-            flex: 1;
-        }
-
-        /* Action Buttons */
-        .action-btn {
-            padding: 14px;
-            border-radius: 14px;
-            border: none;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: transform 0.1s, opacity 0.1s;
-        }
-
-        .action-btn:active {
-            transform: scale(0.98);
-            opacity: 0.9;
-        }
-
-        .action-btn.primary {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .action-btn.secondary {
-            background: var(--card);
-            color: var(--text);
-        }
-
-        .action-btn:disabled {
-            opacity: 0.5;
-        }
-
-        /* Calendar Month View */
-        .calendar-nav {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 16px;
-            margin-bottom: 16px;
-        }
-
-        .calendar-nav-btn {
-            background: var(--card);
-            border: none;
-            color: var(--text);
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .calendar-nav-btn:active {
-            background: #2c2c2e;
-        }
-
-        .calendar-month-title {
-            font-size: 20px;
-            font-weight: 600;
-        }
-
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 4px;
-            padding: 0 12px;
-            margin-bottom: 20px;
-        }
-
-        .calendar-day-header {
-            text-align: center;
-            font-size: 11px;
-            color: var(--dim);
-            padding: 8px 0;
-            text-transform: uppercase;
-        }
-
-        .calendar-day {
-            aspect-ratio: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            padding: 6px 2px;
-            border-radius: 10px;
-            font-size: 14px;
-            position: relative;
-        }
-
-        .calendar-day.other-month {
-            color: var(--border);
-        }
-
-        .calendar-day.today {
-            background: var(--card);
-        }
-
-        .calendar-day.today .day-num {
-            background: var(--accent);
-            color: #fff;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .calendar-day.has-event {
-            cursor: pointer;
-        }
-
-        .calendar-day.has-event:active {
-            background: var(--card);
-        }
-
-        .day-num {
-            font-weight: 500;
-            margin-bottom: 2px;
-        }
-
-        .day-dots {
-            display: flex;
-            gap: 3px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .day-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-
-        .day-dot.peak { background: var(--red); }
-        .day-dot.major { background: var(--orange); }
-        .day-dot.medium { background: var(--accent); }
-        .day-dot.minor { background: var(--dim); }
-
-        .month-events {
-            padding: 0 16px;
-        }
-
-        .month-events-title {
-            font-size: 13px;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-
-        .event-card {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .event-date {
-            text-align: center;
-            min-width: 44px;
-        }
-
-        .event-date .day {
-            font-size: 24px;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .event-date .month {
-            font-size: 11px;
-            color: var(--dim);
-            text-transform: uppercase;
-        }
-
-        .event-details {
-            flex: 1;
-        }
-
-        .event-name {
-            font-size: 15px;
-            font-weight: 500;
-            margin-bottom: 2px;
-        }
-
-        .event-item {
-            font-size: 13px;
-            color: var(--dim);
-        }
-
-        .event-boost {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--green);
-        }
-
-        /* ==========================================
-           Art Deals Page Styles
-           ========================================== */
-        .art-controls {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .art-controls select, .art-controls input {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            padding: 10px 12px;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .art-controls select {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .art-deal-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-
-        .art-deal-card {
-            background: var(--card);
-            border-radius: 14px;
-            padding: 14px;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .art-deal-card:active {
-            transform: scale(0.98);
-        }
-
-        .art-deal-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 6px;
-        }
-
-        .art-deal-artist {
-            font-size: 11px;
-            color: var(--purple);
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .art-deal-discount {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--green);
-            background: rgba(48, 209, 88, 0.15);
-            padding: 2px 8px;
-            border-radius: 6px;
-        }
-
-        .art-deal-title {
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .art-deal-prices {
-            display: flex;
-            gap: 12px;
-            align-items: baseline;
-        }
-
-        .art-deal-price {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--green);
-        }
-
-        .art-deal-median {
-            font-size: 13px;
-            color: var(--dim);
-        }
-
-        .art-deal-profit {
-            font-size: 13px;
-            color: var(--orange);
-            font-weight: 600;
-            margin-left: auto;
-        }
-
-        /* ==========================================
-           eBay Deals Page Styles
-           ========================================== */
-        .deal-tiles {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .deal-tile {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 8px;
-            text-align: center;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .deal-tile:active {
-            transform: scale(0.96);
-        }
-
-        .deal-tile.active {
-            border-color: var(--accent);
-            background: rgba(10, 132, 255, 0.1);
-        }
-
-        .deal-tile-icon {
-            font-size: 24px;
-            margin-bottom: 4px;
-        }
-
-        .deal-tile-label {
-            font-size: 11px;
-            color: var(--dim);
-            font-weight: 600;
-        }
-
-        .price-range-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .price-range-row label {
-            font-size: 12px;
-            color: var(--dim);
-            min-width: 30px;
-        }
-
-        .price-range-row input[type="number"] {
-            flex: 1;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            padding: 10px;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .deal-result-card {
-            display: flex;
-            align-items: center;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            text-decoration: none;
-            color: inherit;
-            gap: 12px;
-        }
-
-        .deal-result-card:last-child {
-            border-bottom: none;
-        }
-
-        .deal-result-card:active {
-            background: #2c2c2e;
-        }
-
-        .deal-result-img {
-            width: 56px;
-            height: 56px;
-            border-radius: 8px;
-            object-fit: cover;
-            background: #2c2c2e;
-            flex-shrink: 0;
-        }
-
-        .deal-result-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .deal-result-title {
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .deal-result-meta {
-            font-size: 12px;
-            color: var(--dim);
-            margin-top: 2px;
-        }
-
-        .deal-result-price {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--green);
-            white-space: nowrap;
-        }
-
-        /* ==========================================
-           Watchlist Page Styles
-           ========================================== */
-        .watch-item {
-            display: flex;
-            align-items: center;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border);
-            gap: 12px;
-        }
-
-        .watch-item:last-child {
-            border-bottom: none;
-        }
-
-        .watch-item-img {
-            width: 50px;
-            height: 50px;
-            border-radius: 8px;
-            object-fit: cover;
-            background: #2c2c2e;
-            flex-shrink: 0;
-        }
-
-        .watch-item-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .watch-item-title {
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .watch-item-meta {
-            font-size: 12px;
-            color: var(--dim);
-            margin-top: 2px;
-        }
-
-        .watch-item-price {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--green);
-            white-space: nowrap;
-        }
-
-        .watch-item-delete {
-            background: none;
-            border: none;
-            color: var(--red);
-            font-size: 20px;
-            cursor: pointer;
-            padding: 4px 8px;
-        }
-
-        .add-watch-btn {
-            position: fixed;
-            bottom: 90px;
-            right: 20px;
-            width: 52px;
-            height: 52px;
-            background: var(--accent);
-            border: none;
-            border-radius: 50%;
-            color: #fff;
-            font-size: 28px;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 12px rgba(10, 132, 255, 0.4);
-            z-index: 50;
-        }
-
-        /* Underpriced Items */
-        .underpriced-row {
-            display: flex;
-            align-items: center;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            gap: 12px;
-        }
-
-        .underpriced-row:last-child {
-            border-bottom: none;
-        }
-
-        .underpriced-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .underpriced-event {
-            font-size: 10px;
-            color: var(--orange);
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .underpriced-title {
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin: 2px 0;
-        }
-
-        .underpriced-prices {
-            text-align: right;
-        }
-
-        .underpriced-current {
-            font-size: 13px;
-            color: var(--dim);
-            text-decoration: line-through;
-        }
-
-        .underpriced-suggested {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--green);
-        }
-
-        .underpriced-boost {
-            font-size: 11px;
-            color: var(--orange);
-            font-weight: 600;
-        }
-
-        /* Alert Items */
-        .alert-row {
-            display: flex;
-            align-items: center;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border);
-            gap: 12px;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .alert-row:last-child {
-            border-bottom: none;
-        }
-
-        .alert-row:active {
-            background: #2c2c2e;
-        }
-
-        .alert-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-
-        .alert-icon.low_price { background: var(--orange); }
-        .alert-icon.high_price { background: var(--accent); }
-        .alert-icon.update_failed { background: var(--red); }
-
-        .alert-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .alert-title {
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .alert-message {
-            font-size: 12px;
-            color: var(--dim);
-            margin-top: 2px;
-        }
-
-        /* ==========================================
-           Personal Inventory Styles
-           ========================================== */
-        .inv-section-label {
-            font-size: 13px;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-            margin: 16px 0 8px;
-        }
-
-        .inv-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-
-        .inv-card {
-            background: var(--card);
-            border-radius: 14px;
-            padding: 14px;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .inv-card:active {
-            transform: scale(0.98);
-        }
-
-        .inv-card-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 6px;
-        }
-
-        .inv-card-artist {
-            font-size: 11px;
-            color: var(--purple);
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .rec-badge {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 6px;
-            text-transform: uppercase;
-        }
-
-        .rec-badge.buy { background: rgba(48, 209, 88, 0.2); color: var(--green); }
-        .rec-badge.hold { background: rgba(255, 159, 10, 0.2); color: var(--orange); }
-        .rec-badge.sell { background: rgba(255, 69, 58, 0.2); color: var(--red); }
-        .rec-badge.research { background: rgba(142, 142, 147, 0.2); color: var(--dim); }
-
-        .inv-card-name {
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .inv-card-prices {
-            display: flex;
-            gap: 12px;
-            align-items: baseline;
-        }
-
-        .inv-card-price {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--green);
-        }
-
-        .inv-card-range {
-            font-size: 13px;
-            color: var(--dim);
-        }
-
-        .inv-card-comps {
-            font-size: 12px;
-            color: var(--dim);
-            margin-top: 4px;
-        }
-
-        /* Inventory Detail Modal Content */
-        .inv-detail-rec {
-            padding: 12px 16px;
-            border-radius: 10px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .inv-detail-rec.buy { background: rgba(48, 209, 88, 0.1); border-left: 3px solid var(--green); }
-        .inv-detail-rec.hold { background: rgba(255, 159, 10, 0.1); border-left: 3px solid var(--orange); }
-        .inv-detail-rec.sell { background: rgba(255, 69, 58, 0.1); border-left: 3px solid var(--red); }
-        .inv-detail-rec.research { background: rgba(142, 142, 147, 0.1); border-left: 3px solid var(--dim); }
-
-        .inv-detail-rec .rec-label {
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-        }
-
-        .inv-detail-rec.buy .rec-label { color: var(--green); }
-        .inv-detail-rec.hold .rec-label { color: var(--orange); }
-        .inv-detail-rec.sell .rec-label { color: var(--red); }
-        .inv-detail-rec.research .rec-label { color: var(--dim); }
-
-        .inv-stat-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .inv-stat-box {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 12px;
-            text-align: center;
-        }
-
-        .inv-stat-box .stat-label {
-            font-size: 10px;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .inv-stat-box .stat-value {
-            font-size: 18px;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-
-        .comp-list {
-            margin-top: 12px;
-        }
-
-        .comp-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--border);
-            font-size: 13px;
-        }
-
-        .comp-item:last-child {
-            border-bottom: none;
-        }
-
-        .comp-date {
-            color: var(--dim);
-            font-size: 11px;
-        }
-
-        .comp-price {
-            font-weight: 600;
-            color: var(--green);
-        }
-
-        .comp-source {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: rgba(10, 132, 255, 0.15);
-            color: var(--accent);
-        }
-
-        .comp-source.worthpoint { background: rgba(191, 90, 242, 0.15); color: var(--purple); }
-        .comp-source.ebay { background: rgba(48, 209, 88, 0.15); color: var(--green); }
-        .comp-source.artsy { background: rgba(255, 159, 10, 0.15); color: var(--orange); }
-
-        .load-history-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            margin-top: 12px;
-            background: rgba(10, 132, 255, 0.1);
-            border: 1px solid var(--accent);
-            border-radius: 10px;
-            color: var(--accent);
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: center;
-        }
-
-        .load-history-btn:active {
-            opacity: 0.7;
-        }
-
-        .load-history-btn:disabled {
-            opacity: 0.4;
-            cursor: default;
-        }
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2000; display:none; align-items:flex-end; justify-content:center; }
+        .modal-bg.show { display:flex; }
+        .modal { background:var(--card); width:100%; max-width:700px; max-height:85vh; border-radius:20px 20px 0 0; display:flex; flex-direction:column; animation:slideUp 0.3s ease; }
+        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        .modal-head { display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid var(--border); }
+        .modal-head h2 { font-size:17px; font-weight:600; }
+        .modal-x { background:none; border:none; color:var(--dim); font-size:28px; cursor:pointer; }
+        .modal-body { flex:1; overflow-y:auto; padding:16px; }
+
+        /* Toast */
+        .toast { position:fixed; top:60px; left:50%; transform:translateX(-50%) translateY(-120%); background:rgba(28,28,30,0.95); backdrop-filter:blur(20px); color:var(--text); padding:12px 24px; border-radius:100px; font-size:14px; font-weight:500; opacity:0; transition:all 0.3s; z-index:3000; border:1px solid var(--border); }
+        .toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+        /* Loading */
+        .loading { text-align:center; padding:40px; color:var(--dim); }
+        .spinner { width:24px; height:24px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+
+        /* Responsive */
+        @media(max-width:600px) { .grid-3{grid-template-columns:1fr 1fr;} .trunc{max-width:120px;} }
     </style>
 </head>
 <body>
     <div class="app">
-        <!-- ==========================================
-             HOME PAGE
-             ========================================== -->
-        <div class="page active" id="page-home">
+
+        <!-- ========== DASHBOARD ========== -->
+        <div class="page active" id="page-dash">
             <div class="header">
                 <h1>DATARADAR</h1>
-                <div class="time" id="current-time"></div>
+                <p id="dash-time"></p>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card" onclick="showPage('items')">
-                    <div class="value" id="stat-listings">--</div>
-                    <div class="label">Listings</div>
-                </div>
-                <div class="stat-card green" onclick="showPage('art')">
-                    <div class="value" id="stat-art">--</div>
-                    <div class="label">Art Deals</div>
-                </div>
-                <div class="stat-card purple" onclick="showPage('items')">
-                    <div class="value" id="stat-inventory">--</div>
-                    <div class="label">My Collection</div>
-                </div>
-                <div class="stat-card orange" onclick="showPage('watch')">
-                    <div class="value" id="stat-watch">--</div>
-                    <div class="label">Watching</div>
-                </div>
-            </div>
-
+            <!-- Search -->
             <div class="section">
-                <div class="section-header">
-                    <h2 class="section-title">Upcoming Events</h2>
-                    <button class="section-action" onclick="showPage('dates')">See All</button>
+                <div class="search">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--dim);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="search-input" placeholder="Analyze any print — e.g., KAWS Passing Through">
+                    <input type="number" id="search-min" value="0" min="0" placeholder="Min $" style="width:60px;background:none;border:none;color:var(--text);font-size:13px;text-align:center;">
+                    <button class="btn-primary btn" style="padding:8px 16px;font-size:13px;" onclick="runSearch()">Go</button>
                 </div>
-                <div class="date-scroll" id="upcoming-dates">
-                    <div class="loading"><div class="spinner"></div></div>
-                </div>
+                <div id="search-results" style="margin-top:12px;"></div>
             </div>
 
+            <!-- THE BIG BUTTON -->
             <div class="section">
-                <div class="section-header">
-                    <h2 class="section-title">Top Art Deals</h2>
-                    <button class="section-action" onclick="showPage('art')">See All</button>
-                </div>
-                <div id="home-art-deals">
-                    <div class="loading"><div class="spinner"></div></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ==========================================
-             ITEMS PAGE (Inventory)
-             ========================================== -->
-        <div class="page" id="page-items">
-            <div class="header">
-                <h1>Items</h1>
+                <button class="btn btn-green btn-big" onclick="applySpeedHigh()">
+                    ⚡ Apply Speed High to All Listings
+                </button>
+                <div id="speed-status" style="text-align:center;margin-top:8px;font-size:12px;color:var(--dim);"></div>
             </div>
 
+            <!-- Health + Forecast -->
+            <div class="grid grid-3">
+                <div class="card card-click" onclick="showTab('inventory')">
+                    <div class="stat-val g" id="d-health">--</div>
+                    <div class="stat-lbl">Health Score</div>
+                </div>
+                <div class="card card-click" onclick="showTab('inventory')">
+                    <div class="stat-val" id="d-listings">--</div>
+                    <div class="stat-lbl">Active Listings</div>
+                </div>
+                <div class="card card-click" onclick="showTab('reports')">
+                    <div class="stat-val g" id="d-revenue">--</div>
+                    <div class="stat-lbl">Revenue (60d)</div>
+                </div>
+                <div class="card card-click" onclick="showTab('promos')">
+                    <div class="stat-val o" id="d-adspend">--</div>
+                    <div class="stat-lbl">Ad Spend</div>
+                </div>
+                <div class="card card-click" onclick="drill('sell_now')">
+                    <div class="stat-val" style="color:var(--purple);" id="d-sellnow">--</div>
+                    <div class="stat-lbl">Sell Now</div>
+                </div>
+                <div class="card card-click" onclick="showTab('inventory')">
+                    <div class="stat-val" id="d-forecast">--</div>
+                    <div class="stat-lbl">30d Forecast</div>
+                </div>
+            </div>
+
+            <!-- AI Brief -->
             <div class="section">
-                <div class="search-bar">
-                    <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input type="text" id="inv-search" placeholder="Search items...">
-                </div>
+                <div class="section-title">Today's Brief</div>
+                <div id="d-brief" class="card"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
 
-                <div class="chips" id="inv-chips">
-                    <button class="chip active" data-filter="all">All</button>
-                    <button class="chip" data-filter="shepard fairey">Shepard Fairey</button>
-                    <button class="chip" data-filter="death nyc">Death NYC</button>
-                    <button class="chip" data-filter="ebay">eBay Listings</button>
-                </div>
+            <!-- Quick Wins -->
+            <div class="section">
+                <div class="section-title">Quick Wins</div>
+                <div id="d-wins"></div>
+            </div>
 
-                <!-- My Collection -->
-                <div id="inv-collection">
-                    <div class="loading"><div class="spinner"></div></div>
+            <!-- Upcoming Events -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Next Events</div>
+                    <button class="btn-ghost" onclick="showTab('reports')">See Calendar</button>
                 </div>
+                <div id="d-events" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
+            </div>
 
-                <!-- eBay Listings -->
-                <div id="inv-ebay" style="display:none;">
-                    <div class="inv-section-label">eBay Active Listings</div>
-                    <div class="card" id="inv-ebay-results">
-                        <div class="loading"><div class="spinner"></div></div>
+            <!-- Automation -->
+            <div class="section">
+                <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:14px;font-weight:600;" id="auto-label">Automation: OFF</div>
+                        <div style="font-size:11px;color:var(--dim);">Auto-boost events, markdown stale items</div>
                     </div>
+                    <button class="btn-ghost" onclick="toggleAuto()">Toggle</button>
                 </div>
             </div>
         </div>
 
-        <!-- ==========================================
-             ART DEALS PAGE
-             ========================================== -->
-        <div class="page" id="page-art">
+        <!-- ========== INVENTORY ========== -->
+        <div class="page" id="page-inventory">
             <div class="header">
-                <h1>Art Deals</h1>
-                <div class="time">Market deals with price history</div>
+                <h1>Inventory</h1>
+                <p id="inv-sub">Your eBay listings with AI pricing</p>
             </div>
 
             <div class="section">
-                <div class="search-bar">
-                    <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input type="text" id="art-search" placeholder="Search art deals...">
-                </div>
-
-                <div class="art-controls">
-                    <select id="art-artist-filter">
-                        <option value="">All Artists</option>
+                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                    <div class="search" style="flex:1;min-width:200px;">
+                        <input type="text" id="inv-search" placeholder="Search inventory..." oninput="renderInv()">
+                    </div>
+                    <select id="inv-sort" onchange="renderInv()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;padding:8px 12px;">
+                        <option value="signal">By Signal</option>
+                        <option value="alpha">A-Z</option>
+                        <option value="price_high">Price High</option>
+                        <option value="price_low">Price Low</option>
+                        <option value="watchers">Watchers</option>
                     </select>
-                    <select id="art-sort">
-                        <option value="profit">Top Profit</option>
-                        <option value="discount">Best Discount</option>
-                        <option value="price_low">Price: Low</option>
-                        <option value="price_high">Price: High</option>
-                    </select>
+                    <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
+                    <button class="btn-ghost" onclick="exportInv()">Export</button>
                 </div>
 
-                <div id="art-count" style="color: var(--dim); font-size: 13px; margin-bottom: 12px;">Loading...</div>
-
-                <div class="art-deal-grid" id="art-results">
-                    <div class="loading"><div class="spinner"></div></div>
-                </div>
+                <div class="chips" id="inv-chips"></div>
+                <div id="inv-count" style="font-size:12px;color:var(--dim);margin-bottom:8px;"></div>
+                <div id="inv-table"><div class="loading"><div class="spinner"></div></div></div>
             </div>
         </div>
 
-        <!-- ==========================================
-             EBAY DEALS PAGE
-             ========================================== -->
-        <div class="page" id="page-deals">
+        <!-- ========== PROMOTIONS ========== -->
+        <div class="page" id="page-promos">
             <div class="header">
-                <h1>Deals</h1>
-                <div class="time">Real-time eBay deal finder</div>
+                <h1>Promotions</h1>
+                <p>Ad spend, strategy, and AI suggestions</p>
+            </div>
+
+            <!-- Strategy buttons -->
+            <div class="section">
+                <div class="section-title">Set Strategy</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                    <button class="btn" style="background:var(--green);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('profit')">Max Profit</button>
+                    <button class="btn" style="background:var(--accent);color:#fff;padding:10px 16px;font-size:13px;" onclick="applyStrat('steady')">Few/Week</button>
+                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_low')">Speed Low</button>
+                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_medium')">Speed Med</button>
+                    <button class="btn" style="background:var(--red);color:#fff;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_high')">Speed High</button>
+                </div>
+                <div id="strat-status" style="font-size:12px;color:var(--dim);"></div>
+            </div>
+
+            <!-- Sub-tabs -->
+            <div class="section">
+                <div class="chips">
+                    <button class="chip active" data-ptab="costs" onclick="showPTab('costs')">By Product</button>
+                    <button class="chip" data-ptab="category" onclick="showPTab('category')">By Category</button>
+                    <button class="chip" data-ptab="analytics" onclick="showPTab('analytics')">Analytics</button>
+                    <button class="chip" data-ptab="history" onclick="showPTab('history')">Sales History</button>
+                </div>
+            </div>
+
+            <div class="section" id="ptab-costs"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="ptab-category" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="ptab-analytics" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="ptab-history" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
+        <!-- ========== REPORTS ========== -->
+        <div class="page" id="page-reports">
+            <div class="header">
+                <h1>Reports</h1>
+                <p>Deals, calendar, analytics, P&L</p>
             </div>
 
             <div class="section">
-                <div class="search-bar">
-                    <svg fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input type="text" id="deal-search" placeholder="Search eBay deals...">
-                </div>
-
-                <div class="deal-tiles" id="deal-tiles">
-                    <div class="deal-tile" onclick="dealQuickSearch('Mr Brainwash signed', this)">
-                        <div class="deal-tile-icon">&#127912;</div>
-                        <div class="deal-tile-label">MBW</div>
-                    </div>
-                    <div class="deal-tile" onclick="dealQuickSearch('Shepard Fairey signed', this)">
-                        <div class="deal-tile-icon">&#9734;</div>
-                        <div class="deal-tile-label">Fairey</div>
-                    </div>
-                    <div class="deal-tile" onclick="dealQuickSearch('signed pickguard COA', this)">
-                        <div class="deal-tile-icon">&#127928;</div>
-                        <div class="deal-tile-label">Pickguards</div>
-                    </div>
-                    <div class="deal-tile" onclick="dealQuickSearch('signed vinyl COA', this)">
-                        <div class="deal-tile-icon">&#127926;</div>
-                        <div class="deal-tile-label">Vinyl</div>
-                    </div>
-                    <div class="deal-tile" onclick="dealQuickSearch('Apollo astronaut signed', this)">
-                        <div class="deal-tile-icon">&#128640;</div>
-                        <div class="deal-tile-label">Space</div>
-                    </div>
-                    <div class="deal-tile" onclick="dealQuickSearch('Taylor Swift signed', this)">
-                        <div class="deal-tile-icon">&#127925;</div>
-                        <div class="deal-tile-label">T Swift</div>
-                    </div>
-                </div>
-
-                <div class="price-range-row">
-                    <label>Min $</label>
-                    <input type="number" id="deal-min-price" value="75" min="0">
-                    <label>Max $</label>
-                    <input type="number" id="deal-max-price" value="500" min="0">
-                </div>
-
-                <div class="card" id="deal-results">
-                    <div class="empty">Tap a category or search to find deals</div>
+                <div class="chips">
+                    <button class="chip active" data-rtab="deals" onclick="showRTab('deals')">Deals</button>
+                    <button class="chip" data-rtab="calendar" onclick="showRTab('calendar')">Calendar</button>
+                    <button class="chip" data-rtab="deep" onclick="showRTab('deep')">Deep Analytics</button>
+                    <button class="chip" data-rtab="pnl" onclick="showRTab('pnl')">P&L</button>
+                    <button class="chip" data-rtab="market" onclick="showRTab('market')">vs Market</button>
                 </div>
             </div>
-        </div>
 
-        <!-- ==========================================
-             WATCHLIST PAGE
-             ========================================== -->
-        <div class="page" id="page-watch">
-            <div class="header">
-                <h1>Watchlist</h1>
-                <div class="time">Items you're tracking</div>
-            </div>
-
-            <div class="section">
-                <div id="watch-count" style="color: var(--dim); font-size: 13px; margin-bottom: 12px;">Loading...</div>
-                <div class="card" id="watch-results">
-                    <div class="loading"><div class="spinner"></div></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Floating add button for watchlist -->
-        <button class="add-watch-btn" id="add-watch-btn" onclick="showAddWatchModal()">+</button>
-
-        <!-- ==========================================
-             DATES PAGE (Calendar)
-             ========================================== -->
-        <div class="page" id="page-dates">
-            <div class="header" style="padding-bottom: 10px;">
-                <h1>Key Dates</h1>
-            </div>
-
-            <div class="calendar-nav">
-                <button class="calendar-nav-btn" onclick="prevMonth()">&#8249;</button>
-                <span class="calendar-month-title" id="calendar-month-title">January 2026</span>
-                <button class="calendar-nav-btn" onclick="nextMonth()">&#8250;</button>
-            </div>
-
-            <div class="calendar-grid" id="calendar-grid">
-                <div class="calendar-day-header">Sun</div>
-                <div class="calendar-day-header">Mon</div>
-                <div class="calendar-day-header">Tue</div>
-                <div class="calendar-day-header">Wed</div>
-                <div class="calendar-day-header">Thu</div>
-                <div class="calendar-day-header">Fri</div>
-                <div class="calendar-day-header">Sat</div>
-            </div>
-
-            <div class="month-events" id="month-events">
-                <div class="month-events-title">Events This Month</div>
-                <div id="events-list">
-                    <div class="loading"><div class="spinner"></div></div>
-                </div>
-            </div>
+            <div class="section" id="rtab-deals"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-calendar" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-deep" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-pnl" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-market" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
         </div>
     </div>
 
-    <!-- Bottom Navigation (6 tabs) -->
-    <nav class="bottom-nav">
-        <button class="nav-item active" data-page="home">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Home
-        </button>
-        <button class="nav-item" data-page="items">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            Items
-        </button>
-        <button class="nav-item" data-page="art">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            Art
-        </button>
-        <button class="nav-item" data-page="deals">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            Deals
-        </button>
-        <button class="nav-item" data-page="watch">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Watch
-        </button>
-        <button class="nav-item" data-page="dates">
-            <svg fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Dates
-        </button>
-    </nav>
+    <!-- Drill-down modal -->
+    <div class="modal-bg" id="drill-modal">
+        <div class="modal">
+            <div class="modal-head"><h2 id="drill-title">Detail</h2><button class="modal-x" onclick="closeDrill()">&times;</button></div>
+            <div class="modal-body" id="drill-content"></div>
+        </div>
+    </div>
 
+    <!-- Toast -->
     <div class="toast" id="toast"></div>
 
-    <!-- ==========================================
-         MODALS
-         ========================================== -->
-
-    <!-- Art Deal Detail Modal -->
-    <div class="modal-overlay" id="art-detail-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 id="art-detail-title" style="font-size: 16px;">Deal Detail</h2>
-                <button class="modal-close" onclick="closeArtDetail()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 16px;">
-                <div id="art-detail-content"></div>
-                <div style="margin-top: 16px;">
-                    <canvas id="art-price-chart" height="200"></canvas>
-                </div>
-                <button class="load-history-btn" id="art-load-history-btn" onclick="loadArtFullHistory()">Load Full Price History</button>
-                <div style="margin-top: 16px; display: flex; gap: 10px;">
-                    <a id="art-detail-link" href="#" target="_blank" class="action-btn primary" style="flex:1; text-decoration:none; text-align:center;">View on eBay</a>
-                    <button class="action-btn secondary" style="flex:1;" onclick="watchFromArt()">Add to Watch</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Inventory Detail Modal -->
-    <div class="modal-overlay" id="inv-detail-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 id="inv-detail-title" style="font-size: 16px;">Item Detail</h2>
-                <button class="modal-close" onclick="closeInvDetail()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 16px;">
-                <div id="inv-detail-content"></div>
-                <div style="margin-top: 16px;">
-                    <canvas id="inv-price-chart" height="200"></canvas>
-                </div>
-                <button class="load-history-btn" id="inv-load-history-btn" onclick="loadInvFullHistory()">Load Full Price History</button>
-                <div id="inv-comps-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add to Watchlist Modal -->
-    <div class="modal-overlay" id="add-watch-modal">
-        <div class="modal" style="max-height: 60vh;">
-            <div class="modal-header">
-                <h2>Add to Watchlist</h2>
-                <button class="modal-close" onclick="closeAddWatchModal()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 16px;">
-                <div class="pricing-section">
-                    <label class="pricing-label">Title</label>
-                    <input type="text" id="watch-add-title" class="pricing-input" style="width:100%;text-align:left;" placeholder="Item title...">
-                </div>
-                <div class="pricing-section">
-                    <label class="pricing-label">Price</label>
-                    <input type="number" id="watch-add-price" class="pricing-input" style="width:100%;text-align:left;" placeholder="0.00" step="0.01">
-                </div>
-                <div class="pricing-section">
-                    <label class="pricing-label">URL</label>
-                    <input type="text" id="watch-add-url" class="pricing-input" style="width:100%;text-align:left;" placeholder="https://...">
-                </div>
-                <div class="pricing-section">
-                    <label class="pricing-label">Notes</label>
-                    <input type="text" id="watch-add-notes" class="pricing-input" style="width:100%;text-align:left;" placeholder="Optional notes...">
-                </div>
-                <div class="pricing-actions">
-                    <button class="action-btn secondary" onclick="closeAddWatchModal()">Cancel</button>
-                    <button class="action-btn primary" onclick="saveWatchItem()">Add Item</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Pricing Modal -->
-    <div class="modal-overlay" id="pricing-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>Update Prices by Category</h2>
-                <button class="modal-close" onclick="closePricingModal()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 16px;">
-                <div class="pricing-section">
-                    <label class="pricing-label">Select Categories</label>
-                    <div class="category-grid" id="category-checkboxes"></div>
-                </div>
-                <div class="pricing-section">
-                    <label class="pricing-label">Price Adjustment</label>
-                    <div class="adjustment-row">
-                        <select id="adjustment-type" class="pricing-select">
-                            <option value="percent_increase">Increase by %</option>
-                            <option value="percent_decrease">Decrease by %</option>
-                            <option value="fixed_increase">Increase by $</option>
-                            <option value="fixed_decrease">Decrease by $</option>
-                            <option value="set_price">Set to $</option>
-                        </select>
-                        <input type="number" id="adjustment-value" class="pricing-input" placeholder="0" min="0" step="0.01">
-                    </div>
-                </div>
-                <div class="pricing-section">
-                    <label class="pricing-label">Preview</label>
-                    <div class="preview-box" id="pricing-preview">
-                        <div class="preview-count">0 items selected</div>
-                        <div class="preview-example"></div>
-                    </div>
-                </div>
-                <div class="pricing-actions">
-                    <button class="action-btn secondary" onclick="closePricingModal()">Cancel</button>
-                    <button class="action-btn primary" id="apply-pricing-btn" onclick="applyPricingChanges()">Apply Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Alerts Modal -->
-    <div class="modal-overlay" id="alerts-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>Alerts</h2>
-                <button class="modal-close" onclick="closeAlertsModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="alerts-list">
-                <div class="loading"><div class="spinner"></div></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Listings Modal -->
-    <div class="modal-overlay" id="listings-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>All Listings</h2>
-                <button class="modal-close" onclick="closeListingsModal()">&times;</button>
-            </div>
-            <div class="modal-search">
-                <input type="text" id="modal-search" placeholder="Search listings..." oninput="filterModalListings()">
-            </div>
-            <div class="modal-body" id="modal-listings">
-                <div class="loading"><div class="spinner"></div></div>
-            </div>
-        </div>
-    </div>
+    <!-- Nav -->
+    <nav class="nav">
+        <button class="nav-btn active" data-tab="dash">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Dashboard
+        </button>
+        <button class="nav-btn" data-tab="inventory">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            Inventory
+        </button>
+        <button class="nav-btn" data-tab="promos">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Promos
+        </button>
+        <button class="nav-btn" data-tab="reports">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Reports
+        </button>
+    </nav>
 
     <script>
         // ==========================================
         // State
         // ==========================================
-        let currentPage = 'home';
-        let invFilter = 'all';
-        let allListings = [];
-        let artDealsData = [];
-        let currentArtDeal = null;
-        let artPriceChart = null;
-        let myInventory = [];
-        let currentInvItem = null;
-        let invPriceChart = null;
-
-        const toast = document.getElementById('toast');
-
-        // Artist detection patterns
-        const artistPatterns = [
-            { pattern: /death\s*nyc/i, name: 'Death NYC' },
-            { pattern: /shepard\s*fairey|obey\s*giant|obey/i, name: 'Shepard Fairey' },
-            { pattern: /beatles|lennon|mccartney|harrison|ringo/i, name: 'Beatles' },
-            { pattern: /warhol/i, name: 'Andy Warhol' },
-            { pattern: /banksy/i, name: 'Banksy' },
-            { pattern: /kaws/i, name: 'KAWS' },
-            { pattern: /apollo|nasa|armstrong|aldrin|moon\s*landing/i, name: 'Space/NASA' },
-            { pattern: /marilyn|monroe/i, name: 'Marilyn Monroe' },
-            { pattern: /bowie/i, name: 'David Bowie' },
-            { pattern: /elvis/i, name: 'Elvis Presley' },
-            { pattern: /michael\s*jackson/i, name: 'Michael Jackson' },
-            { pattern: /taylor\s*swift/i, name: 'Taylor Swift' },
-            { pattern: /blink.?182/i, name: 'Blink 182' },
-            { pattern: /green\s*day/i, name: 'Green Day' },
-            { pattern: /nirvana|cobain/i, name: 'Nirvana' },
-            { pattern: /queen|mercury/i, name: 'Queen' },
-            { pattern: /grateful\s*dead|jerry\s*garcia/i, name: 'Grateful Dead' },
-            { pattern: /rolling\s*stones|jagger/i, name: 'Rolling Stones' },
-            { pattern: /hendrix/i, name: 'Jimi Hendrix' },
-            { pattern: /prince/i, name: 'Prince' },
-            { pattern: /star\s*wars/i, name: 'Star Wars' },
-            { pattern: /disney|mickey/i, name: 'Disney' },
-        ];
-
-        function detectArtist(title) {
-            for (const { pattern, name } of artistPatterns) {
-                if (pattern.test(title)) return name;
-            }
-            return 'Art';
-        }
-
-        // ==========================================
-        // Initialize
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
-            updateTime();
-            setInterval(updateTime, 60000);
-            loadStats();
-            loadUpcomingDates();
-            loadHomeArtDeals();
-        });
-
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('current-time').textContent =
-                now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-        }
+        let currentTab = 'dash';
+        let invData = null, promoData = null;
 
         // ==========================================
         // Navigation
         // ==========================================
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', () => showPage(item.dataset.page));
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => showTab(btn.dataset.tab));
         });
 
-        function showPage(page) {
-            currentPage = page;
+        function showTab(tab) {
+            currentTab = tab;
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(`page-${page}`).classList.add('active');
-            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
+            document.getElementById('page-' + tab).classList.add('active');
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
 
-            // Show/hide floating add button
-            document.getElementById('add-watch-btn').style.display = (page === 'watch') ? 'flex' : 'none';
-
-            if (page === 'dates') loadCalendar();
-            if (page === 'items') loadInventory();
-            if (page === 'art') loadArtDeals();
-            if (page === 'watch') loadWatchlist();
+            if (tab === 'inventory' && !invData) loadInv();
+            if (tab === 'promos') loadPromos();
+            if (tab === 'reports') loadReportsTab();
         }
 
         // ==========================================
-        // Stats
+        // Utilities
         // ==========================================
-        async function loadStats() {
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        function downloadCSV(name, rows) {
+            const csv = rows.map(r => r.map(c => { const s = String(c??'').replace(/"/g,'""'); return s.includes(',') ? `"${s}"` : s; }).join(',')).join('\n');
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = name; a.click();
+            toast('Exported ' + name);
+        }
+
+        // ==========================================
+        // Dashboard
+        // ==========================================
+        async function loadDash() {
             try {
-                const resp = await fetch('/api/stats');
-                const data = await resp.json();
-                document.getElementById('stat-listings').textContent = data.total_listings;
-                document.getElementById('stat-art').textContent = data.art_deals;
-                document.getElementById('stat-inventory').textContent = data.my_inventory || 0;
-                document.getElementById('stat-watch').textContent = data.watchlist_count;
-            } catch (e) {
-                console.error('Stats error:', e);
-            }
-        }
+                const resp = await fetch('/api/executive');
+                const d = await resp.json();
 
-        // ==========================================
-        // Home - Upcoming Dates
-        // ==========================================
-        async function loadUpcomingDates() {
-            try {
-                const resp = await fetch('/api/upcoming-dates');
-                const dates = await resp.json();
+                document.getElementById('d-health').textContent = d.health_score;
+                document.getElementById('d-health').style.color = d.health_score >= 70 ? 'var(--green)' : d.health_score >= 40 ? 'var(--orange)' : 'var(--red)';
+                document.getElementById('d-listings').textContent = d.stats.total_listings;
+                document.getElementById('d-revenue').textContent = '$' + (d.stats.total_revenue_60d / 1000).toFixed(1) + 'k';
+                document.getElementById('d-adspend').textContent = '$' + Math.round(d.forecast.current_pace.revenue * 0.05); // estimate
+                document.getElementById('d-sellnow').textContent = d.quick_wins.filter(w => w.type === 'sell_now').length || d.stats.total_sold_60d;
+                document.getElementById('d-forecast').textContent = d.forecast.current_pace.items + ' items';
 
-                if (!dates.length) {
-                    document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px;width:100%">No upcoming events</div>';
-                    return;
-                }
+                // Brief
+                document.getElementById('d-brief').innerHTML = d.brief.map(b =>
+                    `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;line-height:1.5;">${b}</div>`
+                ).join('');
 
-                document.getElementById('upcoming-dates').innerHTML = dates.map(d => `
-                    <div class="date-card">
-                        <div class="month">${d.month}</div>
-                        <div class="day">${d.day}</div>
-                        <div class="event">${d.event}</div>
-                        <span class="tier ${d.tier}">${d.tier}</span>
-                    </div>
-                `).join('');
-            } catch (e) {
-                document.getElementById('upcoming-dates').innerHTML = '<div class="empty" style="padding:20px">Failed to load</div>';
-            }
-        }
-
-        // ==========================================
-        // Home - Top Art Deals preview
-        // ==========================================
-        async function loadHomeArtDeals() {
-            try {
-                const resp = await fetch('/api/art-deals?sort=profit');
-                const deals = await resp.json();
-                const top = deals.slice(0, 3);
-
-                if (!top.length) {
-                    document.getElementById('home-art-deals').innerHTML = '<div class="empty">No art deals</div>';
-                    return;
-                }
-
-                document.getElementById('home-art-deals').innerHTML = top.map((d, i) => `
-                    <div class="art-deal-card" onclick="showPage('art')" style="margin-bottom: 8px;">
-                        <div class="art-deal-top">
-                            <span class="art-deal-artist">${d.artist || 'Unknown'}</span>
-                            <span class="art-deal-discount">${d.discount_pct || 0}% off</span>
-                        </div>
-                        <div class="art-deal-title">${d.title}</div>
-                        <div class="art-deal-prices">
-                            <span class="art-deal-price">$${(d.price || 0).toLocaleString()}</span>
-                            <span class="art-deal-median">Median: $${(d.median || 0).toLocaleString()}</span>
-                            <span class="art-deal-profit">+$${(d.profit || 0).toLocaleString()}</span>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (e) {
-                document.getElementById('home-art-deals').innerHTML = '<div class="empty">Failed to load</div>';
-            }
-        }
-
-        // ==========================================
-        // Items Page (My Collection + eBay Listings)
-        // ==========================================
-        let invLoaded = false;
-
-        async function loadInventory() {
-            if (!invLoaded) {
-                // Load personal inventory
-                try {
-                    const resp = await fetch('/api/my-inventory');
-                    myInventory = await resp.json();
-                } catch (e) {
-                    myInventory = [];
-                }
-                invLoaded = true;
-            }
-            renderItemsPage();
-        }
-
-        function renderItemsPage() {
-            const query = document.getElementById('inv-search').value.toLowerCase();
-            const collectionDiv = document.getElementById('inv-collection');
-            const ebayDiv = document.getElementById('inv-ebay');
-            const ebayResults = document.getElementById('inv-ebay-results');
-
-            if (invFilter === 'ebay') {
-                // Show only eBay listings
-                collectionDiv.style.display = 'none';
-                ebayDiv.style.display = 'block';
-                loadEbayListings(query);
-                return;
-            }
-
-            // Show collection
-            collectionDiv.style.display = 'block';
-            ebayDiv.style.display = invFilter === 'all' ? 'block' : 'none';
-
-            let items = [...myInventory];
-
-            if (invFilter === 'shepard fairey') {
-                items = items.filter(i => i.artist === 'Shepard Fairey');
-            } else if (invFilter === 'death nyc') {
-                items = items.filter(i => i.artist === 'Death NYC');
-            }
-
-            if (query) {
-                items = items.filter(i => i.name.toLowerCase().includes(query));
-            }
-
-            if (!items.length) {
-                collectionDiv.innerHTML = '<div class="empty">No items found</div>';
-            } else {
-                collectionDiv.innerHTML =
-                    `<div class="inv-section-label">My Collection (${items.length})</div>` +
-                    '<div class="inv-grid">' + items.map((item, i) => {
-                        const recClass = (item.recommendation || 'research').toLowerCase();
-                        const price = item.suggested_price ? `$${item.suggested_price.toLocaleString()}` : '--';
-                        return `
-                            <div class="inv-card" onclick="openInvDetail('${item.id}')">
-                                <div class="inv-card-top">
-                                    <span class="inv-card-artist">${item.artist}</span>
-                                    <span class="rec-badge ${recClass}">${item.recommendation || 'RESEARCH'}</span>
-                                </div>
-                                <div class="inv-card-name">${item.name}</div>
-                                <div class="inv-card-prices">
-                                    <span class="inv-card-price">${price}</span>
-                                    <span class="inv-card-range">${item.price_range || ''}</span>
-                                </div>
-                                ${item.comparable_sales ? `<div class="inv-card-comps">${item.comparable_sales} comps &middot; ${item.recent_sales || 0} recent</div>` : ''}
-                            </div>
-                        `;
-                    }).join('') + '</div>';
-            }
-
-            // Also load eBay listings if showing All
-            if (invFilter === 'all') {
-                loadEbayListings(query);
-            }
-        }
-
-        async function loadEbayListings(query) {
-            const ebayResults = document.getElementById('inv-ebay-results');
-            ebayResults.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                let items = allListings.length ? [...allListings] : [];
-                if (!items.length) {
-                    const resp = await fetch('/api/listings');
-                    items = await resp.json();
-                    allListings = items;
-                }
-
-                if (query) {
-                    items = items.filter(i => i.title.toLowerCase().includes(query));
-                }
-
-                if (!items.length) {
-                    ebayResults.innerHTML = '<div class="empty">No eBay listings found</div>';
-                    return;
-                }
-
-                ebayResults.innerHTML = items.map(item => {
-                    const artist = detectArtist(item.title);
-                    return `
-                        <a href="${item.url}" target="_blank" class="card-item">
-                            <img src="${item.image || ''}" class="item-image" onerror="this.style.visibility='hidden'">
-                            <div class="item-info">
-                                <div class="listing-artist">${artist}</div>
-                                <div class="item-title">${item.title}</div>
-                            </div>
-                            <div class="item-price">$${item.price.toFixed(2)}</div>
-                            <span class="item-arrow">&#8250;</span>
-                        </a>
-                    `;
+                // Quick wins
+                document.getElementById('d-wins').innerHTML = d.quick_wins.slice(0, 5).map(w => {
+                    const icon = w.type === 'hot_watcher' ? '👁' : w.type === 'sell_now' ? '🔥' : '📅';
+                    const color = w.type === 'hot_watcher' ? 'var(--orange)' : w.type === 'sell_now' ? 'var(--green)' : 'var(--accent)';
+                    return `<div class="card card-click" style="margin-bottom:6px;border-left:3px solid ${color};display:flex;justify-content:space-between;align-items:center;" onclick="${w.url ? `window.open('${w.url}','_blank')` : ''}">
+                        <div><div style="font-size:13px;font-weight:500;">${icon} ${w.title}</div><div style="font-size:11px;color:var(--dim);">${w.action}</div></div>
+                        <div style="font-size:15px;font-weight:700;color:var(--green);">${w.price ? '$'+Math.round(w.price) : ''}</div>
+                    </div>`;
                 }).join('');
-            } catch (e) {
-                ebayResults.innerHTML = '<div class="empty">Failed to load eBay listings</div>';
-            }
+
+                // Events
+                const sResp = await fetch('/api/analytics/seasonality');
+                const sData = await sResp.json();
+                document.getElementById('d-events').innerHTML = (sData.upcoming || []).slice(0, 5).map(u => {
+                    const urgency = u.days_away <= 7 ? 'var(--red)' : u.days_away <= 14 ? 'var(--orange)' : 'var(--accent)';
+                    return `<div class="card" style="flex-shrink:0;width:160px;border-left:3px solid ${urgency};">
+                        <div style="font-size:13px;font-weight:600;">${u.name}</div>
+                        <div style="font-size:24px;font-weight:800;color:${urgency};margin:4px 0;">${u.days_away}d</div>
+                        <div style="font-size:10px;color:var(--dim);">+${u.boost}% ${u.tier}</div>
+                    </div>`;
+                }).join('');
+
+                // Auto status
+                const aResp = await fetch('/api/automation');
+                const aData = await aResp.json();
+                document.getElementById('auto-label').textContent = 'Automation: ' + (aData.enabled ? 'ON' : 'OFF');
+                document.getElementById('auto-label').style.color = aData.enabled ? 'var(--green)' : 'var(--dim)';
+
+                // Time
+                document.getElementById('dash-time').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+
+            } catch (e) { console.error('Dashboard error:', e); }
         }
 
-        // Inventory search
-        const invSearch = document.getElementById('inv-search');
-        let invTimeout;
-        invSearch.addEventListener('input', () => {
-            clearTimeout(invTimeout);
-            invTimeout = setTimeout(() => renderItemsPage(), 300);
-        });
-
-        document.querySelectorAll('#inv-chips .chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                document.querySelectorAll('#inv-chips .chip').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                invFilter = chip.dataset.filter;
-                renderItemsPage();
-            });
-        });
-
-        // ==========================================
-        // Inventory Detail Modal
-        // ==========================================
-        async function openInvDetail(itemId) {
-            const item = myInventory.find(i => i.id === itemId);
-            if (!item) return;
-
-            currentInvItem = item;
-            document.getElementById('inv-detail-title').textContent = item.artist || 'Item Detail';
-
-            const recClass = (item.recommendation || 'research').toLowerCase();
-            const market = item.market_data || {};
-            const supply = item.ebay_supply || {};
-
-            let html = `
-                <div style="font-size: 15px; font-weight: 500; margin-bottom: 12px;">${item.name}</div>
-            `;
-
-            // Recommendation banner
-            if (item.recommendation) {
-                html += `
-                    <div class="inv-detail-rec ${recClass}">
-                        <div class="rec-label">${item.recommendation}</div>
-                        <div>${item.recommendation_reason || ''}</div>
-                    </div>
-                `;
-            }
-
-            // Price stats
-            html += `<div class="inv-stat-grid">`;
-            html += `<div class="inv-stat-box"><div class="stat-label">Suggested</div><div class="stat-value" style="color:var(--green);">$${(item.suggested_price || 0).toLocaleString()}</div></div>`;
-            if (market.min !== undefined) {
-                html += `<div class="inv-stat-box"><div class="stat-label">Low</div><div class="stat-value">$${market.min.toLocaleString()}</div></div>`;
-                html += `<div class="inv-stat-box"><div class="stat-label">High</div><div class="stat-value">$${market.max.toLocaleString()}</div></div>`;
-            } else {
-                html += `<div class="inv-stat-box"><div class="stat-label">Range</div><div class="stat-value" style="font-size:13px;">${item.price_range || '--'}</div></div>`;
-                html += `<div class="inv-stat-box"><div class="stat-label">Category</div><div class="stat-value" style="font-size:13px;">${item.category || '--'}</div></div>`;
-            }
-            html += `</div>`;
-
-            // eBay supply info
-            if (supply.ebay_count) {
-                html += `<div style="font-size:13px; color:var(--dim); margin-bottom:12px;">eBay Supply: ${supply.ebay_count} listings &middot; Avg: $${(supply.ebay_avg_price || 0).toFixed(0)}</div>`;
-            }
-
-            document.getElementById('inv-detail-content').innerHTML = html;
-
-            // Draw price history chart
-            const ctx = document.getElementById('inv-price-chart').getContext('2d');
-            if (invPriceChart) invPriceChart.destroy();
-
-            const history = (market.price_history || []).filter(h => h.price && h.date);
-            if (history.length > 0) {
-                history.sort((a, b) => a.date.localeCompare(b.date));
-
-                const sourceColors = {
-                    'WorthPoint': { bg: 'rgba(191, 90, 242, 0.8)', border: 'var(--purple)' },
-                    'eBay': { bg: 'rgba(48, 209, 88, 0.8)', border: 'var(--green)' },
-                    'Artsy': { bg: 'rgba(255, 159, 10, 0.8)', border: 'var(--orange)' },
-                };
-
-                invPriceChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: history.map(h => h.date),
-                        datasets: [{
-                            label: 'Price History',
-                            data: history.map(h => h.price),
-                            borderColor: 'rgba(10, 132, 255, 1)',
-                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            pointBackgroundColor: history.map(h => {
-                                const s = sourceColors[h.source] || sourceColors['eBay'];
-                                return s.bg;
-                            }),
-                            pointRadius: 5,
-                        }, {
-                            label: 'Suggested Price',
-                            data: history.map(() => item.suggested_price || 0),
-                            borderColor: 'rgba(48, 209, 88, 0.6)',
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            borderWidth: 2,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 8 },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            },
-                            y: {
-                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            }
-                        }
-                    }
-                });
-            } else {
-                invPriceChart = null;
-                document.getElementById('inv-price-chart').style.display = 'none';
-            }
-
-            // Show/reset load history button
-            const histBtn = document.getElementById('inv-load-history-btn');
-            histBtn.textContent = 'Load Full Price History';
-            histBtn.disabled = false;
-            histBtn.style.display = 'block';
-            document.getElementById('inv-price-chart').style.display = '';
-
-            // Comparable sales
-            const comps = market.price_history || [];
-            if (comps.length > 0) {
-                document.getElementById('inv-comps-list').innerHTML =
-                    '<div class="inv-section-label" style="margin-top:16px;">Comparable Sales</div>' +
-                    '<div class="comp-list">' + comps.map(c => {
-                        const srcClass = (c.source || '').toLowerCase().includes('worthpoint') ? 'worthpoint' :
-                                         (c.source || '').toLowerCase().includes('artsy') ? 'artsy' : 'ebay';
-                        return `
-                            <div class="comp-item">
-                                <div>
-                                    <div class="comp-date">${c.date || ''}</div>
-                                    <span class="comp-source ${srcClass}">${c.source || 'Unknown'}</span>
-                                </div>
-                                <span class="comp-price">$${(c.price || 0).toLocaleString()}</span>
-                            </div>
-                        `;
-                    }).join('') + '</div>';
-            } else {
-                document.getElementById('inv-comps-list').innerHTML = '';
-            }
-
-            document.getElementById('inv-detail-modal').classList.add('show');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeInvDetail() {
-            document.getElementById('inv-detail-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('inv-detail-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'inv-detail-modal') closeInvDetail();
-        });
-
-        async function loadInvFullHistory() {
-            if (!currentInvItem) return;
-
-            const btn = document.getElementById('inv-load-history-btn');
-            btn.textContent = 'Loading...';
-            btn.disabled = true;
-
+        async function applySpeedHigh() {
+            toast('Applying Speed High to all listings...');
+            document.getElementById('speed-status').textContent = 'Creating campaigns...';
             try {
-                const resp = await fetch(`/api/historical-prices?title=${encodeURIComponent(currentInvItem.name)}&artist=${encodeURIComponent(currentInvItem.artist)}&limit=50`);
-                const data = await resp.json();
-
-                if (!data.length) {
-                    btn.textContent = 'No additional data found';
-                    return;
-                }
-
-                // Merge with existing chart data
-                const existing = (currentInvItem.market_data || {}).price_history || [];
-                const existingKeys = new Set(existing.map(e => `${e.date}-${e.price}`));
-
-                const newPoints = data.filter(d => d.price && d.date && !existingKeys.has(`${d.date}-${d.price}`));
-                const allPoints = [...existing, ...newPoints].filter(p => p.price && p.date);
-                allPoints.sort((a, b) => a.date.localeCompare(b.date));
-
-                // Redraw chart
-                const ctx = document.getElementById('inv-price-chart').getContext('2d');
-                if (invPriceChart) invPriceChart.destroy();
-                document.getElementById('inv-price-chart').style.display = '';
-
-                const sourceColors = {
-                    'WorthPoint': 'rgba(191, 90, 242, 0.8)',
-                    'eBay': 'rgba(48, 209, 88, 0.8)',
-                    'Artsy': 'rgba(255, 159, 10, 0.8)',
-                };
-
-                invPriceChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: allPoints.map(h => h.date),
-                        datasets: [{
-                            label: `Price History (${allPoints.length} records)`,
-                            data: allPoints.map(h => h.price),
-                            borderColor: 'rgba(10, 132, 255, 1)',
-                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            pointBackgroundColor: allPoints.map(h => sourceColors[h.source] || sourceColors['eBay']),
-                            pointRadius: 4,
-                        }, {
-                            label: 'Suggested Price',
-                            data: allPoints.map(() => currentInvItem.suggested_price || 0),
-                            borderColor: 'rgba(48, 209, 88, 0.6)',
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            borderWidth: 2,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 10 },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            },
-                            y: {
-                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            }
-                        }
-                    }
-                });
-
-                btn.textContent = `Loaded ${newPoints.length} additional records`;
-
-                // Update comps list
-                document.getElementById('inv-comps-list').innerHTML =
-                    `<div class="inv-section-label" style="margin-top:16px;">All Sales (${allPoints.length})</div>` +
-                    '<div class="comp-list">' + allPoints.slice().reverse().slice(0, 20).map(c => {
-                        const srcClass = (c.source || '').toLowerCase().includes('worthpoint') ? 'worthpoint' :
-                                         (c.source || '').toLowerCase().includes('artsy') ? 'artsy' : 'ebay';
-                        return `
-                            <div class="comp-item">
-                                <div>
-                                    <div class="comp-date">${c.date || ''}</div>
-                                    <span class="comp-source ${srcClass}">${c.source || 'Unknown'}</span>
-                                </div>
-                                <span class="comp-price">$${(c.price || 0).toLocaleString()}</span>
-                            </div>
-                        `;
-                    }).join('') + '</div>';
-
-            } catch (e) {
-                btn.textContent = 'Failed to load history';
-                console.error('History load error:', e);
+                const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
+                const d = await resp.json();
+                document.getElementById('speed-status').innerHTML = `<span style="color:var(--green);font-weight:600;">${d.applied} listings updated across ${d.campaigns} campaigns</span>`;
+                toast(d.applied + ' listings promoted!');
+            } catch(e) {
+                document.getElementById('speed-status').innerHTML = '<span style="color:var(--red);">Failed</span>';
             }
+        }
+
+        async function toggleAuto() {
+            const resp = await fetch('/api/automation');
+            const config = await resp.json();
+            config.enabled = !config.enabled;
+            await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
+            document.getElementById('auto-label').textContent = 'Automation: ' + (config.enabled ? 'ON' : 'OFF');
+            document.getElementById('auto-label').style.color = config.enabled ? 'var(--green)' : 'var(--dim)';
+            toast(config.enabled ? 'Automation ON' : 'Automation OFF');
         }
 
         // ==========================================
-        // Art Deals Page
+        // Search / Analyze
         // ==========================================
-        let artLoaded = false;
-
-        async function loadArtDeals() {
-            const resultsDiv = document.getElementById('art-results');
-            const countDiv = document.getElementById('art-count');
-
-            if (artLoaded && artDealsData.length) {
-                renderArtDeals(artDealsData);
-                return;
-            }
-
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/art-deals?sort=profit');
-                artDealsData = await resp.json();
-                artLoaded = true;
-
-                // Populate artist dropdown
-                const artists = [...new Set(artDealsData.map(d => d.artist).filter(Boolean))].sort();
-                const artistSelect = document.getElementById('art-artist-filter');
-                artistSelect.innerHTML = '<option value="">All Artists</option>' +
-                    artists.map(a => `<option value="${a}">${a}</option>`).join('');
-
-                renderArtDeals(artDealsData);
-            } catch (e) {
-                resultsDiv.innerHTML = '<div class="empty">Failed to load art deals</div>';
-                countDiv.textContent = 'Error';
-            }
-        }
-
-        function renderArtDeals(deals) {
-            const resultsDiv = document.getElementById('art-results');
-            const countDiv = document.getElementById('art-count');
-            countDiv.textContent = `${deals.length} deals found`;
-
-            if (!deals.length) {
-                resultsDiv.innerHTML = '<div class="empty">No deals match your filters</div>';
-                return;
-            }
-
-            resultsDiv.innerHTML = deals.slice(0, 50).map((d, i) => `
-                <div class="art-deal-card" onclick="openArtDetail(${i})">
-                    <div class="art-deal-top">
-                        <span class="art-deal-artist">${d.artist || 'Unknown'}</span>
-                        <span class="art-deal-discount">${d.discount_pct || 0}% off</span>
-                    </div>
-                    <div class="art-deal-title">${d.title}</div>
-                    <div class="art-deal-prices">
-                        <span class="art-deal-price">$${(d.price || 0).toLocaleString()}</span>
-                        <span class="art-deal-median">Median: $${(d.median || 0).toLocaleString()}</span>
-                        <span class="art-deal-profit">+$${(d.profit || 0).toLocaleString()}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Art filters
-        document.getElementById('art-search').addEventListener('input', debounce(filterArtDeals, 300));
-        document.getElementById('art-artist-filter').addEventListener('change', filterArtDeals);
-        document.getElementById('art-sort').addEventListener('change', filterArtDeals);
-
-        function filterArtDeals() {
-            let filtered = [...artDealsData];
-            const search = document.getElementById('art-search').value.toLowerCase();
-            const artist = document.getElementById('art-artist-filter').value;
-            const sort = document.getElementById('art-sort').value;
-
-            if (search) {
-                filtered = filtered.filter(d => (d.title || '').toLowerCase().includes(search));
-            }
-
-            if (artist) {
-                filtered = filtered.filter(d => d.artist === artist);
-            }
-
-            if (sort === 'profit') filtered.sort((a, b) => (b.profit || 0) - (a.profit || 0));
-            else if (sort === 'discount') filtered.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
-            else if (sort === 'price_low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
-            else if (sort === 'price_high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
-
-            renderArtDeals(filtered);
-        }
-
-        // Art Detail Modal with Chart.js
-        function openArtDetail(index) {
-            const filtered = getFilteredArtDeals();
-            const deal = filtered[index];
-            if (!deal) return;
-
-            currentArtDeal = deal;
-
-            document.getElementById('art-detail-title').textContent = deal.artist || 'Deal Detail';
-            document.getElementById('art-detail-link').href = deal.url || '#';
-
-            // Build content
-            let html = `
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${deal.title}</div>
-                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
-                        <div><span style="color: var(--dim); font-size: 12px;">PRICE</span><br><span style="font-size: 20px; font-weight: 700; color: var(--green);">$${(deal.price || 0).toLocaleString()}</span></div>
-                        <div><span style="color: var(--dim); font-size: 12px;">MEDIAN</span><br><span style="font-size: 20px; font-weight: 600;">$${(deal.median || 0).toLocaleString()}</span></div>
-                        <div><span style="color: var(--dim); font-size: 12px;">PROFIT</span><br><span style="font-size: 20px; font-weight: 700; color: var(--orange);">+$${(deal.profit || 0).toLocaleString()}</span></div>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 13px; color: var(--dim);">
-                        Sales: ${deal.sales_count || 0} | Low: $${(deal.low || 0).toLocaleString()} | High: $${(deal.high || 0).toLocaleString()}
-                    </div>
-                </div>
-            `;
-            document.getElementById('art-detail-content').innerHTML = html;
-
-            // Draw chart
-            const ctx = document.getElementById('art-price-chart').getContext('2d');
-            if (artPriceChart) artPriceChart.destroy();
-
-            const history = deal.history || [];
-            if (history.length > 0) {
-                const labels = history.map((h, i) => h.name ? h.name.substring(0, 20) : `Sale ${i + 1}`);
-                const prices = history.map(h => h.price || 0);
-
-                artPriceChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Sale Price',
-                            data: prices,
-                            backgroundColor: 'rgba(10, 132, 255, 0.6)',
-                            borderColor: 'rgba(10, 132, 255, 1)',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        }, {
-                            label: 'Listing Price',
-                            data: prices.map(() => deal.price || 0),
-                            type: 'line',
-                            borderColor: 'rgba(48, 209, 88, 0.8)',
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45 },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            },
-                            y: {
-                                ticks: {
-                                    color: '#8e8e93',
-                                    callback: v => '$' + v.toLocaleString()
-                                },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            }
-                        }
-                    }
-                });
-            }
-
-            document.getElementById('art-detail-modal').classList.add('show');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function getFilteredArtDeals() {
-            let filtered = [...artDealsData];
-            const search = document.getElementById('art-search').value.toLowerCase();
-            const artist = document.getElementById('art-artist-filter').value;
-            const sort = document.getElementById('art-sort').value;
-
-            if (search) filtered = filtered.filter(d => (d.title || '').toLowerCase().includes(search));
-            if (artist) filtered = filtered.filter(d => d.artist === artist);
-
-            if (sort === 'profit') filtered.sort((a, b) => (b.profit || 0) - (a.profit || 0));
-            else if (sort === 'discount') filtered.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
-            else if (sort === 'price_low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
-            else if (sort === 'price_high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
-
-            return filtered;
-        }
-
-        function closeArtDetail() {
-            document.getElementById('art-detail-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('art-detail-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'art-detail-modal') closeArtDetail();
-        });
-
-        function watchFromArt() {
-            if (!currentArtDeal) return;
-            addToWatchlist({
-                title: currentArtDeal.title,
-                price: currentArtDeal.price,
-                url: currentArtDeal.url
-            });
-            closeArtDetail();
-        }
-
-        async function loadArtFullHistory() {
-            if (!currentArtDeal) return;
-
-            const btn = document.getElementById('art-load-history-btn');
-            btn.textContent = 'Loading...';
-            btn.disabled = true;
-
-            try {
-                const artist = currentArtDeal.artist || '';
-                const resp = await fetch(`/api/historical-prices?title=${encodeURIComponent(currentArtDeal.title)}&artist=${encodeURIComponent(artist)}&limit=50`);
-                const data = await resp.json();
-
-                if (!data.length) {
-                    btn.textContent = 'No additional data found';
-                    return;
-                }
-
-                // Build combined dataset
-                const existing = (currentArtDeal.history || []).map(h => ({
-                    price: h.price,
-                    date: h.date || '',
-                    source: h.source || 'eBay',
-                    name: h.name || '',
-                }));
-
-                const existingKeys = new Set(existing.map(e => `${e.date}-${e.price}`));
-                const newPoints = data.filter(d => d.price && !existingKeys.has(`${d.date}-${d.price}`));
-                const allPoints = [...existing, ...newPoints].filter(p => p.price);
-
-                // Sort by date
-                allPoints.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-                // Redraw chart with combined data
-                const ctx = document.getElementById('art-price-chart').getContext('2d');
-                if (artPriceChart) artPriceChart.destroy();
-
-                const sourceColors = {
-                    'WorthPoint': 'rgba(191, 90, 242, 0.8)',
-                    'eBay': 'rgba(48, 209, 88, 0.8)',
-                    'Artsy': 'rgba(255, 159, 10, 0.8)',
-                };
-
-                artPriceChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: allPoints.map(h => h.date || h.name?.substring(0, 15) || ''),
-                        datasets: [{
-                            label: `Full History (${allPoints.length})`,
-                            data: allPoints.map(h => h.price),
-                            borderColor: 'rgba(10, 132, 255, 1)',
-                            backgroundColor: 'rgba(10, 132, 255, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            pointBackgroundColor: allPoints.map(h => sourceColors[h.source] || sourceColors['eBay']),
-                            pointRadius: 4,
-                        }, {
-                            label: 'Listing Price',
-                            data: allPoints.map(() => currentArtDeal.price || 0),
-                            borderColor: 'rgba(48, 209, 88, 0.6)',
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            borderWidth: 2,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { labels: { color: '#8e8e93', font: { size: 11 } } }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { color: '#8e8e93', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 10 },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            },
-                            y: {
-                                ticks: { color: '#8e8e93', callback: v => '$' + v.toLocaleString() },
-                                grid: { color: 'rgba(56,56,58,0.3)' }
-                            }
-                        }
-                    }
-                });
-
-                btn.textContent = `Loaded ${newPoints.length} additional records`;
-
-            } catch (e) {
-                btn.textContent = 'Failed to load history';
-                console.error('Art history load error:', e);
-            }
-        }
-
-        // ==========================================
-        // eBay Deals Page
-        // ==========================================
-        const dealSearch = document.getElementById('deal-search');
-        let dealTimeout;
-
-        dealSearch.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                runDealSearch(dealSearch.value);
-            }
-        });
-
-        dealSearch.addEventListener('input', () => {
-            clearTimeout(dealTimeout);
-            dealTimeout = setTimeout(() => {
-                if (dealSearch.value.length > 2) runDealSearch(dealSearch.value);
-            }, 500);
-        });
-
-        function dealQuickSearch(query, el) {
-            // Clear active tiles
-            document.querySelectorAll('.deal-tile').forEach(t => t.classList.remove('active'));
-            if (el) el.classList.add('active');
-
-            dealSearch.value = query;
-            runDealSearch(query);
-        }
-
-        async function runDealSearch(query) {
+        async function runSearch() {
+            const query = document.getElementById('search-input').value.trim();
             if (!query) return;
-
-            const resultsDiv = document.getElementById('deal-results');
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            const minPrice = document.getElementById('deal-min-price').value || 75;
-            const maxPrice = document.getElementById('deal-max-price').value || 500;
+            const minPrice = parseInt(document.getElementById('search-min').value) || 0;
+            const el = document.getElementById('search-results');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
-                const resp = await fetch(`/api/deals/search?q=${encodeURIComponent(query)}&min_price=${minPrice}&max_price=${maxPrice}`);
-                const deals = await resp.json();
+                const resp = await fetch('/api/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query, min_price: minPrice, enrich: true})});
+                const d = await resp.json();
+                const s = d.stats || {};
+                const con = d.llm_enrichment?.consensus || {};
+                const recColor = d.recommendation === 'BUY' ? 'var(--green)' : d.recommendation === 'CONSIDER' ? 'var(--orange)' : 'var(--red)';
 
-                if (!deals.length) {
-                    resultsDiv.innerHTML = '<div class="empty">No deals found for this search</div>';
-                    return;
-                }
-
-                resultsDiv.innerHTML = deals.map(deal => `
-                    <a href="${deal.url}" target="_blank" class="deal-result-card">
-                        <img src="${deal.image || ''}" class="deal-result-img" onerror="this.style.visibility='hidden'">
-                        <div class="deal-result-info">
-                            <div class="deal-result-title">${deal.title}</div>
-                            <div class="deal-result-meta">${deal.condition || ''} ${deal.buying_option === 'AUCTION' ? '<span class="badge auction">Auction</span>' : ''}</div>
+                el.innerHTML = `
+                    <div class="card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <div style="font-size:28px;font-weight:800;color:${recColor};">${d.recommendation}</div>
+                            <div style="font-size:11px;color:var(--dim);">${s.count||0} data points</div>
                         </div>
-                        <div class="deal-result-price">$${deal.price.toFixed(2)}</div>
-                    </a>
-                `).join('');
-            } catch (e) {
-                resultsDiv.innerHTML = '<div class="empty">Search failed</div>';
-            }
+                        <div style="font-size:13px;color:var(--dim);margin-bottom:12px;">${d.rec_reason}</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px;">
+                            <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Median</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${s.median||0}</div></div>
+                            <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Range</div><div style="font-size:14px;font-weight:600;">$${s.min||0}—$${s.max||0}</div></div>
+                            <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Velocity</div><div style="font-size:14px;font-weight:600;">${d.velocity}</div></div>
+                            ${con.fair_mid ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">AI Fair Value</div><div style="font-size:18px;font-weight:700;color:var(--green);">$${con.fair_mid}</div></div>` : ''}
+                            ${con.buy_below ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Buy Below</div><div style="font-size:16px;font-weight:700;color:var(--orange);">$${con.buy_below}</div></div>` : ''}
+                        </div>
+                        ${d.ai_commentary ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:12px;font-size:13px;line-height:1.5;">${d.ai_commentary}</div>` : ''}
+                        ${d.min_price_applied > 0 ? `<div style="font-size:11px;color:var(--dim);margin-top:8px;">Floor: $${d.min_price_applied} applied</div>` : ''}
+                    </div>`;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Analysis failed</div>'; }
+        }
+        document.getElementById('search-input')?.addEventListener('keypress', e => { if (e.key === 'Enter') runSearch(); });
+
+        // ==========================================
+        // Inventory
+        // ==========================================
+        let invFilter = 'all';
+
+        async function loadInv() {
+            if (invData) { renderInv(); return; }
+            document.getElementById('inv-table').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const resp = await fetch('/api/inventory/full-analytics');
+                invData = await resp.json();
+                buildInvChips();
+                renderInv();
+            } catch(e) { document.getElementById('inv-table').innerHTML = '<div style="color:var(--red);">Failed to load</div>'; }
+        }
+
+        async function refreshInv() {
+            invData = null;
+            document.getElementById('inv-table').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            toast('Refreshing from eBay...');
+            await loadInv();
+            toast('Refreshed');
+        }
+
+        function buildInvChips() {
+            const cats = {};
+            (invData?.items||[]).forEach(i => { cats[i.artist] = (cats[i.artist]||0)+1; });
+            const el = document.getElementById('inv-chips');
+            el.innerHTML = `<button class="chip active" onclick="invFilter='all';document.querySelectorAll('#inv-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderInv();">All (${invData?.total||0})</button>` +
+                Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([cat,n]) =>
+                    `<button class="chip" onclick="invFilter='${cat}';document.querySelectorAll('#inv-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderInv();">${cat} (${n})</button>`
+                ).join('');
+        }
+
+        function renderInv() {
+            let items = invData?.items || [];
+            const query = document.getElementById('inv-search')?.value?.toLowerCase() || '';
+            const sort = document.getElementById('inv-sort')?.value || 'signal';
+
+            if (invFilter !== 'all') items = items.filter(i => i.artist === invFilter);
+            if (query) items = items.filter(i => i.name.toLowerCase().includes(query));
+
+            const order = {'SELL NOW':0,'GOOD TO SELL':1,'SET PRICE':2,'HOLD':3,'WAIT':4,'RESEARCH':5};
+            if (sort === 'signal') items.sort((a,b) => (order[a.recommendation]||5) - (order[b.recommendation]||5));
+            else if (sort === 'alpha') items.sort((a,b) => a.name.localeCompare(b.name));
+            else if (sort === 'price_high') items.sort((a,b) => (b.suggested_price||0) - (a.suggested_price||0));
+            else if (sort === 'price_low') items.sort((a,b) => (a.suggested_price||0) - (b.suggested_price||0));
+            else if (sort === 'watchers') items.sort((a,b) => (b.watchers||0) - (a.watchers||0));
+
+            document.getElementById('inv-count').textContent = `${items.length} items`;
+            document.getElementById('inv-sub').textContent = `${invData?.total||0} listings · $${Math.round((invData?.total_value||0)/1000)}k value`;
+
+            const el = document.getElementById('inv-table');
+            const signalPill = r => r.includes('SELL') ? 'pill-green' : r === 'HOLD' || r === 'WAIT' ? 'pill-orange' : r === 'SET PRICE' ? 'pill-blue' : 'pill-dim';
+
+            const velColor = v => v==='Blazing'?'var(--gold)':v==='Fast'?'var(--green)':v==='Moderate'?'var(--accent)':v==='Slow'?'var(--dim)':'var(--red)';
+
+            el.innerHTML = `<div class="table-wrap"><table>
+                <thead><tr>
+                    <th>Item</th><th>Signal</th><th>Velocity</th><th class="r">Smart $</th><th class="r">Last Sale</th>
+                    <th class="r">Median</th><th class="r">Supply</th><th class="r">Ad%</th>
+                    <th class="r">Margin</th><th>Season</th><th>Reason</th><th>Action</th>
+                </tr></thead>
+                <tbody>${items.slice(0, 200).map(i => {
+                    const hasSuggestion = i.suggested_price && i.your_price && Math.abs(i.suggested_price - i.your_price) > 5;
+                    const mc = (i.margin_pct||0) > 30 ? 'g' : (i.margin_pct||0) > 10 ? 'o' : 'rd';
+                    return `<tr ondblclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Double-click for detail">
+                        <td class="trunc" title="${i.name}">${i.name} <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;">📊</span></td>
+                        <td><span class="pill ${signalPill(i.recommendation)}">${i.recommendation}</span></td>
+                        <td style="color:${velColor(i.velocity)};font-size:11px;font-weight:600;">${i.velocity||'--'}</td>
+                        <td class="r b g">$${Math.round(i.suggested_price||0)}</td>
+                        <td class="r" style="color:var(--accent);">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
+                        <td class="r d">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
+                        <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;">${i.ebay_supply||0}</td>
+                        <td class="r ${(i.ad_rate||0)>8?'rd b':''}">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
+                        <td class="r ${mc}">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
+                        <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${i.seasonal_event||''}">${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
+                        <td style="font-size:11px;color:var(--dim);min-width:150px;">${i.reason||''}</td>
+                        <td onclick="event.stopPropagation();">${hasSuggestion ?
+                            `<button onclick="acceptPrice('${i.id}',${i.suggested_price})" class="btn" style="background:var(--green);color:#000;padding:3px 8px;font-size:10px;">✓ $${Math.round(i.suggested_price)}</button>` : '<span class="d">—</span>'}</td>
+                    </tr>`;
+                }).join('')}</tbody></table></div>` +
+                (items.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${items.length}</div>` : '');
+        }
+
+        async function acceptPrice(id, price) {
+            toast('Updating price...');
+            await fetch('/api/pricing/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({changes:[{listing_id:id,new_price:price}]})});
+            toast('Price updated to $' + Math.round(price));
+            invData = null; loadInv();
+        }
+
+        function exportInv() {
+            if (!invData?.items) return;
+            const h = ['Name','Artist','Signal','Smart Price','Last Sale','Median','Supply','Reason'];
+            const rows = [h, ...invData.items.map(i => [i.name, i.artist, i.recommendation, i.suggested_price, i.last_sale, i.market_median, i.ebay_supply, i.reason])];
+            downloadCSV('inventory.csv', rows);
         }
 
         // ==========================================
-        // Watchlist Page
+        // Promotions
         // ==========================================
-        async function loadWatchlist() {
-            const resultsDiv = document.getElementById('watch-results');
-            const countDiv = document.getElementById('watch-count');
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+        let promosLoaded = false;
 
+        async function loadPromos() {
+            if (promosLoaded) return;
             try {
-                const resp = await fetch('/api/watchlist');
-                const items = await resp.json();
+                const [dResp, hResp, aResp, sResp] = await Promise.all([
+                    fetch('/api/promotions/detail'),
+                    fetch('/api/analytics/sales-history'),
+                    fetch('/api/analytics/ad-performance'),
+                    fetch('/api/promotions/strategy')
+                ]);
+                promoData = await dResp.json();
+                const histData = await hResp.json();
+                const adPerf = await aResp.json();
+                const stratData = await sResp.json();
+                promosLoaded = true;
 
-                countDiv.textContent = `${items.length} item${items.length !== 1 ? 's' : ''} watching`;
+                // Category strategy table
+                const ebayRates = stratData.ebay_suggested || {};
+                const savedStrats = stratData.category_strategies || {};
+                const presets = stratData.presets || {};
+                const presetKeys = Object.keys(presets);
+                const catVel = adPerf.category_performance || {};
 
-                if (!items.length) {
-                    resultsDiv.innerHTML = '<div class="empty">No items in your watchlist.<br>Add items from Art or Deals tabs.</div>';
-                    return;
-                }
-
-                resultsDiv.innerHTML = items.map(item => `
-                    <div class="watch-item">
-                        ${item.image ? `<img src="${item.image}" class="watch-item-img" onerror="this.style.visibility='hidden'">` : ''}
-                        <div class="watch-item-info">
-                            <div class="watch-item-title">${item.url ? `<a href="${item.url}" target="_blank" style="color:inherit;text-decoration:none;">${item.title}</a>` : item.title}</div>
-                            <div class="watch-item-meta">${item.notes || ''} ${item.added ? '&middot; ' + new Date(item.added).toLocaleDateString() : ''}</div>
-                        </div>
-                        <div class="watch-item-price">$${(item.price || 0).toFixed(2)}</div>
-                        <button class="watch-item-delete" onclick="removeWatchItem('${item.id}')">&times;</button>
+                document.getElementById('ptab-category').innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <div class="section-title" style="margin-bottom:0;">Category Strategy</div>
+                        <button class="btn btn-green" style="padding:8px 16px;font-size:12px;" onclick="applyCatStrats()">Apply All to eBay</button>
                     </div>
-                `).join('');
-            } catch (e) {
-                resultsDiv.innerHTML = '<div class="empty">Failed to load watchlist</div>';
-                countDiv.textContent = 'Error';
-            }
-        }
+                    <div id="cat-strat-status" style="margin-bottom:8px;"></div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Category</th><th class="r">Items</th><th class="r">Sold</th><th class="r">Conv%</th><th class="r">eBay Suggested</th><th>Strategy</th></tr></thead>
+                        <tbody>${Object.keys(ebayRates).map(cat => {
+                            const cv = catVel[cat] || {};
+                            const saved = savedStrats[cat] || 'steady';
+                            return `<tr>
+                                <td class="b">${cat}</td>
+                                <td class="r">${cv.items||0}</td>
+                                <td class="r">${cv.sold||0}</td>
+                                <td class="r ${(cv.conversion_rate||0)>10?'g b':'d'}">${cv.conversion_rate||0}%</td>
+                                <td class="r">${ebayRates[cat]}%</td>
+                                <td><select id="cs-${cat.replace(/[^a-zA-Z]/g,'')}" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:4px 8px;font-size:11px;">
+                                    ${presetKeys.map(k => `<option value="${k}" ${k===saved?'selected':''}>${presets[k].name}</option>`).join('')}
+                                </select></td>
+                            </tr>`;
+                        }).join('')}</tbody></table></div>`;
 
-        async function removeWatchItem(id) {
-            try {
-                await fetch('/api/watchlist/remove', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
-                });
-                showToast('Removed from watchlist');
-                loadWatchlist();
-                loadStats();
-            } catch (e) {
-                showToast('Failed to remove');
-            }
-        }
+                // Analytics
+                const buckets = adPerf.rate_buckets || {};
+                document.getElementById('ptab-analytics').innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val">${adPerf.total_items||0}</div><div class="stat-lbl">Items</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${adPerf.total_promoted||0}</div><div class="stat-lbl">Promoted</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${adPerf.total_sold||0}</div><div class="stat-lbl">Sold</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val o">$${Math.round(adPerf.total_ad_spend||0)}</div><div class="stat-lbl">Ad Spend</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${Math.round(adPerf.total_revenue||0)}</div><div class="stat-lbl">Revenue</div></div>
+                    </div>
+                    <div class="section-title">Conversion by Ad Rate</div>
+                    <canvas id="ad-conv-chart" height="200" style="margin-bottom:16px;"></canvas>
+                    <div class="section-title">Rate Buckets</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Rate</th><th class="r">Items</th><th class="r">Sold</th><th class="r">Conv%</th><th class="r">ROI</th></tr></thead>
+                        <tbody>${Object.entries(buckets).map(([name,b]) => `<tr>
+                            <td class="b">${name}</td><td class="r">${b.items}</td><td class="r">${b.sold}</td>
+                            <td class="r ${b.conversion_rate>10?'g b':''}">${b.conversion_rate}%</td>
+                            <td class="r ${b.roi>0?'g':'rd'}">${b.roi>0?'+':''}${b.roi}%</td>
+                        </tr>`).join('')}</tbody></table></div>`;
 
-        async function addToWatchlist(item) {
-            try {
-                await fetch('/api/watchlist/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(item)
-                });
-                showToast('Added to watchlist');
-                loadStats();
-            } catch (e) {
-                showToast('Failed to add');
-            }
-        }
-
-        // Add Watch Modal
-        function showAddWatchModal() {
-            document.getElementById('add-watch-modal').classList.add('show');
-            document.body.style.overflow = 'hidden';
-            document.getElementById('watch-add-title').value = '';
-            document.getElementById('watch-add-price').value = '';
-            document.getElementById('watch-add-url').value = '';
-            document.getElementById('watch-add-notes').value = '';
-        }
-
-        function closeAddWatchModal() {
-            document.getElementById('add-watch-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('add-watch-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'add-watch-modal') closeAddWatchModal();
-        });
-
-        async function saveWatchItem() {
-            const title = document.getElementById('watch-add-title').value.trim();
-            const price = parseFloat(document.getElementById('watch-add-price').value) || 0;
-            const url = document.getElementById('watch-add-url').value.trim();
-            const notes = document.getElementById('watch-add-notes').value.trim();
-
-            if (!title) {
-                showToast('Title is required');
-                return;
-            }
-
-            await addToWatchlist({ title, price, url, notes });
-            closeAddWatchModal();
-            loadWatchlist();
-        }
-
-        // ==========================================
-        // Calendar (Dates Page)
-        // ==========================================
-        let calendarData = [];
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                           'July', 'August', 'September', 'October', 'November', 'December'];
-
-        function prevMonth() {
-            currentMonth--;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            renderCalendarMonth();
-        }
-
-        function nextMonth() {
-            currentMonth++;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            renderCalendarMonth();
-        }
-
-        async function loadCalendar() {
-            document.getElementById('events-list').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/calendar?all=true');
-                calendarData = await resp.json();
-                renderCalendarMonth();
-            } catch (e) {
-                document.getElementById('events-list').innerHTML = '<div class="empty">Failed to load calendar</div>';
-            }
-        }
-
-        function renderCalendarMonth() {
-            const monthTitle = document.getElementById('calendar-month-title');
-            const grid = document.getElementById('calendar-grid');
-            const eventsList = document.getElementById('events-list');
-
-            monthTitle.textContent = `${monthNames[currentMonth]} ${currentYear}`;
-
-            const headers = grid.querySelectorAll('.calendar-day-header');
-            grid.innerHTML = '';
-            headers.forEach(h => grid.appendChild(h));
-
-            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-            const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-            const eventsMap = {};
-            const monthEvents = [];
-
-            calendarData.forEach(event => {
-                const startDate = new Date(event.start_date);
-                const endDate = new Date(event.end_date);
-                const monthStart = new Date(currentYear, currentMonth, 1);
-                const monthEnd = new Date(currentYear, currentMonth + 1, 0);
-
-                if (startDate <= monthEnd && endDate >= monthStart) {
-                    monthEvents.push(event);
-
-                    for (let d = new Date(Math.max(startDate, monthStart)); d <= Math.min(endDate, monthEnd); d.setDate(d.getDate() + 1)) {
-                        if (d.getMonth() === currentMonth) {
-                            const dayNum = d.getDate();
-                            if (!eventsMap[dayNum]) eventsMap[dayNum] = [];
-                            if (!eventsMap[dayNum].find(e => e.event === event.event)) {
-                                eventsMap[dayNum].push(event);
-                            }
-                        }
+                // Draw conversion chart
+                setTimeout(() => {
+                    const ctx = document.getElementById('ad-conv-chart');
+                    if (ctx) {
+                        const labels = Object.keys(buckets);
+                        new Chart(ctx, {
+                            type:'bar',
+                            data:{labels, datasets:[{data:labels.map(l=>buckets[l].conversion_rate), backgroundColor:labels.map(l=>buckets[l].conversion_rate>10?'#30d158':buckets[l].conversion_rate>0?'#ff9f0a':'#86868b'), borderRadius:6}]},
+                            options:{responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#86868b'},grid:{display:false}}, y:{ticks:{color:'#86868b',callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                        });
                     }
-                }
-            });
+                }, 100);
 
-            const today = new Date();
-            const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+                // Costs table
+                const items = promoData?.products || [];
+                document.getElementById('ptab-costs').innerHTML = `<div class="table-wrap"><table>
+                    <thead><tr><th>Product</th><th>Type</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost</th><th>Status</th></tr></thead>
+                    <tbody>${items.slice(0,150).map(i => {
+                        const tc = i.funding_model === 'Dynamic' ? 'var(--accent)' : i.funding_model === 'Standard' ? 'var(--green)' : 'var(--dim)';
+                        return `<tr style="${i.promo_status==='none'?'opacity:0.4;':''}">
+                            <td class="trunc">${i.title}</td><td style="color:${tc};font-size:11px;font-weight:600;">${i.ad_type}</td>
+                            <td class="r">$${i.price.toFixed(0)}</td><td class="r ${i.ad_rate>8?'rd b':''}">${i.ad_rate?i.ad_rate+'%':'--'}</td>
+                            <td class="r ${i.total_cost>0?'o b':'d'}">$${i.total_cost.toFixed(2)}</td>
+                            <td style="font-size:10px;color:${i.promo_status==='overspending'?'var(--red)':i.promo_status==='none'?'var(--dim)':'var(--green)'};">${i.promo_status.toUpperCase()}</td>
+                        </tr>`;
+                    }).join('')}</tbody></table></div>`;
 
-            for (let i = firstDay - 1; i >= 0; i--) {
-                const day = daysInPrevMonth - i;
-                grid.innerHTML += `<div class="calendar-day other-month"><span class="day-num">${day}</span></div>`;
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const isToday = isCurrentMonth && day === today.getDate();
-                const dayEvents = eventsMap[day] || [];
-                const hasEvent = dayEvents.length > 0;
-
-                let dotsHtml = '';
-                if (hasEvent) {
-                    const uniqueTiers = [...new Set(dayEvents.map(e => e.tier.toLowerCase()))].slice(0, 3);
-                    dotsHtml = `<div class="day-dots">${uniqueTiers.map(t => `<span class="day-dot ${t}"></span>`).join('')}</div>`;
-                }
-
-                grid.innerHTML += `
-                    <div class="calendar-day${isToday ? ' today' : ''}${hasEvent ? ' has-event' : ''}"
-                         ${hasEvent ? `onclick="showDayEvents(${day})"` : ''}>
-                        <span class="day-num">${day}</span>
-                        ${dotsHtml}
-                    </div>
-                `;
-            }
-
-            const totalCells = firstDay + daysInMonth;
-            const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-            for (let i = 1; i <= remainingCells; i++) {
-                grid.innerHTML += `<div class="calendar-day other-month"><span class="day-num">${i}</span></div>`;
-            }
-
-            if (!monthEvents.length) {
-                eventsList.innerHTML = '<div class="empty">No events this month</div>';
-                return;
-            }
-
-            monthEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-
-            eventsList.innerHTML = monthEvents.map(e => {
-                const start = new Date(e.start_date);
-                return `
-                    <div class="event-card">
-                        <div class="event-date">
-                            <div class="day">${start.getDate()}</div>
-                            <div class="month">${monthNames[start.getMonth()].slice(0, 3)}</div>
-                        </div>
-                        <div class="event-details">
-                            <div class="event-name">${e.event}</div>
-                            <div class="event-item">${e.item}</div>
-                        </div>
-                        <div class="event-boost">+${e.increase}%</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function showDayEvents(day) {
-            const dayEvents = calendarData.filter(e => {
-                const start = new Date(e.start_date);
-                const end = new Date(e.end_date);
-                const checkDate = new Date(currentYear, currentMonth, day);
-                return checkDate >= start && checkDate <= end;
-            });
-
-            if (dayEvents.length) {
-                const eventDetails = dayEvents.map(e => `${e.event} (+${e.increase}%)`).join(' | ');
-                showToast(`${monthNames[currentMonth]} ${day}: ${eventDetails}`);
-            }
-        }
-
-        // ==========================================
-        // Modals - Pricing, Alerts, Listings
-        // ==========================================
-
-        // Alerts Modal
-        async function showAlertsModal() {
-            const modal = document.getElementById('alerts-modal');
-            const alertsList = document.getElementById('alerts-list');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            alertsList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/alerts');
-                const alerts = await resp.json();
-
-                if (!alerts.length) {
-                    alertsList.innerHTML = '<div class="empty">No alerts - everything looks good!</div>';
-                    return;
-                }
-
-                const icons = { 'low_price': '&#x1F4B0;', 'high_price': '&#x1F48E;', 'update_failed': '&#x26A0;&#xFE0F;' };
-
-                alertsList.innerHTML = alerts.map(alert => `
-                    <a href="${alert.url}" target="_blank" class="alert-row">
-                        <div class="alert-icon ${alert.type}">${icons[alert.type] || '!'}</div>
-                        <div class="alert-info">
-                            <div class="alert-title">${alert.title}</div>
-                            <div class="alert-message">${alert.message}</div>
-                        </div>
-                        <span class="item-arrow">&#8250;</span>
-                    </a>
-                `).join('');
-            } catch (e) {
-                alertsList.innerHTML = '<div class="empty">Failed to load alerts</div>';
-            }
-        }
-
-        function closeAlertsModal() {
-            document.getElementById('alerts-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('alerts-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'alerts-modal') closeAlertsModal();
-        });
-
-        // Listings Modal
-        async function showListingsModal() {
-            const modal = document.getElementById('listings-modal');
-            const modalBody = document.getElementById('modal-listings');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            modalBody.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-            try {
-                const resp = await fetch('/api/listings');
-                allListings = await resp.json();
-                renderModalListings(allListings);
-            } catch (e) {
-                modalBody.innerHTML = '<div class="empty">Failed to load listings</div>';
-            }
-        }
-
-        function closeListingsModal() {
-            document.getElementById('listings-modal').classList.remove('show');
-            document.body.style.overflow = '';
-            document.getElementById('modal-search').value = '';
-        }
-
-        function filterModalListings() {
-            const query = document.getElementById('modal-search').value.toLowerCase();
-            const filtered = allListings.filter(item =>
-                item.title.toLowerCase().includes(query) ||
-                (item.id && item.id.includes(query))
-            );
-            renderModalListings(filtered);
-        }
-
-        function renderModalListings(listings) {
-            const modalBody = document.getElementById('modal-listings');
-
-            if (!listings.length) {
-                modalBody.innerHTML = '<div class="empty">No listings found</div>';
-                return;
-            }
-
-            modalBody.innerHTML = listings.map(item => {
-                const artist = detectArtist(item.title);
-                const sku = (item.id || '').replace(/^v1\|/, '').split('|')[0];
-
-                return `
-                    <a href="${item.url}" target="_blank" class="listing-row">
-                        <div class="listing-info">
-                            <div class="listing-artist">${artist}</div>
-                            <div class="listing-title">${item.title}</div>
-                            <div class="listing-sku">SKU: ${sku}</div>
-                        </div>
-                        <div class="listing-price">$${item.price.toFixed(2)}</div>
-                    </a>
-                `;
-            }).join('');
-        }
-
-        document.getElementById('listings-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'listings-modal') closeListingsModal();
-        });
-
-        // Pricing Modal
-        let pricingListings = [];
-        let categoryData = {};
-
-        async function showPricingModal() {
-            const modal = document.getElementById('pricing-modal');
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-
-            if (!allListings.length) {
-                try {
-                    const resp = await fetch('/api/listings');
-                    allListings = await resp.json();
-                } catch (e) {
-                    showToast('Failed to load listings');
-                    return;
-                }
-            }
-
-            pricingListings = [...allListings];
-
-            categoryData = {};
-            for (const item of pricingListings) {
-                const cat = detectArtist(item.title);
-                if (!categoryData[cat]) {
-                    categoryData[cat] = { count: 0, items: [] };
-                }
-                categoryData[cat].count++;
-                categoryData[cat].items.push(item);
-            }
-
-            const sortedCats = Object.entries(categoryData).sort((a, b) => b[1].count - a[1].count);
-
-            document.getElementById('category-checkboxes').innerHTML = sortedCats.map(([cat, data]) => `
-                <label class="category-checkbox">
-                    <input type="checkbox" value="${cat}" onchange="updatePricingPreview()">
-                    <span class="checkmark"></span>
-                    <span class="cat-name">${cat}</span>
-                    <span class="cat-count">${data.count}</span>
-                </label>
-            `).join('');
-
-            document.getElementById('adjustment-type').value = 'percent_increase';
-            document.getElementById('adjustment-value').value = '';
-            updatePricingPreview();
-        }
-
-        function closePricingModal() {
-            document.getElementById('pricing-modal').classList.remove('show');
-            document.body.style.overflow = '';
-        }
-
-        document.getElementById('pricing-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'pricing-modal') closePricingModal();
-        });
-
-        document.getElementById('adjustment-type')?.addEventListener('change', updatePricingPreview);
-        document.getElementById('adjustment-value')?.addEventListener('input', updatePricingPreview);
-
-        function updatePricingPreview() {
-            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
-            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
-            const adjustType = document.getElementById('adjustment-type').value;
-            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
-
-            let selectedItems = [];
-            for (const cat of selectedCats) {
-                if (categoryData[cat]) {
-                    selectedItems = selectedItems.concat(categoryData[cat].items);
-                }
-            }
-
-            const previewDiv = document.getElementById('pricing-preview');
-            const countText = `${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''} selected`;
-
-            if (selectedItems.length === 0 || adjustValue === 0) {
-                previewDiv.innerHTML = `
-                    <div class="preview-count">${countText}</div>
-                    <div class="preview-example" style="color: var(--dim);">Select categories and enter an adjustment value</div>
-                `;
-                return;
-            }
-
-            const exampleItem = selectedItems[0];
-            const oldPrice = exampleItem.price;
-            let newPrice = oldPrice;
-            let changeText = '';
-
-            switch (adjustType) {
-                case 'percent_increase':
-                    newPrice = oldPrice * (1 + adjustValue / 100);
-                    changeText = `+${adjustValue}%`;
-                    break;
-                case 'percent_decrease':
-                    newPrice = oldPrice * (1 - adjustValue / 100);
-                    changeText = `-${adjustValue}%`;
-                    break;
-                case 'fixed_increase':
-                    newPrice = oldPrice + adjustValue;
-                    changeText = `+$${adjustValue.toFixed(2)}`;
-                    break;
-                case 'fixed_decrease':
-                    newPrice = oldPrice - adjustValue;
-                    changeText = `-$${adjustValue.toFixed(2)}`;
-                    break;
-                case 'set_price':
-                    newPrice = adjustValue;
-                    changeText = `set to $${adjustValue.toFixed(2)}`;
-                    break;
-            }
-
-            newPrice = Math.max(0.99, newPrice);
-
-            previewDiv.innerHTML = `
-                <div class="preview-count">${countText}</div>
-                <div class="preview-example">
-                    Example: <span class="old-price">$${oldPrice.toFixed(2)}</span>
-                    <span class="new-price">$${newPrice.toFixed(2)}</span>
-                    <span class="change">(${changeText})</span>
+                // Sales history
+                document.getElementById('ptab-history').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px;">
+                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.total_sold}</div><div class="stat-lbl">Sold</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val">$${Math.round(histData.total_revenue).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val">${histData.promoted_sold}</div><div class="stat-lbl">Promoted</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.organic_sold}</div><div class="stat-lbl">Organic</div></div>
                 </div>
-            `;
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Item</th><th class="r">Sold $</th><th>Listed</th><th>Sold</th><th class="r">Days</th><th>Type</th><th class="r">Ad%</th></tr></thead>
+                    <tbody>${(histData.items||[]).map(i => `<tr>
+                        <td class="trunc">${i.title}</td><td class="r g b">$${i.price.toFixed(0)}</td>
+                        <td class="d" style="font-size:11px;">${i.listed}</td><td class="d" style="font-size:11px;">${i.sold}</td>
+                        <td class="r b">${i.days_to_sell!=null?i.days_to_sell+'d':'--'}</td>
+                        <td style="font-size:11px;color:${i.promoted?'var(--accent)':'var(--green)'};">${i.promoted?'Promoted':'Organic'}</td>
+                        <td class="r">${i.ad_rate?i.ad_rate+'%':'--'}</td>
+                    </tr>`).join('')}</tbody></table></div>`;
+
+            } catch(e) { console.error('Promos error:', e); }
         }
 
-        async function applyPricingChanges() {
-            const checkboxes = document.querySelectorAll('#category-checkboxes input:checked');
-            const selectedCats = Array.from(checkboxes).map(cb => cb.value);
-            const adjustType = document.getElementById('adjustment-type').value;
-            const adjustValue = parseFloat(document.getElementById('adjustment-value').value) || 0;
+        function showPTab(tab) {
+            document.querySelectorAll('[data-ptab]').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-ptab="${tab}"]`).classList.add('active');
+            ['costs','category','analytics','history'].forEach(t => {
+                document.getElementById('ptab-'+t).style.display = t===tab ? 'block' : 'none';
+            });
+        }
 
-            if (selectedCats.length === 0) { showToast('Select at least one category'); return; }
-            if (adjustValue === 0) { showToast('Enter an adjustment value'); return; }
+        async function applyCatStrats() {
+            const cats = ['Shepard Fairey','Death NYC','KAWS','Banksy','Bearbrick','Mr. Brainwash','Space/NASA','Signed Music','Pickguard','Other'];
+            const strats = {};
+            cats.forEach(c => {
+                const sel = document.getElementById('cs-'+c.replace(/[^a-zA-Z]/g,''));
+                if (sel) strats[c] = sel.value;
+            });
+            toast('Saving and applying...');
+            await fetch('/api/promotions/category-strategy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(strats)});
+            const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
+            const d = await resp.json();
+            const statusEl = document.getElementById('cat-strat-status');
+            if (statusEl) statusEl.innerHTML = `<span class="g b">${d.applied} listings, ${d.campaigns} campaigns</span>`;
+            toast(d.applied + ' updated');
+        }
 
-            let itemsToUpdate = [];
-            for (const cat of selectedCats) {
-                if (categoryData[cat]) {
-                    itemsToUpdate = itemsToUpdate.concat(categoryData[cat].items);
-                }
-            }
+        async function applyStrat(level) {
+            toast('Applying ' + level + ' strategy...');
+            const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
+            const d = await resp.json();
+            document.getElementById('strat-status').innerHTML = `<span style="color:var(--green);">${d.applied} listings, ${d.campaigns} campaigns</span>`;
+            toast(d.applied + ' updated');
+        }
 
-            const btn = document.getElementById('apply-pricing-btn');
-            btn.disabled = true;
-            btn.textContent = `Updating ${itemsToUpdate.length} items...`;
+        // ==========================================
+        // Reports
+        // ==========================================
+        let reportsLoaded = {};
+
+        function showRTab(tab) {
+            document.querySelectorAll('[data-rtab]').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-rtab="${tab}"]`).classList.add('active');
+            ['deals','calendar','deep','pnl','market'].forEach(t => {
+                document.getElementById('rtab-'+t).style.display = t===tab ? 'block' : 'none';
+            });
+            loadReportTab(tab);
+        }
+
+        async function loadReportsTab() {
+            loadReportTab('deals');
+        }
+
+        async function loadReportTab(tab) {
+            if (reportsLoaded[tab]) return;
+            const el = document.getElementById('rtab-' + tab);
 
             try {
-                const resp = await fetch('/api/update-category-pricing', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        item_ids: itemsToUpdate.map(i => i.id),
-                        adjustment_type: adjustType,
-                        adjustment_value: adjustValue
-                    })
-                });
+                if (tab === 'deals') {
+                    const resp = await fetch('/api/deals/enhanced');
+                    const d = await resp.json();
+                    reportsLoaded.deals = d;
+                    const allDeals = d.deals || [];
 
-                const data = await resp.json();
+                    // Category chips
+                    const dealCats = {};
+                    allDeals.forEach(dl => { dealCats[dl.category] = (dealCats[dl.category]||0)+1; });
+                    let dealFilter = 'all';
 
-                if (data.success) {
-                    showToast(`Updated ${data.updated} items, ${data.failed} failed`);
-                    closePricingModal();
-                    loadStats();
-                    allListings = [];
-                } else {
-                    showToast(data.error || 'Update failed');
+                    function renderDeals(filter) {
+                        dealFilter = filter;
+                        const deals = filter === 'all' ? allDeals : allDeals.filter(dl => dl.category === filter);
+                        const tableEl = document.getElementById('deals-table-area');
+                        if (!tableEl) return;
+                        tableEl.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${deals.length} deals</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Title</th><th>Category</th><th class="r">Price</th><th class="r">Low</th><th class="r">Median</th><th class="r">High</th><th class="r">Profit</th><th class="r">Disc%</th><th>Hot</th><th>Liq.</th><th>Why</th><th>Link</th></tr></thead>
+                            <tbody>${deals.slice(0,200).map(dl => {
+                                const hc = dl.hotness>=60?'pill-red':dl.hotness>=30?'pill-orange':'pill-dim';
+                                const reasons = (dl.reasons||[]).join('; ');
+                                return `<tr>
+                                    <td class="trunc" title="${dl.title}">${dl.title}</td>
+                                    <td style="font-size:11px;">${dl.category}</td>
+                                    <td class="r g b">$${(dl.price||0).toLocaleString()}</td>
+                                    <td class="r d">$${(dl.price_range?.low||0).toLocaleString()}</td>
+                                    <td class="r">$${(dl.median||0).toLocaleString()}</td>
+                                    <td class="r d">$${(dl.price_range?.high||0).toLocaleString()}</td>
+                                    <td class="r o b">+$${(dl.profit||0).toLocaleString()}</td>
+                                    <td class="r">${(dl.discount_pct||0).toFixed(0)}%</td>
+                                    <td><span class="pill ${hc}">${dl.hotness}</span></td>
+                                    <td style="font-size:11px;">${dl.liquidity||'--'}</td>
+                                    <td style="font-size:10px;color:var(--dim);min-width:120px;">${reasons||'--'}</td>
+                                    <td>${dl.url?`<a href="${dl.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
+                                </tr>`;
+                            }).join('')}</tbody></table></div>` +
+                            (deals.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${deals.length}</div>` : '');
+                    }
+
+                    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                        <div class="chips" id="deal-chips">
+                            <button class="chip active" onclick="document.querySelectorAll('#deal-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderDeals('all');">All (${allDeals.length})</button>
+                            ${Object.entries(dealCats).sort((a,b)=>b[1]-a[1]).map(([cat,n]) =>
+                                `<button class="chip" onclick="document.querySelectorAll('#deal-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderDeals('${cat}');">${cat} (${n})</button>`
+                            ).join('')}
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn-primary btn" style="padding:6px 14px;font-size:12px;" onclick="reportsLoaded.deals=null;el.innerHTML='<div class=loading><div class=spinner></div></div>';loadReportTab('deals');">Refresh Live</button>
+                            <button class="btn-ghost" onclick="toast('Open Manage Searches from the old UI backup')">Manage</button>
+                        </div>
+                    </div>
+                    <div id="deals-table-area"></div>`;
+                    renderDeals('all');
+
+                } else if (tab === 'pnl') {
+                    const resp = await fetch('/api/reports/sales-analysis');
+                    const d = await resp.json();
+                    reportsLoaded.pnl = d;
+                    const s = d.summary || {};
+                    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${Math.round(s.total_revenue||0).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">$${Math.round(s.total_net_profit||0).toLocaleString()}</div><div class="stat-lbl">Profit</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${s.avg_margin||0}%</div><div class="stat-lbl">Margin</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${s.avg_dom||0}d</div><div class="stat-lbl">Avg DOM</div></div>
+                    </div>
+                    <div class="section-title">What's Working</div>
+                    ${(d.good||[]).map(g => `<div style="color:var(--green);padding:4px 0;font-size:13px;border-bottom:1px solid var(--border);">✓ ${g}</div>`).join('')}
+                    <div class="section-title" style="margin-top:12px;">What to Change</div>
+                    ${(d.change||[]).map(c => `<div style="color:var(--red);padding:4px 0;font-size:13px;border-bottom:1px solid var(--border);">✗ ${c}</div>`).join('')}
+                    <div style="margin-top:12px;"><a href="/reports/sales" target="_blank" class="btn-ghost" style="display:inline-block;">Full Report →</a> <a href="/reports/vs-market" target="_blank" class="btn-ghost" style="display:inline-block;margin-left:8px;">vs Market →</a></div>`;
+
+                } else if (tab === 'deep') {
+                    const resp = await fetch('/api/analytics/deep');
+                    const d = await resp.json();
+                    reportsLoaded.deep = d;
+                    el.innerHTML = `
+                        ${(d.insights||[]).map(i => `<div class="card" style="margin-bottom:6px;border-left:3px solid var(--accent);font-size:13px;">${i}</div>`).join('')}
+                        ${d.restock_signals?.length ? `<div class="section-title" style="margin-top:12px;">Restock Signals</div>${d.restock_signals.map(r => `<div class="card" style="margin-bottom:6px;border-left:3px solid ${r.urgency==='critical'?'var(--red)':'var(--orange)'};"><div style="font-size:13px;font-weight:600;">${r.category} — ${r.days_of_stock}d stock left</div><div style="font-size:12px;color:var(--dim);">${r.message}</div></div>`).join('')}` : ''}
+                        ${d.dead_stock?.length ? `<div class="section-title" style="margin-top:12px;">Dead Stock (${d.dead_stock_total} items, $${(d.dead_stock_value||0).toLocaleString()})</div><div class="table-wrap"><table><thead><tr><th>Item</th><th class="r">Price</th><th class="r">Days</th></tr></thead><tbody>${d.dead_stock.slice(0,10).map(s => `<tr><td class="trunc">${s.title}</td><td class="r">$${s.price}</td><td class="r rd b">${s.days}d</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+
+                } else if (tab === 'market') {
+                    el.innerHTML = '<div style="text-align:center;padding:20px;"><a href="/reports/vs-market" target="_blank" class="btn btn-primary">Open Market Comparison →</a></div>';
+                    reportsLoaded.market = true;
+
+                } else if (tab === 'calendar') {
+                    const resp = await fetch('/api/analytics/seasonality');
+                    const d = await resp.json();
+                    reportsLoaded.calendar = d;
+                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const eByMonth = d.events_by_month || {};
+                    el.innerHTML = `<div class="section-title">Quarterly Strategy</div>
+                        ${(d.recommendations||[]).map(r => `<div class="card" style="margin-bottom:8px;border-left:3px solid var(--accent);"><div style="font-size:16px;font-weight:700;">${r.strategy}</div><div style="font-size:13px;color:var(--dim);margin-top:4px;">${r.description}</div></div>`).join('')}
+                        <div class="section-title" style="margin-top:16px;">Year at a Glance</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">
+                        ${months.map(m => {
+                            const events = eByMonth[m] || [];
+                            return `<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:6px;">${m}</div>
+                                ${events.length ? events.map(e => `<div style="font-size:11px;padding:2px 0;border-bottom:1px solid var(--border);">
+                                    <span class="pill ${e.tier==='PEAK'?'pill-red':e.tier==='MAJOR'?'pill-orange':'pill-blue'}" style="font-size:7px;margin-right:2px;">${e.tier}</span>
+                                    ${e.name} <span class="g" style="font-size:10px;">+${e.boost}%</span></div>`).join('') : '<div style="font-size:11px;color:var(--dim);">—</div>'}
+                            </div>`;
+                        }).join('')}
+                        </div>`;
                 }
-            } catch (e) {
-                showToast('Update failed');
-            }
-
-            btn.disabled = false;
-            btn.textContent = 'Apply Changes';
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);">Failed to load ${tab}</div>`; }
         }
 
         // ==========================================
-        // Utility
+        // Drill-down
         // ==========================================
-        function showToast(msg) {
-            toast.textContent = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2500);
+        async function drill(type, params) {
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = 'Loading...';
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+                const resp = await fetch(`/api/drill/${type}${qs}`);
+                const d = await resp.json();
+                title.textContent = d.title || 'Detail';
+                const items = d.items || [];
+
+                if (!items.length) { content.innerHTML = '<div class="d" style="padding:20px;text-align:center;">No data</div>'; return; }
+
+                const first = items[0];
+                content.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${items.length} items</div>
+                <div class="table-wrap"><table><thead><tr>
+                    <th>Item</th>
+                    ${first.price!==undefined?'<th class="r">Price</th>':''}
+                    ${first.dom!==undefined?'<th class="r">DOM</th>':''}
+                    ${first.sold_date!==undefined?'<th>Date</th>':''}
+                    ${first.watchers!==undefined?'<th class="r">Watch</th>':''}
+                    ${first.reason!==undefined?'<th>Reason</th>':''}
+                    <th>Link</th>
+                </tr></thead><tbody>${items.map(i => `<tr>
+                    <td class="trunc">${i.title||i.name||''}</td>
+                    ${i.price!==undefined?`<td class="r g b">$${(i.price||0).toLocaleString()}</td>`:''}
+                    ${i.dom!==undefined?`<td class="r">${i.dom!=null?i.dom+'d':'--'}</td>`:''}
+                    ${i.sold_date!==undefined?`<td class="d" style="font-size:11px;">${i.sold_date||''}</td>`:''}
+                    ${i.watchers!==undefined?`<td class="r">${i.watchers}</td>`:''}
+                    ${i.reason!==undefined?`<td style="font-size:11px;color:var(--dim);">${i.reason||''}</td>`:''}
+                    <td>${i.url?`<a href="${i.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
+                </tr>`).join('')}</tbody></table></div>`;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
         }
 
-        function debounce(fn, ms) {
-            let timer;
-            return function(...args) {
-                clearTimeout(timer);
-                timer = setTimeout(() => fn.apply(this, args), ms);
-            };
+        async function drillItem(id, name, artist, price) {
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = name;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                // Load competing + chart in parallel
+                const [compResp, chartResp, valResp] = await Promise.all([
+                    fetch(`/api/drill/competing?title=${encodeURIComponent(name)}&id=${id}`),
+                    fetch(`/api/listing/chart/${id}`),
+                    fetch(`/api/comps/validated?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
+                ]);
+                const compData = await compResp.json();
+                const chartData = await chartResp.json();
+                const valData = await valResp.json();
+
+                const vs = valData.stats || {};
+                const comps = compData.items || [];
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Smart Price</div><div style="font-size:20px;font-weight:700;color:var(--green);">$${Math.round(price)}</div></div>
+                        ${vs.median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Validated Median</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${Math.round(vs.median)}</div></div>` : ''}
+                        ${vs.min ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Range</div><div style="font-size:14px;font-weight:600;">$${Math.round(vs.min)} — $${Math.round(vs.max)}</div></div>` : ''}
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Comps</div><div style="font-size:20px;font-weight:700;">${vs.count || 0}</div></div>
+                    </div>
+
+                    ${valData.llm_reason ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">${valData.llm_reason}</div>` : ''}
+
+                    <canvas id="drill-chart" height="200" style="margin-bottom:16px;"></canvas>
+
+                    <div class="section-title">Competing Listings (${comps.length})</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Seller</th><th>Link</th></tr></thead>
+                        <tbody>${comps.slice(0,15).map(c => `<tr>
+                            <td class="trunc">${c.title||''}</td>
+                            <td class="r g b">$${(c.price||0).toLocaleString()}</td>
+                            <td class="d" style="font-size:11px;">${c.seller||''}</td>
+                            <td>${c.url?`<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>`;
+
+                // Draw chart
+                const points = chartData.chart_points || [];
+                if (points.length && document.getElementById('drill-chart')) {
+                    new Chart(document.getElementById('drill-chart'), {
+                        type: 'scatter',
+                        data: {
+                            datasets: [
+                                {label:'Historical', data:points.filter(p=>p.type==='sold').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(10,132,255,0.7)', pointRadius:5},
+                                {label:'Active', data:points.filter(p=>p.type==='active').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(255,159,10,0.7)', pointRadius:6, pointStyle:'triangle'},
+                                {label:'Yours', data:points.filter(p=>p.type==='yours').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(48,209,88,1)', pointRadius:8, pointStyle:'star'},
+                            ]
+                        },
+                        options: {responsive:true, plugins:{legend:{labels:{color:'#86868b',font:{size:10}}}},
+                            scales:{x:{type:'category',ticks:{color:'#86868b',font:{size:8},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},
+                                y:{ticks:{color:'#86868b',callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                    });
+                }
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load detail</div>'; }
         }
+
+        function closeDrill() {
+            document.getElementById('drill-modal').classList.remove('show');
+        }
+        document.getElementById('drill-modal').addEventListener('click', e => { if(e.target.id==='drill-modal') closeDrill(); });
+
+        // ==========================================
+        // Price chart popup
+        // ==========================================
+        async function showChart(listingId, event) {
+            // Open in drill modal with chart
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = 'Price History';
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch(`/api/listing/chart/${listingId}`);
+                const d = await resp.json();
+                title.textContent = d.title;
+                const s = d.stats || {};
+
+                content.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${s.historical_count||0} historical · ${s.active_count||0} active · Your price: $${d.your_price}</div>
+                    <canvas id="popup-chart" height="250"></canvas>
+                    <div style="margin-top:12px;">${(d.chart_points||[]).filter(p=>p.type==='sold').slice(0,10).map(p =>
+                        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                            <span class="d">${p.name?.substring(0,35)||''}</span><span class="b">$${p.price}</span><span class="d">${p.date||''}</span></div>`
+                    ).join('')}</div>`;
+
+                const points = d.chart_points || [];
+                if (points.length) {
+                    new Chart(document.getElementById('popup-chart'), {
+                        type: 'scatter',
+                        data: {
+                            datasets: [
+                                {label:'Historical', data:points.filter(p=>p.type==='sold').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(10,132,255,0.7)', pointRadius:5},
+                                {label:'Active', data:points.filter(p=>p.type==='active').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(255,159,10,0.7)', pointRadius:6, pointStyle:'triangle'},
+                                {label:'Yours', data:points.filter(p=>p.type==='yours').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(48,209,88,1)', pointRadius:8, pointStyle:'star'},
+                            ]
+                        },
+                        options: {responsive:true, plugins:{legend:{labels:{color:'#86868b',font:{size:10}}}},
+                            scales:{x:{type:'category',ticks:{color:'#86868b',font:{size:8},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},
+                                y:{ticks:{color:'#86868b',callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                    });
+                }
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        // ==========================================
+        // Init
+        // ==========================================
+        loadDash();
     </script>
 </body>
 </html>

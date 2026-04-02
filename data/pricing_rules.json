@@ -1,82 +1,32 @@
 [
-  {
-    "name": "Elvis Presley Birthday",
-    "keywords": ["elvis", "presley", "king of rock"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "01-06",
-    "end_date": "01-10"
-  },
-  {
-    "name": "Beatles Breakup Anniversary",
-    "keywords": ["beatles", "lennon", "mccartney", "harrison", "starr"],
-    "tier": "MEDIUM",
-    "increase_percent": 15,
-    "start_date": "04-08",
-    "end_date": "04-12"
-  },
-  {
-    "name": "John Lennon Birthday",
-    "keywords": ["lennon", "beatles", "imagine"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "10-07",
-    "end_date": "10-11"
-  },
-  {
-    "name": "John Lennon Death Anniversary",
-    "keywords": ["lennon", "beatles"],
-    "tier": "PEAK",
-    "increase_percent": 35,
-    "start_date": "12-06",
-    "end_date": "12-10"
-  },
-  {
-    "name": "Marilyn Monroe Birthday",
-    "keywords": ["marilyn", "monroe"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "06-01",
-    "end_date": "06-03"
-  },
-  {
-    "name": "Apollo 11 Anniversary",
-    "keywords": ["apollo", "nasa", "moon landing", "armstrong", "aldrin", "collins"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "07-16",
-    "end_date": "07-24"
-  },
-  {
-    "name": "David Bowie Birthday",
-    "keywords": ["bowie", "ziggy", "starman"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "01-08",
-    "end_date": "01-12"
-  },
-  {
-    "name": "Valentine's Day",
-    "keywords": ["love", "heart", "romance", "valentine"],
-    "tier": "MEDIUM",
-    "increase_percent": 15,
-    "start_date": "02-10",
-    "end_date": "02-15"
-  },
-  {
-    "name": "Christmas Season",
-    "keywords": ["christmas", "holiday", "santa", "xmas"],
-    "tier": "PEAK",
-    "increase_percent": 35,
-    "start_date": "12-01",
-    "end_date": "12-26"
-  },
-  {
-    "name": "Taylor Swift Birthday",
-    "keywords": ["taylor swift", "swiftie"],
-    "tier": "MAJOR",
-    "increase_percent": 25,
-    "start_date": "12-11",
-    "end_date": "12-15"
-  }
+  {"name": "Elvis Presley Birthday", "keywords": ["elvis", "presley", "king of rock"], "tier": "MAJOR", "increase_percent": 25, "start_date": "01-06", "end_date": "01-10"},
+  {"name": "David Bowie Birthday", "keywords": ["bowie", "ziggy", "starman"], "tier": "MAJOR", "increase_percent": 25, "start_date": "01-08", "end_date": "01-12"},
+  {"name": "MLK Day", "keywords": ["mlk", "martin luther", "civil rights", "peace", "justice"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "01-15", "end_date": "01-20"},
+  {"name": "Valentine's Day", "keywords": ["love", "heart", "romance", "valentine", "rose", "flower"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "02-10", "end_date": "02-15"},
+  {"name": "Presidents Day", "keywords": ["president", "american", "flag", "patriot", "usa"], "tier": "MINOR", "increase_percent": 10, "start_date": "02-14", "end_date": "02-18"},
+  {"name": "International Women's Day", "keywords": ["woman", "women", "feminist", "goddess", "girl power"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "03-06", "end_date": "03-10"},
+  {"name": "St. Patrick's Day", "keywords": ["irish", "green", "shamrock", "celtic"], "tier": "MINOR", "increase_percent": 10, "start_date": "03-15", "end_date": "03-18"},
+  {"name": "Earth Day", "keywords": ["earth", "environment", "nature", "planet", "green", "climate"], "tier": "MINOR", "increase_percent": 10, "start_date": "04-20", "end_date": "04-24"},
+  {"name": "Beatles Breakup Anniversary", "keywords": ["beatles", "lennon", "mccartney", "harrison", "starr", "abbey road"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "04-08", "end_date": "04-12"},
+  {"name": "Star Wars Day", "keywords": ["star wars", "jedi", "force", "vader", "skywalker"], "tier": "MINOR", "increase_percent": 10, "start_date": "05-02", "end_date": "05-06"},
+  {"name": "Mother's Day", "keywords": ["mother", "mom", "flower", "love", "heart", "family"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "05-09", "end_date": "05-13"},
+  {"name": "Shepard Fairey Birthday", "keywords": ["shepard fairey", "obey", "fairey"], "tier": "MAJOR", "increase_percent": 25, "start_date": "02-13", "end_date": "02-17"},
+  {"name": "Marilyn Monroe Birthday", "keywords": ["marilyn", "monroe"], "tier": "MAJOR", "increase_percent": 25, "start_date": "06-01", "end_date": "06-03"},
+  {"name": "Father's Day", "keywords": ["father", "dad", "guitar", "music", "signed", "sports", "baseball"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "06-13", "end_date": "06-17"},
+  {"name": "4th of July", "keywords": ["american", "flag", "patriot", "usa", "freedom", "liberty", "justice"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "07-01", "end_date": "07-06"},
+  {"name": "Apollo 11 Anniversary", "keywords": ["apollo", "nasa", "moon landing", "armstrong", "aldrin", "collins", "astronaut", "space"], "tier": "MAJOR", "increase_percent": 25, "start_date": "07-16", "end_date": "07-24"},
+  {"name": "Andy Warhol Birthday", "keywords": ["warhol", "pop art", "soup can", "marilyn", "factory"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "08-04", "end_date": "08-08"},
+  {"name": "Basquiat Birthday", "keywords": ["basquiat", "crown", "samo", "neo-expressionist"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "12-20", "end_date": "12-24"},
+  {"name": "Back to School Art Season", "keywords": ["print", "art", "framed", "poster", "gallery", "decor"], "tier": "MINOR", "increase_percent": 10, "start_date": "08-15", "end_date": "09-15"},
+  {"name": "Halloween", "keywords": ["skull", "skeleton", "dark", "death", "horror", "zombie", "ghost"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "10-25", "end_date": "11-01"},
+  {"name": "John Lennon Birthday", "keywords": ["lennon", "beatles", "imagine"], "tier": "MAJOR", "increase_percent": 25, "start_date": "10-07", "end_date": "10-11"},
+  {"name": "KAWS Holiday Season", "keywords": ["kaws", "companion", "bff", "bearbrick", "medicom"], "tier": "MAJOR", "increase_percent": 25, "start_date": "11-15", "end_date": "12-26"},
+  {"name": "Black Friday / Cyber Monday", "keywords": ["signed", "limited", "rare", "collectible", "art", "print"], "tier": "PEAK", "increase_percent": 30, "start_date": "11-25", "end_date": "12-03"},
+  {"name": "John Lennon Death Anniversary", "keywords": ["lennon", "beatles"], "tier": "PEAK", "increase_percent": 35, "start_date": "12-06", "end_date": "12-10"},
+  {"name": "Taylor Swift Birthday", "keywords": ["taylor swift", "swiftie"], "tier": "MAJOR", "increase_percent": 25, "start_date": "12-11", "end_date": "12-15"},
+  {"name": "Christmas Season", "keywords": ["christmas", "holiday", "santa", "xmas", "gift"], "tier": "PEAK", "increase_percent": 35, "start_date": "12-01", "end_date": "12-26"},
+  {"name": "Death NYC Art Day", "keywords": ["death nyc", "death"], "tier": "MINOR", "increase_percent": 10, "start_date": "10-31", "end_date": "11-02"},
+  {"name": "Banksy Season", "keywords": ["banksy", "street art", "graffiti", "stencil"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "09-01", "end_date": "09-15"},
+  {"name": "Music Memorabilia Season", "keywords": ["signed", "vinyl", "record", "album", "pickguard", "guitar", "drum", "band", "autograph"], "tier": "MEDIUM", "increase_percent": 15, "start_date": "06-01", "end_date": "06-30"},
+  {"name": "Record Store Day", "keywords": ["vinyl", "record", "album", "lp", "pressing"], "tier": "MAJOR", "increase_percent": 25, "start_date": "04-19", "end_date": "04-22"}
 ]
