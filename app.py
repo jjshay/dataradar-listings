@@ -1062,6 +1062,7 @@ def save_supply_snapshot(inventory_items):
             'name': item['name'][:60],
             'ebay_count': supply.get('ebay_count', 0),
             'ebay_avg_price': supply.get('ebay_avg_price', 0),
+            'watchers': item.get('watchers', 0) or 0,
         }
 
     data['snapshots'].append(snapshot)
@@ -1074,6 +1075,127 @@ def save_supply_snapshot(inventory_items):
         json.dump(data, f, indent=2)
 
     return data
+
+
+WATCHER_HISTORY_FILE = os.path.join(DATA_DIR, 'watcher_history.json')
+
+
+def load_watcher_history():
+    if os.path.exists(WATCHER_HISTORY_FILE):
+        try:
+            with open(WATCHER_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'snapshots': {}, 'last_snapshot': None}
+
+
+def save_watcher_snapshot(listings):
+    """Snapshot watcher counts for all listings — runs once per day"""
+    data = load_watcher_history()
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    if data.get('last_snapshot') == today:
+        return data
+
+    for l in listings:
+        lid = l.get('id', '')
+        watchers = l.get('watchers', 0) or 0
+        if lid:
+            if lid not in data['snapshots']:
+                data['snapshots'][lid] = {'title': l.get('title', '')[:60], 'history': []}
+            data['snapshots'][lid]['history'].append({'date': today, 'watchers': watchers})
+            # Keep last 90 days
+            data['snapshots'][lid]['history'] = data['snapshots'][lid]['history'][-90:]
+
+    data['last_snapshot'] = today
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(WATCHER_HISTORY_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+    return data
+
+
+def get_watcher_velocity(listing_id):
+    """Get watcher velocity for a listing — daily change, 7d trend, acceleration"""
+    data = load_watcher_history()
+    item = data.get('snapshots', {}).get(listing_id)
+    if not item or not item.get('history'):
+        return {'daily_change': 0, 'weekly_change': 0, 'trend': 'unknown', 'history': []}
+
+    history = item['history']
+    current = history[-1]['watchers'] if history else 0
+
+    # Daily change (today vs yesterday)
+    daily_change = 0
+    if len(history) >= 2:
+        daily_change = history[-1]['watchers'] - history[-2]['watchers']
+
+    # Weekly change (today vs 7 days ago)
+    weekly_change = 0
+    if len(history) >= 7:
+        weekly_change = history[-1]['watchers'] - history[-7]['watchers']
+    elif len(history) >= 2:
+        weekly_change = history[-1]['watchers'] - history[0]['watchers']
+
+    # Trend
+    if weekly_change > 3: trend = 'hot'
+    elif weekly_change > 0: trend = 'rising'
+    elif weekly_change == 0: trend = 'flat'
+    elif weekly_change > -3: trend = 'cooling'
+    else: trend = 'dropping'
+
+    return {
+        'current': current,
+        'daily_change': daily_change,
+        'weekly_change': weekly_change,
+        'trend': trend,
+        'history': history[-30:],
+    }
+
+
+@app.route('/api/watcher-trends')
+def watcher_trends():
+    """Get watcher velocity for all listings with watchers"""
+    listings = ebay.get_all_listings()
+
+    # Take snapshot (once per day)
+    save_watcher_snapshot(listings)
+
+    results = []
+    for l in listings:
+        watchers = l.get('watchers', 0) or 0
+        vel = get_watcher_velocity(l['id'])
+
+        results.append({
+            'id': l['id'],
+            'title': l['title'][:60],
+            'category': detect_category(l['title']),
+            'price': l['price'],
+            'watchers': watchers,
+            'daily_change': vel['daily_change'],
+            'weekly_change': vel['weekly_change'],
+            'trend': vel['trend'],
+            'history': vel['history'],
+            'url': l.get('url', ''),
+        })
+
+    # Sort: most watchers first, then by velocity
+    results.sort(key=lambda x: (-x['watchers'], -x['weekly_change']))
+
+    # Summary
+    total_watchers = sum(r['watchers'] for r in results)
+    hot = [r for r in results if r['trend'] == 'hot']
+    rising = [r for r in results if r['trend'] == 'rising']
+    dropping = [r for r in results if r['trend'] == 'dropping']
+
+    return jsonify({
+        'items': results,
+        'total_watchers': total_watchers,
+        'with_watchers': len([r for r in results if r['watchers'] > 0]),
+        'hot': len(hot),
+        'rising': len(rising),
+        'dropping': len(dropping),
+    })
 
 
 def get_supply_trends(item_id):
@@ -4025,8 +4147,9 @@ def get_full_inventory_analytics():
         listing_map[l['id']] = l
         listing_map[l['title'].lower()[:40]] = l
 
-    # Take supply snapshot (once per day)
+    # Take supply + watcher snapshot (once per day)
     save_supply_snapshot(enriched_inventory)
+    save_watcher_snapshot(listings)
 
     # Get latest supply snapshot for trends
     latest_snap = supply_data['snapshots'][-1] if supply_data.get('snapshots') else {}

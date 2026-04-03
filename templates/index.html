@@ -328,6 +328,15 @@
                 <div id="d-auctions"></div>
             </div>
 
+            <!-- Watcher Trends -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Watcher Velocity</div>
+                    <button class="btn-ghost" onclick="loadWatcherTrends()">Refresh</button>
+                </div>
+                <div id="d-watcher-trends" style="font-size:12px;color:var(--dim);">Loads with dashboard</div>
+            </div>
+
             <!-- Buyer CRM -->
             <div class="section">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -841,6 +850,7 @@
                 loadOutreach();
                 loadTrendsAndArbitrage();
                 loadAuctions();
+                loadWatcherTrends();
 
             } catch (e) { console.error('Dashboard error:', e); }
         }
@@ -1182,6 +1192,49 @@
             } catch(e) {
                 el.innerHTML = '<div style="color:var(--dim);font-size:12px;">AI strategy unavailable — check API key</div>';
             }
+        }
+
+        // ==========================================
+        // Watcher Velocity
+        // ==========================================
+        async function loadWatcherTrends() {
+            const el = document.getElementById('d-watcher-trends');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/watcher-trends');
+                const d = await resp.json();
+                const items = (d.items || []).filter(i => i.watchers > 0);
+
+                if (!items.length) {
+                    el.innerHTML = '<div style="color:var(--dim);font-size:12px;">No items with watchers</div>';
+                    return;
+                }
+
+                const trendIcon = t => t === 'hot' ? '🔥' : t === 'rising' ? '📈' : t === 'flat' ? '➡️' : t === 'cooling' ? '📉' : t === 'dropping' ? '⬇️' : '';
+                const trendColor = t => t === 'hot' ? 'var(--red)' : t === 'rising' ? 'var(--green)' : t === 'flat' ? 'var(--dim)' : t === 'cooling' ? 'var(--orange)' : 'var(--red)';
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:60px;"><div style="font-size:20px;font-weight:700;">${d.total_watchers}</div><div class="stat-lbl">Total</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:60px;"><div style="font-size:20px;font-weight:700;">${d.with_watchers}</div><div class="stat-lbl">Items</div></div>
+                        ${d.hot ? `<div class="card" style="flex:1;text-align:center;min-width:60px;border-left:3px solid var(--red);"><div style="font-size:20px;font-weight:700;color:var(--red);">${d.hot}</div><div class="stat-lbl">Hot</div></div>` : ''}
+                        ${d.rising ? `<div class="card" style="flex:1;text-align:center;min-width:60px;border-left:3px solid var(--green);"><div style="font-size:20px;font-weight:700;color:var(--green);">${d.rising}</div><div class="stat-lbl">Rising</div></div>` : ''}
+                        ${d.dropping ? `<div class="card" style="flex:1;text-align:center;min-width:60px;border-left:3px solid var(--orange);"><div style="font-size:20px;font-weight:700;color:var(--orange);">${d.dropping}</div><div class="stat-lbl">Dropping</div></div>` : ''}
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Watch</th><th>Trend</th><th class="r">Daily</th><th class="r">7d</th><th class="r">Price</th></tr></thead>
+                        <tbody>${items.slice(0, 20).map(i => `<tr onclick="drillItem('${i.id}','${i.title.replace(/'/g,'')}','${i.category}',${i.price})" style="cursor:pointer;" title="Click for detail · ${i.history?.length || 0} days tracked">
+                            <td class="trunc">${i.title}</td>
+                            <td class="r b" style="font-size:16px;">${i.watchers}</td>
+                            <td style="color:${trendColor(i.trend)};font-weight:600;font-size:12px;">${trendIcon(i.trend)} ${i.trend}</td>
+                            <td class="r ${i.daily_change > 0 ? 'g b' : i.daily_change < 0 ? 'rd' : 'd'}">${i.daily_change > 0 ? '+' : ''}${i.daily_change}</td>
+                            <td class="r ${i.weekly_change > 0 ? 'g b' : i.weekly_change < 0 ? 'rd' : 'd'}">${i.weekly_change > 0 ? '+' : ''}${i.weekly_change}</td>
+                            <td class="r">$${i.price}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
         }
 
         // ==========================================
