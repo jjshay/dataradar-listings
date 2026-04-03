@@ -328,6 +328,24 @@
                 <div id="d-auctions"></div>
             </div>
 
+            <!-- Buyer CRM -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Buyer CRM</div>
+                    <button class="btn-ghost" onclick="loadBuyerCRM()">Load</button>
+                </div>
+                <div id="d-buyer-crm" style="font-size:12px;color:var(--dim);">Click Load to see repeat buyers and VIPs</div>
+            </div>
+
+            <!-- Listing Quality Scorer -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Listing Quality</div>
+                    <button class="btn-ghost" onclick="loadListingQuality()">Scan</button>
+                </div>
+                <div id="d-listing-quality" style="font-size:12px;color:var(--dim);">Click Scan to score all listings</div>
+            </div>
+
             <!-- Feedback Dashboard -->
             <div class="section">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -1164,6 +1182,125 @@
             } catch(e) {
                 el.innerHTML = '<div style="color:var(--dim);font-size:12px;">AI strategy unavailable — check API key</div>';
             }
+        }
+
+        // ==========================================
+        // Buyer CRM
+        // ==========================================
+        async function loadBuyerCRM() {
+            const el = document.getElementById('d-buyer-crm');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/buyers/crm');
+                const d = await resp.json();
+                const buyers = d.buyers || [];
+
+                const tierColor = t => t === 'GOLD' ? 'var(--orange)' : t === 'SILVER' ? 'var(--dim)' : t === 'REPEAT' ? 'var(--accent)' : 'var(--dim)';
+                const tierPill = t => t === 'GOLD' ? 'pill-orange' : t === 'SILVER' ? 'pill-dim' : t === 'REPEAT' ? 'pill-blue' : 'pill-dim';
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:20px;font-weight:700;">${d.total_buyers}</div><div class="stat-lbl">Buyers</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:20px;font-weight:700;color:var(--accent);">${d.repeat_buyers}</div><div class="stat-lbl">Repeat</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:20px;font-weight:700;color:var(--orange);">${d.vip_buyers}</div><div class="stat-lbl">VIP</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:20px;font-weight:700;color:var(--green);">${d.repeat_pct}%</div><div class="stat-lbl">Repeat Rev</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:20px;font-weight:700;">$${d.avg_lifetime_value}</div><div class="stat-lbl">Avg LTV</div></div>
+                    </div>
+                    ${buyers.filter(b => b.purchase_count >= 2).length ? `
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Buyer</th><th>Tier</th><th class="r">Purchases</th><th class="r">Total $</th><th class="r">Avg $</th><th>Categories</th><th>Last Buy</th></tr></thead>
+                        <tbody>${buyers.filter(b => b.purchase_count >= 2).map(b => `<tr onclick="drillBuyer('${b.buyer}')" style="cursor:pointer;" title="Click to see purchase history">
+                            <td class="b">${b.buyer}</td>
+                            <td><span class="pill ${tierPill(b.tier)}">${b.tier}</span></td>
+                            <td class="r b">${b.purchase_count}</td>
+                            <td class="r g b">$${b.total_spent.toLocaleString()}</td>
+                            <td class="r">$${b.avg_purchase}</td>
+                            <td style="font-size:10px;color:var(--dim);">${b.categories.join(', ')}</td>
+                            <td class="d" style="font-size:11px;">${b.last_purchase||''}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : ''}
+                    ${buyers.filter(b => b.purchase_count === 1).length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim);">${buyers.filter(b=>b.purchase_count===1).length} one-time buyers (not shown)</div>` : ''}
+                `;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Failed to load</div>'; }
+        }
+
+        async function drillBuyer(buyer) {
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = 'Buyer: ' + buyer;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/buyers/crm');
+                const d = await resp.json();
+                const b = (d.buyers || []).find(x => x.buyer === buyer);
+                if (!b) { content.innerHTML = '<div class="d">Buyer not found</div>'; return; }
+
+                const tierColor = b.tier === 'GOLD' ? 'var(--orange)' : b.tier === 'SILVER' ? 'var(--dim)' : 'var(--accent)';
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;color:${tierColor};">${b.tier}</div><div class="stat-lbl">Tier</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;">${b.purchase_count}</div><div class="stat-lbl">Purchases</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">$${b.total_spent.toLocaleString()}</div><div class="stat-lbl">Total Spent</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;">$${b.avg_purchase}</div><div class="stat-lbl">Avg Purchase</div></div>
+                    </div>
+                    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">Categories: ${b.categories.join(', ')} · First: ${b.first_purchase||'?'} · Last: ${b.last_purchase||'?'}</div>
+                    <div class="section-title">Purchase History</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th></tr></thead>
+                        <tbody>${(b.purchases||[]).map(p => `<tr>
+                            <td class="trunc">${p.title}</td>
+                            <td class="r g b">$${p.price.toLocaleString()}</td>
+                            <td class="d" style="font-size:11px;">${p.date||'--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        // ==========================================
+        // Listing Quality Scorer
+        // ==========================================
+        async function loadListingQuality() {
+            const el = document.getElementById('d-listing-quality');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/listing-quality');
+                const d = await resp.json();
+                const listings = d.listings || [];
+                const grades = d.grade_distribution || {};
+                const top = d.top_suggestions || [];
+
+                const gradeColor = g => g === 'A' ? 'var(--green)' : g === 'B' ? 'var(--accent)' : g === 'C' ? 'var(--orange)' : 'var(--red)';
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:26px;font-weight:700;color:${gradeColor(d.avg_score>=70?'B':d.avg_score>=55?'C':'D')}">${d.avg_score}</div><div class="stat-lbl">Avg Score</div></div>
+                        ${['A','B','C','D','F'].map(g => `<div class="card" style="flex:1;text-align:center;min-width:50px;"><div style="font-size:20px;font-weight:700;color:${gradeColor(g)}">${grades[g]||0}</div><div class="stat-lbl">Grade ${g}</div></div>`).join('')}
+                    </div>
+
+                    ${top.length ? `<div style="margin-bottom:12px;">${top.slice(0,4).map(s => `
+                        <div class="card" style="margin-bottom:4px;border-left:3px solid var(--orange);font-size:12px;">
+                            <b>${s.count} listings:</b> ${s.suggestion}
+                        </div>
+                    `).join('')}</div>` : ''}
+
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th>Grade</th><th class="r">Score</th><th class="r">Price</th><th>Top Fix</th></tr></thead>
+                        <tbody>${listings.slice(0,50).map(l => `<tr onclick="drillItem('${l.id}','${l.title.replace(/'/g,'')}','${l.category}',${l.price})" style="cursor:pointer;" title="${l.suggestions?.join(' | ') || 'Good'}">
+                            <td class="trunc">${l.title}</td>
+                            <td><span style="font-size:18px;font-weight:800;color:${gradeColor(l.grade)};">${l.grade}</span></td>
+                            <td class="r b">${l.score}/100</td>
+                            <td class="r">$${l.price}</td>
+                            <td style="font-size:11px;color:var(--dim);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.suggestions?.[0]||'Good'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Failed to load</div>'; }
         }
 
         // ==========================================

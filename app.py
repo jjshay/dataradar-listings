@@ -317,11 +317,16 @@ class EbayAPI:
                 qty_el = txn.find('.//ebay:QuantityPurchased', ns)
                 qty = int(qty_el.text) if qty_el is not None and qty_el.text else 1
 
+                # Extract buyer
+                buyer_el = txn.find('.//ebay:Buyer/ebay:UserID', ns)
+                buyer_id = buyer_el.text if buyer_el is not None else ''
+
                 listing = {
                     'id': item_id,
                     'title': title,
                     'price': price,
                     'quantity_sold': qty,
+                    'buyer': buyer_id,
                     'start_time': start_time[:19] if start_time else '',
                     'end_time': end_time[:19] if end_time else '',
                     'days_on_market': None,
@@ -11918,6 +11923,314 @@ def poll_notifications():
         'unread': len(unread),
         'latest': unread[:5] if unread else [],
         'has_alerts': any(n.get('severity') == 'high' for n in unread),
+    })
+
+
+# =============================================================================
+# Feature: Buyer CRM — Repeat buyers, spend tracking, VIP identification
+# =============================================================================
+
+@app.route('/api/buyers/crm')
+def buyer_crm():
+    """Build buyer CRM from sold items + feedback overview — repeat buyers, total spend"""
+    sold = ebay.get_sold_items(days_back=90)
+
+    # Also pull buyer data from feedback overview (has buyer IDs reliably)
+    try:
+        token = ebay.get_access_token()
+        if token:
+            import xml.etree.ElementTree as ET
+            fb_headers = {
+                'X-EBAY-API-SITEID': '0', 'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-IAF-TOKEN': token, 'Content-Type': 'text/xml',
+                'X-EBAY-API-CALL-NAME': 'GetMyeBaySelling'
+            }
+            xml_req = '''<?xml version="1.0" encoding="utf-8"?>
+            <GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <SoldList><Include>true</Include><DurationInDays>60</DurationInDays>
+                <Pagination><EntriesPerPage>100</EntriesPerPage><PageNumber>1</PageNumber></Pagination>
+                </SoldList></GetMyeBaySellingRequest>'''
+            r = requests.post('https://api.ebay.com/ws/api.dll', headers=fb_headers, data=xml_req)
+            ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+            root = ET.fromstring(r.text)
+            for ot in root.findall('.//e:SoldList//e:OrderTransaction', ns):
+                txn = ot.find('e:Transaction', ns) or ot.find('e:Order', ns)
+                if txn is None: continue
+                item = txn.find('e:Item', ns) or txn.find('.//e:Item', ns)
+                buyer_el = txn.find('e:Buyer', ns)
+                if item is None: continue
+                buyer_id = ''
+                if buyer_el is not None:
+                    uid = buyer_el.find('e:UserID', ns)
+                    if uid is not None: buyer_id = uid.text
+                if buyer_id:
+                    iid = item.find('e:ItemID', ns)
+                    title_el = item.find('e:Title', ns)
+                    price_el = txn.find('.//e:TransactionPrice', ns) or item.find('.//e:BuyItNowPrice', ns)
+                    end_el = txn.find('e:CreatedDate', ns) or item.find('.//e:EndTime', ns)
+                    sold.append({
+                        'id': iid.text if iid is not None else '',
+                        'title': (title_el.text if title_el is not None else '')[:60],
+                        'price': float(price_el.text) if price_el is not None and price_el.text else 0,
+                        'buyer': buyer_id,
+                        'end_time': end_el.text[:19] if end_el is not None and end_el.text else '',
+                    })
+    except Exception as e:
+        print(f"CRM buyer fetch error: {e}")
+
+    buyers = {}
+
+    for s in sold:
+        buyer = s.get('buyer', '')
+        if not buyer:
+            continue
+
+        if buyer not in buyers:
+            buyers[buyer] = {'buyer': buyer, 'purchases': [], 'total_spent': 0, 'categories': set(), 'first_purchase': None, 'last_purchase': None}
+
+        purchase = {
+            'title': s.get('title', '')[:60],
+            'price': s.get('price', 0),
+            'date': s.get('end_time', '')[:10],
+            'item_id': s.get('id', ''),
+        }
+        buyers[buyer]['purchases'].append(purchase)
+        buyers[buyer]['total_spent'] += s.get('price', 0)
+        buyers[buyer]['categories'].add(detect_category(s.get('title', '')))
+
+        date = s.get('end_time', '')[:10]
+        if date:
+            if not buyers[buyer]['first_purchase'] or date < buyers[buyer]['first_purchase']:
+                buyers[buyer]['first_purchase'] = date
+            if not buyers[buyer]['last_purchase'] or date > buyers[buyer]['last_purchase']:
+                buyers[buyer]['last_purchase'] = date
+
+    # Convert sets to lists and calculate stats
+    buyer_list = []
+    for b_id, b in buyers.items():
+        b['categories'] = sorted(list(b['categories']))
+        b['purchase_count'] = len(b['purchases'])
+        b['avg_purchase'] = round(b['total_spent'] / max(b['purchase_count'], 1))
+        b['is_repeat'] = b['purchase_count'] >= 2
+        b['is_vip'] = b['purchase_count'] >= 3 or b['total_spent'] >= 500
+
+        # VIP tier
+        if b['total_spent'] >= 1000 or b['purchase_count'] >= 5:
+            b['tier'] = 'GOLD'
+        elif b['total_spent'] >= 500 or b['purchase_count'] >= 3:
+            b['tier'] = 'SILVER'
+        elif b['purchase_count'] >= 2:
+            b['tier'] = 'REPEAT'
+        else:
+            b['tier'] = 'NEW'
+
+        buyer_list.append(b)
+
+    # Sort by total spent
+    buyer_list.sort(key=lambda x: -x['total_spent'])
+
+    # Summary stats
+    repeat_buyers = [b for b in buyer_list if b['is_repeat']]
+    vips = [b for b in buyer_list if b['is_vip']]
+    total_revenue = sum(b['total_spent'] for b in buyer_list)
+    repeat_revenue = sum(b['total_spent'] for b in repeat_buyers)
+
+    return jsonify({
+        'buyers': buyer_list,
+        'total_buyers': len(buyer_list),
+        'repeat_buyers': len(repeat_buyers),
+        'vip_buyers': len(vips),
+        'total_revenue': round(total_revenue),
+        'repeat_revenue': round(repeat_revenue),
+        'repeat_pct': round(repeat_revenue / max(total_revenue, 1) * 100),
+        'avg_lifetime_value': round(total_revenue / max(len(buyer_list), 1)),
+    })
+
+
+# =============================================================================
+# Feature: Listing Quality Scorer — Title, images, specifics, optimization
+# =============================================================================
+
+LISTING_QUALITY_WEIGHTS = {
+    'title_length': 10,        # 10 pts: 60-80 chars ideal
+    'title_keywords': 15,      # 15 pts: has key selling words
+    'signed_mentioned': 10,    # 10 pts: "signed" in title
+    'numbered_mentioned': 10,  # 10 pts: "numbered" or edition info
+    'artist_mentioned': 10,    # 10 pts: artist name in title
+    'condition_stated': 5,     # 5 pts: condition mentioned
+    'image_count': 15,         # 15 pts: multiple images
+    'has_free_shipping': 5,    # 5 pts: free shipping
+    'price_competitive': 10,   # 10 pts: priced within market range
+    'has_watchers': 10,        # 10 pts: has watchers (social proof)
+}
+
+
+def score_listing_quality(listing, market_median=0):
+    """Score a listing 0-100 based on quality factors. Returns score + suggestions."""
+    title = listing.get('title', '')
+    price = listing.get('price', 0)
+    t_lower = title.lower()
+    score = 0
+    suggestions = []
+
+    # Title length (60-80 ideal for eBay search)
+    tlen = len(title)
+    if 60 <= tlen <= 80:
+        score += 10
+    elif 40 <= tlen < 60:
+        score += 6
+        suggestions.append(f'Title is {tlen} chars — expand to 60-80 for better search visibility')
+    elif tlen > 80:
+        score += 7
+    else:
+        score += 3
+        suggestions.append(f'Title only {tlen} chars — too short, add descriptive keywords')
+
+    # Key selling words in title
+    power_words = ['signed', 'numbered', 'limited', 'authentic', 'rare', 'original', 'coa', 'jsa', 'psa', 'framed']
+    found_power = [w for w in power_words if w in t_lower]
+    kw_score = min(len(found_power) * 3, 15)
+    score += kw_score
+    if kw_score < 9:
+        missing = [w for w in ['signed', 'numbered', 'limited'] if w not in t_lower]
+        if missing:
+            suggestions.append(f'Add to title: {", ".join(missing[:2])} — increases search traffic')
+
+    # Signed mentioned
+    if any(w in t_lower for w in ['signed', 'hand signed', 'hand-signed', 'autograph']):
+        score += 10
+    else:
+        suggestions.append('Add "Signed" to title — signed items get 40% more views')
+
+    # Numbered/edition
+    if any(w in t_lower for w in ['numbered', '/50', '/100', '/150', '/200', '/250', '/300', '/350', '/400', '/450', '/500', 'edition', 'ap ', 'a/p']):
+        score += 10
+    else:
+        suggestions.append('Add edition info (e.g., "Numbered /300") — creates scarcity signal')
+
+    # Artist name
+    artists = ['shepard fairey', 'death nyc', 'kaws', 'banksy', 'brainwash', 'obey', 'bearbrick']
+    if any(a in t_lower for a in artists):
+        score += 10
+    else:
+        cat = detect_category(title)
+        if cat != 'Other':
+            suggestions.append(f'Include full artist name "{cat}" in title')
+
+    # Condition
+    if any(w in t_lower for w in ['mint', 'new', 'excellent', 'pristine', 'sealed', 'unopened']):
+        score += 5
+    else:
+        suggestions.append('Mention condition in title (Mint, Excellent, etc.)')
+
+    # Image count (from listing data — eBay API gives gallery URL, we check if it exists)
+    if listing.get('image'):
+        score += 8  # Has at least 1 image
+        # We can't easily count images from the API, assume 1
+        suggestions.append('Ensure 8+ photos — listings with 8+ images sell 25% faster')
+    else:
+        suggestions.append('Add photos — listings without images get 70% fewer views')
+
+    # Free shipping
+    # Can't easily tell from current data, give partial credit
+    score += 2
+
+    # Price competitive
+    if market_median > 0:
+        ratio = price / market_median
+        if 0.85 <= ratio <= 1.15:
+            score += 10  # Within 15% of market
+        elif 0.7 <= ratio < 0.85:
+            score += 7
+            suggestions.append(f'Priced ${int(market_median - price)} below market — could raise')
+        elif ratio > 1.3:
+            score += 3
+            suggestions.append(f'Priced ${int(price - market_median)} above market median (${int(market_median)}) — may need discount')
+        else:
+            score += 5
+    else:
+        score += 5  # No market data, neutral
+
+    # Watchers
+    watchers = listing.get('watchers', 0)
+    if watchers >= 5:
+        score += 10
+    elif watchers >= 2:
+        score += 6
+    elif watchers >= 1:
+        score += 3
+    else:
+        suggestions.append('No watchers — consider promoting or adjusting price')
+
+    # Grade
+    if score >= 85: grade = 'A'
+    elif score >= 70: grade = 'B'
+    elif score >= 55: grade = 'C'
+    elif score >= 40: grade = 'D'
+    else: grade = 'F'
+
+    return {
+        'score': min(score, 100),
+        'grade': grade,
+        'suggestions': suggestions[:5],
+    }
+
+
+@app.route('/api/listing-quality')
+def listing_quality_report():
+    """Score all active listings for quality — returns scores + top suggestions"""
+    listings = ebay.get_all_listings()
+    enriched = load_personal_inventory()
+
+    # Build market data lookup
+    market_by_title = {}
+    for item in enriched:
+        md = item.get('market_data', {})
+        if md.get('median'):
+            key = item['name'].lower()[:40]
+            market_by_title[key] = md['median']
+
+    scored = []
+    for l in listings:
+        key = l['title'].lower()[:40]
+        median = market_by_title.get(key, 0)
+        quality = score_listing_quality(l, median)
+        cat = detect_category(l['title'])
+
+        scored.append({
+            'id': l['id'],
+            'title': l['title'][:60],
+            'category': cat,
+            'price': l['price'],
+            'watchers': l.get('watchers', 0),
+            'score': quality['score'],
+            'grade': quality['grade'],
+            'suggestions': quality['suggestions'],
+            'url': l.get('url', ''),
+        })
+
+    scored.sort(key=lambda x: x['score'])  # Worst first
+
+    # Summary
+    avg_score = round(sum(s['score'] for s in scored) / max(len(scored), 1))
+    grade_dist = {}
+    for s in scored:
+        grade_dist[s['grade']] = grade_dist.get(s['grade'], 0) + 1
+
+    # Top suggestions across all listings
+    from collections import Counter
+    all_suggestions = Counter()
+    for s in scored:
+        for sug in s['suggestions']:
+            all_suggestions[sug] += 1
+    top_suggestions = [{'suggestion': s, 'count': c} for s, c in all_suggestions.most_common(7)]
+
+    return jsonify({
+        'listings': scored,
+        'total': len(scored),
+        'avg_score': avg_score,
+        'grade_distribution': grade_dist,
+        'top_suggestions': top_suggestions,
     })
 
 
