@@ -411,6 +411,42 @@
                 </div>
             </div>
 
+            <!-- Product Deal Search -->
+            <div class="section" id="rtab-deal-search">
+                <div style="margin-bottom:12px;">
+                    <div class="search" style="border-color:rgba(48,209,88,0.3);background:rgba(48,209,88,0.04);">
+                        <span style="font-size:16px;">🔍</span>
+                        <input type="text" id="deal-search-input" placeholder="Search deals — e.g., KAWS Passing Through, Shepard Fairey Peace">
+                        <select id="deal-search-sort" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 8px;font-size:12px;">
+                            <option value="smart">Smart Sort</option>
+                            <option value="price_low">Price Low</option>
+                            <option value="price_high">Price High</option>
+                            <option value="profit">Most Profit</option>
+                            <option value="discount">Biggest Discount</option>
+                        </select>
+                        <button class="btn-green btn" style="padding:8px 20px;font-size:13px;" onclick="searchDeals()">Find Deals</button>
+                    </div>
+                    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Shepard Fairey signed print';searchDeals()">Shepard Fairey</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='KAWS figure authentic';searchDeals()">KAWS</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Banksy signed print';searchDeals()">Banksy</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Death NYC signed';searchDeals()">Death NYC</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Bearbrick 1000%';searchDeals()">Bearbrick</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Murakami flower signed';searchDeals()">Murakami</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Mr Brainwash signed print';searchDeals()">MBW</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Invader signed print';searchDeals()">Invader</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Damien Hirst signed print';searchDeals()">Hirst</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Keith Haring signed print';searchDeals()">Haring</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Andy Warhol signed';searchDeals()">Warhol</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Daniel Arsham eroded';searchDeals()">Arsham</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Stik signed print';searchDeals()">Stik</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Apollo astronaut signed';searchDeals()">Space/NASA</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Beatles signed autograph';searchDeals()">Beatles/Rock</button>
+                    </div>
+                </div>
+                <div id="deal-search-results"></div>
+            </div>
+
             <div class="section" id="rtab-deals"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="rtab-calendar" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="rtab-deep" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
@@ -518,19 +554,29 @@
                 document.getElementById('d-watchers').textContent = d.stats.with_watchers;
                 document.getElementById('d-promoted').textContent = Math.round(d.stats.promoted / Math.max(d.stats.total_listings, 1) * 100) + '%';
 
-                // Revenue trend chart
+                // Revenue trend chart — click any point to see that week's sales
                 const trend = d.revenue_trend || {};
                 const weeks = Object.keys(trend).sort();
+                window._revTrend = trend;
+                window._revWeeks = weeks;
                 if (weeks.length) {
                     const ctx = document.getElementById('dash-rev-chart');
                     if (ctx) {
-                        new Chart(ctx, {
+                        const revChart = new Chart(ctx, {
                             type:'line', data:{labels:weeks.map(w=>w.substring(5)),
-                                datasets:[{data:weeks.map(w=>trend[w].revenue), borderColor:'#30d158', backgroundColor:'rgba(48,209,88,0.08)', fill:true, tension:0.4, pointRadius:3, borderWidth:2}]},
-                            options:{responsive:true, plugins:{legend:{display:false}},
+                                datasets:[{data:weeks.map(w=>trend[w].revenue), borderColor:'#30d158', backgroundColor:'rgba(48,209,88,0.08)', fill:true, tension:0.4, pointRadius:5, pointHoverRadius:8, borderWidth:2}]},
+                            options:{responsive:true, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.raw.toLocaleString()+' · Click for details'}}},
                                 scales:{x:{ticks:{color:'#86868b',font:{size:9}},grid:{display:false}},
-                                    y:{ticks:{color:'#86868b',callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                                    y:{ticks:{color:'#86868b',callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:'rgba(255,255,255,0.04)'}}}},
                         });
+                        ctx.onclick = (evt) => {
+                            const pts = revChart.getElementsAtEventForMode(evt, 'nearest', {intersect:true}, true);
+                            if (pts.length) {
+                                const wk = weeks[pts[0].index];
+                                const wkData = trend[wk];
+                                drillWeekSales(wk, wkData);
+                            }
+                        };
                     }
                 }
 
@@ -935,6 +981,195 @@
             } catch(e) { el.innerHTML = '<div style="color:var(--red);">Analysis failed</div>'; }
         }
         document.getElementById('search-input')?.addEventListener('keypress', e => { if (e.key === 'Enter') runSearch(); });
+        document.getElementById('deal-search-input')?.addEventListener('keypress', e => { if (e.key === 'Enter') searchDeals(); });
+
+        // ==========================================
+        // Product Deal Search
+        // ==========================================
+        let dealSearchData = null;
+
+        async function searchDeals() {
+            const query = document.getElementById('deal-search-input').value.trim();
+            if (!query) return;
+            const el = document.getElementById('deal-search-results');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:12px;color:var(--dim);margin-top:8px;">Searching eBay + pulling comps...</div></div>';
+            toast('Searching deals for: ' + query);
+
+            try {
+                const resp = await fetch(`/api/deals/product-search?q=${encodeURIComponent(query)}`);
+                const d = await resp.json();
+                dealSearchData = d;
+                renderDealResults(d);
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);padding:20px;">Search failed</div>'; }
+        }
+
+        function renderDealResults(d) {
+            const el = document.getElementById('deal-search-results');
+            let products = d.products || [];
+            if (!products.length) {
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--dim);">No products found. Try a different search.</div>';
+                return;
+            }
+
+            // Sort
+            const sort = document.getElementById('deal-search-sort')?.value || 'smart';
+            if (sort === 'price_low') products.sort((a,b) => a.price - b.price);
+            else if (sort === 'price_high') products.sort((a,b) => b.price - a.price);
+            else if (sort === 'profit') products.sort((a,b) => b.profit - a.profit);
+            else if (sort === 'discount') products.sort((a,b) => b.discount_pct - a.discount_pct);
+
+            // Summary stats
+            const buys = products.filter(p => p.verdict === 'BUY').length;
+            const considers = products.filter(p => p.verdict === 'CONSIDER').length;
+
+            el.innerHTML = `
+                <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+                    <div style="font-size:13px;color:var(--dim);">${products.length} products found${d.artist ? ' · '+d.artist : ''}</div>
+                    ${buys ? `<span class="pill pill-green">${buys} BUY</span>` : ''}
+                    ${considers ? `<span class="pill pill-orange">${considers} CONSIDER</span>` : ''}
+                </div>
+                <div id="deal-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">
+                    ${products.map((p, i) => renderDealCard(p, i)).join('')}
+                </div>
+            `;
+        }
+
+        function renderDealCard(p, idx) {
+            const vc = p.verdict === 'BUY' ? 'var(--green)' : p.verdict === 'CONSIDER' ? 'var(--orange)' : p.verdict === 'OVERPRICED' ? 'var(--red)' : 'var(--dim)';
+            const vpill = p.verdict === 'BUY' ? 'pill-green' : p.verdict === 'CONSIDER' ? 'pill-orange' : p.verdict === 'OVERPRICED' ? 'pill-red' : 'pill-dim';
+            const hc = p.hotness >= 60 ? 'pill-red' : p.hotness >= 30 ? 'pill-orange' : 'pill-dim';
+
+            const badges = [];
+            if (p.signed) badges.push('<span class="pill pill-blue" style="font-size:8px;">SIGNED</span>');
+            if (p.numbered) badges.push('<span class="pill pill-blue" style="font-size:8px;">NUMBERED</span>');
+            if (p.buying_option === 'AUCTION') badges.push('<span class="pill pill-orange" style="font-size:8px;">AUCTION</span>');
+
+            return `<div class="card card-click" style="border-left:4px solid ${vc};overflow:hidden;" onclick="showDealDetail(${idx})">
+                <div style="display:flex;gap:12px;">
+                    ${p.image ? `<div style="flex-shrink:0;"><img src="${p.image}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;background:var(--card2);" onerror="this.style.display='none'"></div>` : ''}
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+                            <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;">${p.title}</div>
+                            <span class="pill ${vpill}" style="flex-shrink:0;">${p.verdict}</span>
+                        </div>
+                        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">${badges.join('')}</div>
+                        <div style="display:flex;gap:16px;margin-top:8px;align-items:baseline;">
+                            <div><span style="font-size:20px;font-weight:800;color:var(--green);">$${p.price.toLocaleString()}</span></div>
+                            ${p.median > 0 ? `<div style="font-size:12px;color:var(--dim);">Median: <b style="color:var(--accent);">$${p.median.toLocaleString()}</b></div>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+                    <div style="text-align:center;">
+                        <div style="font-size:16px;font-weight:700;color:${p.profit > 0 ? 'var(--green)' : 'var(--red)'};">${p.profit > 0 ? '+' : ''}$${p.profit.toLocaleString()}</div>
+                        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;">Profit</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:16px;font-weight:700;color:${p.discount_pct > 20 ? 'var(--green)' : 'var(--dim)'};">${p.discount_pct}%</div>
+                        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;">Below Mkt</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:16px;font-weight:700;">${p.comp_count}</div>
+                        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;">Comps</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div><span class="pill ${hc}" style="font-size:10px;">${p.hotness}</span></div>
+                        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;">Hot</div>
+                    </div>
+                </div>
+                <div style="font-size:11px;color:var(--dim);margin-top:6px;">${p.reasons.join(' · ')}</div>
+                ${p.seller ? `<div style="font-size:10px;color:var(--dim);margin-top:2px;">Seller: ${p.seller} · ${p.condition || 'N/A'} · ${p.liquidity} liquidity</div>` : ''}
+            </div>`;
+        }
+
+        function showDealDetail(idx) {
+            if (!dealSearchData) return;
+            const p = dealSearchData.products[idx];
+            if (!p) return;
+
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            const vc = p.verdict === 'BUY' ? 'var(--green)' : p.verdict === 'CONSIDER' ? 'var(--orange)' : p.verdict === 'OVERPRICED' ? 'var(--red)' : 'var(--dim)';
+
+            title.textContent = p.verdict + ' — ' + p.title.substring(0, 50);
+            content.innerHTML = `
+                <div style="display:flex;gap:16px;margin-bottom:16px;">
+                    ${p.image ? `<img src="${p.image}" style="width:120px;height:120px;object-fit:cover;border-radius:12px;background:var(--card2);" onerror="this.style.display='none'">` : ''}
+                    <div style="flex:1;">
+                        <div style="font-size:15px;font-weight:600;line-height:1.4;margin-bottom:8px;">${p.title}</div>
+                        <div style="display:flex;gap:12px;align-items:baseline;">
+                            <span style="font-size:28px;font-weight:800;color:${vc};">$${p.price.toLocaleString()}</span>
+                            ${p.median > 0 ? `<span style="font-size:14px;color:var(--dim);">Market: <b style="color:var(--accent);">$${p.median.toLocaleString()}</b></span>` : ''}
+                        </div>
+                        <div style="font-size:12px;color:var(--dim);margin-top:4px;">${p.condition || ''} · ${p.seller || ''} · ${p.buying_option || ''}</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                    <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;color:${p.profit > 0 ? 'var(--green)' : 'var(--red)'};">${p.profit > 0 ? '+' : ''}$${p.profit}</div><div class="stat-lbl">Profit</div></div>
+                    <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;">${p.discount_pct}%</div><div class="stat-lbl">Below Market</div></div>
+                    <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;">${p.comp_count}</div><div class="stat-lbl">Total Comps</div></div>
+                    <div class="card" style="text-align:center;"><div style="font-size:22px;font-weight:700;">${p.liquidity}</div><div class="stat-lbl">Liquidity</div></div>
+                </div>
+
+                ${p.comp_low > 0 ? `<div style="margin-bottom:16px;">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Price Range (${p.comp_count} comps)</div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:12px;color:var(--dim);">$${p.comp_low}</span>
+                        <div style="flex:1;height:8px;background:var(--border);border-radius:4px;position:relative;">
+                            <div style="position:absolute;height:100%;background:linear-gradient(to right,var(--green),var(--accent),var(--orange));border-radius:4px;width:100%;opacity:0.5;"></div>
+                            ${p.median > 0 ? `<div style="position:absolute;top:-3px;left:${Math.min(95,Math.max(5,(p.median-p.comp_low)/(p.comp_high-p.comp_low)*100))}%;width:14px;height:14px;background:var(--accent);border-radius:50%;border:2px solid var(--bg);" title="Median: $${p.median}"></div>` : ''}
+                            ${p.price > 0 && p.comp_high > p.comp_low ? `<div style="position:absolute;top:-3px;left:${Math.min(95,Math.max(5,(p.price-p.comp_low)/(p.comp_high-p.comp_low)*100))}%;width:14px;height:14px;background:var(--green);border-radius:50%;border:2px solid var(--bg);" title="Listed: $${p.price}"></div>` : ''}
+                        </div>
+                        <span style="font-size:12px;color:var(--dim);">$${p.comp_high}</span>
+                    </div>
+                    <div style="display:flex;justify-content:center;gap:16px;margin-top:6px;font-size:10px;color:var(--dim);">
+                        <span>● <span style="color:var(--green);">Listed Price</span></span>
+                        <span>● <span style="color:var(--accent);">Median</span></span>
+                    </div>
+                </div>` : ''}
+
+                <div style="font-size:13px;color:var(--dim);margin-bottom:16px;background:rgba(10,132,255,0.06);border-radius:8px;padding:10px;">
+                    ${p.reasons.join(' · ')}
+                    ${p.signed ? ' · <span style="color:var(--accent);">Signed</span>' : ''}
+                    ${p.numbered ? ' · <span style="color:var(--accent);">Numbered</span>' : ''}
+                </div>
+
+                ${p.comps?.length ? `
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Active Comparable Listings (${p.active_comp_count})</div>
+                    <div class="table-wrap" style="margin-bottom:16px;"><table>
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Link</th></tr></thead>
+                        <tbody>${p.comps.map(c => `<tr>
+                            <td class="trunc">${c.title}</td>
+                            <td class="r g b">$${c.price.toLocaleString()}</td>
+                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                ` : ''}
+
+                ${p.historical_comps?.length ? `
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Historical Sales (${p.historical_count})</div>
+                    <div class="table-wrap" style="margin-bottom:16px;"><table>
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Date</th><th>Source</th></tr></thead>
+                        <tbody>${p.historical_comps.map(h => `<tr>
+                            <td class="trunc">${h.name}</td>
+                            <td class="r g b">$${h.price}</td>
+                            <td class="d" style="font-size:11px;">${h.date || '--'}</td>
+                            <td class="d" style="font-size:10px;">${h.source || ''}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                ` : ''}
+
+                <div style="display:flex;gap:8px;">
+                    ${p.url ? `<a href="${p.url}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;">View on eBay</a>` : ''}
+                    <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="runSearch();document.getElementById('search-input').value='${p.title.replace(/'/g,'').substring(0,40)}';showTab('dash');setTimeout(runSearch,100);">Deep Analysis</button>
+                </div>
+            `;
+            modal.classList.add('show');
+        }
+
+        document.getElementById('deal-search-sort')?.addEventListener('change', () => { if (dealSearchData) renderDealResults(dealSearchData); });
 
         // ==========================================
         // Inventory
@@ -1002,7 +1237,7 @@
                 <tbody>${items.slice(0, 200).map(i => {
                     const hasSuggestion = i.suggested_price && i.your_price && Math.abs(i.suggested_price - i.your_price) > 5;
                     const mc = (i.margin_pct||0) > 30 ? 'g' : (i.margin_pct||0) > 10 ? 'o' : 'rd';
-                    return `<tr ondblclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Double-click: full detail with chart + comps + AI validation">
+                    return `<tr onclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Click for full detail: chart + comps + AI validation">
                         <td class="trunc" title="${i.name}">
                             ${i.name}
                             <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;" title="Price history chart">📊</span>
@@ -1078,7 +1313,7 @@
                         <tbody>${Object.keys(ebayRates).map(cat => {
                             const cv = catVel[cat] || {};
                             const saved = savedStrats[cat] || 'steady';
-                            return `<tr>
+                            return `<tr onclick="drillCategory('${cat}', ${cv.items||0}, ${cv.sold||0}, ${cv.conversion_rate||0})" title="Click to see all ${cat} listings" style="cursor:pointer;">
                                 <td class="b">${cat}</td>
                                 <td class="r">${cv.items||0}</td>
                                 <td class="r">${cv.sold||0}</td>
@@ -1105,22 +1340,31 @@
                     <div class="section-title">Rate Buckets</div>
                     <div class="table-wrap"><table>
                         <thead><tr><th>Rate</th><th class="r">Items</th><th class="r">Sold</th><th class="r">Conv%</th><th class="r">ROI</th></tr></thead>
-                        <tbody>${Object.entries(buckets).map(([name,b]) => `<tr>
+                        <tbody>${Object.entries(buckets).map(([name,b]) => `<tr onclick="drillRateBucket('${name}', ${b.items}, ${b.sold}, ${b.conversion_rate}, ${b.roi})" title="Click to see items in this rate bucket" style="cursor:pointer;">
                             <td class="b">${name}</td><td class="r">${b.items}</td><td class="r">${b.sold}</td>
                             <td class="r ${b.conversion_rate>10?'g b':''}">${b.conversion_rate}%</td>
                             <td class="r ${b.roi>0?'g':'rd'}">${b.roi>0?'+':''}${b.roi}%</td>
                         </tr>`).join('')}</tbody></table></div>`;
 
-                // Draw conversion chart
+                // Draw conversion chart — click any bar to drill into that bucket
+                window._adBuckets = buckets;
                 setTimeout(() => {
                     const ctx = document.getElementById('ad-conv-chart');
                     if (ctx) {
                         const labels = Object.keys(buckets);
-                        new Chart(ctx, {
+                        const adChart = new Chart(ctx, {
                             type:'bar',
                             data:{labels, datasets:[{data:labels.map(l=>buckets[l].conversion_rate), backgroundColor:labels.map(l=>buckets[l].conversion_rate>10?'#30d158':buckets[l].conversion_rate>0?'#ff9f0a':'#86868b'), borderRadius:6}]},
-                            options:{responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#86868b'},grid:{display:false}}, y:{ticks:{color:'#86868b',callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                            options:{responsive:true, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+'% · Click for items'}}}, scales:{x:{ticks:{color:'#86868b'},grid:{display:false}}, y:{ticks:{color:'#86868b',callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.04)'}}}}
                         });
+                        ctx.onclick = (evt) => {
+                            const pts = adChart.getElementsAtEventForMode(evt, 'nearest', {intersect:true}, true);
+                            if (pts.length) {
+                                const name = labels[pts[0].index];
+                                const b = buckets[name];
+                                drillRateBucket(name, b.items, b.sold, b.conversion_rate, b.roi);
+                            }
+                        };
                     }
                 }, 100);
 
@@ -1130,7 +1374,7 @@
                     <thead><tr><th>Product</th><th>Type</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost</th><th>Status</th></tr></thead>
                     <tbody>${items.slice(0,150).map(i => {
                         const tc = i.funding_model === 'Dynamic' ? 'var(--accent)' : i.funding_model === 'Standard' ? 'var(--green)' : 'var(--dim)';
-                        return `<tr style="${i.promo_status==='none'?'opacity:0.4;':''}">
+                        return `<tr style="${i.promo_status==='none'?'opacity:0.4;':''}" onclick="drillPromoItem('${i.title.replace(/'/g,'')}', ${i.price}, ${i.ad_rate||0}, ${i.total_cost||0}, '${i.promo_status}')" title="Click for item detail + market comps">
                             <td class="trunc">${i.title}</td><td style="color:${tc};font-size:11px;font-weight:600;">${i.ad_type}</td>
                             <td class="r">$${i.price.toFixed(0)}</td><td class="r ${i.ad_rate>8?'rd b':''}">${i.ad_rate?i.ad_rate+'%':'--'}</td>
                             <td class="r ${i.total_cost>0?'o b':'d'}">$${i.total_cost.toFixed(2)}</td>
@@ -1147,7 +1391,7 @@
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Item</th><th class="r">Sold $</th><th>Listed</th><th>Sold</th><th class="r">Days</th><th>Type</th><th class="r">Ad%</th></tr></thead>
-                    <tbody>${(histData.items||[]).map(i => `<tr>
+                    <tbody>${(histData.items||[]).map(i => `<tr onclick="drillSoldItem('${i.title.replace(/'/g,'')}', ${i.price}, '${i.sold}', ${i.days_to_sell||0}, ${i.ad_rate||0}, 0, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
                         <td class="trunc">${i.title}</td><td class="r g b">$${i.price.toFixed(0)}</td>
                         <td class="d" style="font-size:11px;">${i.listed}</td><td class="d" style="font-size:11px;">${i.sold}</td>
                         <td class="r b">${i.days_to_sell!=null?i.days_to_sell+'d':'--'}</td>
@@ -1235,7 +1479,7 @@
                             <tbody>${deals.slice(0,200).map(dl => {
                                 const hc = dl.hotness>=60?'pill-red':dl.hotness>=30?'pill-orange':'pill-dim';
                                 const reasons = (dl.reasons||[]).join('; ');
-                                return `<tr onclick="${dl.url ? `window.open('${dl.url}','_blank')` : ''}" style="cursor:pointer;" title="Click to open on eBay | ${reasons}">
+                                return `<tr onclick="drillDealItem('${dl.title.replace(/'/g,'')}', ${dl.price||0}, '${dl.category}', ${dl.median||0}, ${dl.comp_count||0}, '${dl.url||''}')" style="cursor:pointer;" title="Click for full deal analysis | ${reasons}">
                                     <td class="trunc" title="${dl.title}">${dl.title}</td>
                                     <td style="font-size:11px;" title="Filter by ${dl.category}" onclick="event.stopPropagation();renderDeals('${dl.category}')">${dl.category}</td>
                                     <td class="r g b" title="Listed at $${dl.price}">$${(dl.price||0).toLocaleString()}</td>
@@ -1333,7 +1577,7 @@
                         <div class="table-wrap"><table>
                             <thead><tr><th>Medium</th><th class="r">Sales</th><th class="r">Median</th><th class="r">Avg</th></tr></thead>
                             <tbody>${Object.entries(mediums).sort((a,b)=>b[1].count-a[1].count).map(([m,v]) =>
-                                `<tr><td class="b">${m}</td><td class="r">${v.count}</td><td class="r g">$${v.median}</td><td class="r">$${v.avg}</td></tr>`
+                                `<tr onclick="drillHistorical('${m}')" style="cursor:pointer;" title="Click to see ${m} sales"><td class="b">${m}</td><td class="r">${v.count}</td><td class="r g">$${v.median}</td><td class="r">$${v.avg}</td></tr>`
                             ).join('')}</tbody></table></div>
 
                         <div class="section-title" style="margin-top:16px;">Top Performing Titles (click for price history)</div>
@@ -1394,7 +1638,7 @@
                             </tr></thead>
                             <tbody>${items.map(i => {
                                 const domColor = i.days_to_sell != null ? (i.days_to_sell <= 7 ? 'g' : i.days_to_sell > 21 ? 'rd' : '') : 'd';
-                                return `<tr>
+                                return `<tr onclick="drillSoldItem('${i.title.replace(/'/g,'')}', ${i.price}, '${i.sold}', ${i.days_to_sell||0}, ${i.ad_rate||0}, ${i.ad_cost||0}, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
                                     <td class="trunc">${i.title}</td>
                                     <td class="r g b">$${i.price.toFixed(0)}</td>
                                     <td class="d" style="font-size:11px;">${i.listed}</td>
@@ -1421,7 +1665,7 @@
                         ${months.map(m => {
                             const events = eByMonth[m] || [];
                             return `<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:6px;">${m}</div>
-                                ${events.length ? events.map(e => `<div style="font-size:11px;padding:2px 0;border-bottom:1px solid var(--border);">
+                                ${events.length ? events.map(e => `<div style="font-size:11px;padding:2px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="drill('event_items',{event:'${e.name.replace(/'/g,'')}'});" title="Click to see matching inventory">
                                     <span class="pill ${e.tier==='PEAK'?'pill-red':e.tier==='MAJOR'?'pill-orange':'pill-blue'}" style="font-size:7px;margin-right:2px;">${e.tier}</span>
                                     ${e.name} <span class="g" style="font-size:10px;">+${e.boost}%</span></div>`).join('') : '<div style="font-size:11px;color:var(--dim);">—</div>'}
                             </div>`;
@@ -1543,7 +1787,7 @@
                 const [compResp, chartResp, valResp] = await Promise.all([
                     fetch(`/api/drill/competing?title=${encodeURIComponent(name)}&id=${id}`),
                     fetch(`/api/listing/chart/${id}`),
-                    fetch(`/api/comps/validated?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
+                    fetch(`/api/comps/smart?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
                 ]);
                 const compData = await compResp.json();
                 const chartData = await chartResp.json();
@@ -1560,7 +1804,12 @@
                         <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Comps</div><div style="font-size:20px;font-weight:700;">${vs.count || 0}</div></div>
                     </div>
 
-                    ${valData.llm_reason ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">${valData.llm_reason}</div>` : ''}
+                    ${valData.reason ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">
+                        <div style="font-weight:600;margin-bottom:4px;">AI Comp Validation (${valData.validated}/${valData.raw} passed)</div>
+                        ${valData.reason}
+                        ${valData.queries ? `<div style="margin-top:4px;color:var(--dim);font-size:11px;">Searched: ${valData.queries.join(' | ')}</div>` : ''}
+                        ${valData.removed?.length ? `<div style="margin-top:4px;color:var(--red);font-size:11px;">Removed: ${valData.removed.map(r=>'$'+r.price+' '+r.title).join(', ')}</div>` : ''}
+                    </div>` : ''}
 
                     <canvas id="drill-chart" height="200" style="margin-bottom:16px;"></canvas>
 
@@ -1599,6 +1848,309 @@
             document.getElementById('drill-modal').classList.remove('show');
         }
         document.getElementById('drill-modal').addEventListener('click', e => { if(e.target.id==='drill-modal') closeDrill(); });
+
+        // ==========================================
+        // Universal Drill-Downs — click anything to see data
+        // ==========================================
+
+        // Revenue chart → week's sales
+        async function drillWeekSales(week, wkData) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = 'Week of ' + week;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/reports/sales-analysis');
+                const d = await resp.json();
+                const sales = (d.sales || []).filter(s => {
+                    const sd = s.sold || '';
+                    return sd >= week && sd < week.substring(0,8) + String(parseInt(week.substring(8))+7).padStart(2,'0');
+                });
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${Math.round(wkData?.revenue||0).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${wkData?.items||sales.length}</div><div class="stat-lbl">Items Sold</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${wkData?.items ? '$'+Math.round((wkData.revenue||0)/(wkData.items||1)) : '--'}</div><div class="stat-lbl">Avg Price</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th class="r">DOM</th><th>Type</th></tr></thead>
+                        <tbody>${sales.map(s => `<tr onclick="drillSoldItem('${(s.title||'').replace(/'/g,'')}', ${s.price||0}, '${s.sold||''}', ${s.days_to_sell||0}, ${s.ad_rate||0}, ${s.ad_cost||0}, '${s.promoted?'Promoted':'Organic'}')" style="cursor:pointer;" title="Click for comps">
+                            <td class="trunc">${s.title||''}</td>
+                            <td class="r g b">$${Math.round(s.price||0)}</td>
+                            <td class="d" style="font-size:11px;">${s.sold||''}</td>
+                            <td class="r">${s.days_to_sell!=null?s.days_to_sell+'d':'--'}</td>
+                            <td style="font-size:11px;color:${s.promoted?'var(--accent)':'var(--green)'};">${s.promoted?'Promoted':'Organic'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                    ${!sales.length ? '<div style="text-align:center;padding:20px;color:var(--dim);">No individual sales data for this week</div>' : ''}`;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load</div>'; }
+        }
+
+        // Sold item → comps + market context
+        async function drillSoldItem(title, price, soldDate, dom, adRate, adCost, promoType) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = title;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            // Detect artist
+            const tl = title.toLowerCase();
+            let artist = '';
+            if (tl.includes('fairey') || tl.includes('obey')) artist = 'Shepard Fairey';
+            else if (tl.includes('death nyc')) artist = 'Death NYC';
+            else if (tl.includes('kaws')) artist = 'KAWS';
+            else if (tl.includes('banksy')) artist = 'Banksy';
+            else if (tl.includes('brainwash')) artist = 'Mr. Brainwash';
+
+            try {
+                const resp = await fetch(`/api/comps/smart?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&price=${price}`);
+                const d = await resp.json();
+                const vs = d.stats || {};
+
+                const profitVsMedian = vs.median ? Math.round(price - vs.median) : null;
+                const aboveBelow = profitVsMedian > 0 ? `+$${profitVsMedian} above median` : profitVsMedian < 0 ? `$${Math.abs(profitVsMedian)} below median` : '';
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${price}</div><div class="stat-lbl">Sold For</div></div>
+                        ${vs.median ? `<div class="card" style="text-align:center;"><div class="stat-val" style="color:var(--accent);">$${Math.round(vs.median)}</div><div class="stat-lbl">Market Median</div></div>` : ''}
+                        ${vs.count ? `<div class="card" style="text-align:center;"><div class="stat-val">${vs.count}</div><div class="stat-lbl">Comps Found</div></div>` : ''}
+                        <div class="card" style="text-align:center;"><div class="stat-val">${dom||'--'}${dom?'d':''}</div><div class="stat-lbl">Days on Market</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${adRate||0}%</div><div class="stat-lbl">Ad Rate</div></div>
+                    </div>
+
+                    ${aboveBelow ? `<div style="background:rgba(10,132,255,0.06);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;">
+                        You sold <b style="color:${profitVsMedian > 0 ? 'var(--green)' : 'var(--red)'};">${aboveBelow}</b> · ${promoType} · Sold ${soldDate}
+                        ${adCost > 0 ? ` · Ad cost: $${adCost}` : ''}
+                    </div>` : ''}
+
+                    ${vs.min ? `<div style="margin-bottom:16px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Market Range</div>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <span style="font-size:12px;color:var(--dim);">$${Math.round(vs.min)}</span>
+                            <div style="flex:1;height:8px;background:var(--border);border-radius:4px;position:relative;">
+                                <div style="position:absolute;height:100%;background:linear-gradient(to right,var(--green),var(--accent),var(--orange));border-radius:4px;width:100%;opacity:0.4;"></div>
+                                ${vs.median ? `<div style="position:absolute;top:-3px;left:${Math.min(95,Math.max(5,(vs.median-vs.min)/(vs.max-vs.min)*100))}%;width:14px;height:14px;background:var(--accent);border-radius:50%;border:2px solid var(--bg);" title="Median: $${Math.round(vs.median)}"></div>` : ''}
+                                <div style="position:absolute;top:-3px;left:${Math.min(95,Math.max(5,(price-vs.min)/(vs.max-vs.min)*100))}%;width:14px;height:14px;background:var(--green);border-radius:50%;border:2px solid var(--bg);" title="Your sale: $${price}"></div>
+                            </div>
+                            <span style="font-size:12px;color:var(--dim);">$${Math.round(vs.max)}</span>
+                        </div>
+                        <div style="display:flex;justify-content:center;gap:16px;margin-top:6px;font-size:10px;color:var(--dim);">
+                            <span>● <span style="color:var(--green);">Your Sale</span></span>
+                            <span>● <span style="color:var(--accent);">Median</span></span>
+                        </div>
+                    </div>` : ''}
+
+                    ${d.comps?.length ? `<div class="section-title">Comparable Listings (${d.validated}/${d.raw} validated)</div>
+                    ${d.reason ? `<div style="font-size:11px;color:var(--dim);margin-bottom:6px;">${d.reason}</div>` : ''}
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Condition</th><th>Link</th></tr></thead>
+                        <tbody>${d.comps.map(c => `<tr>
+                            <td class="trunc">${c.title}</td>
+                            <td class="r g b">$${Math.round(c.price)}</td>
+                            <td class="d" style="font-size:11px;">${c.condition||''}</td>
+                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : '<div style="color:var(--dim);text-align:center;padding:20px;">No comp data available</div>'}
+
+                    ${d.removed?.length ? `<div style="margin-top:12px;font-size:11px;color:var(--dim);">Filtered out: ${d.removed.map(r => '$'+r.price+' '+r.title).join(', ')}</div>` : ''}
+                `;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load comps</div>'; }
+        }
+
+        // Deal item → full analysis
+        async function drillDealItem(title, price, category, median, compCount, url) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = title;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            const profit = median > 0 ? Math.round(median - price) : 0;
+            const discount = median > 0 ? Math.round((1 - price / median) * 100) : 0;
+            const verdict = profit > 100 && discount > 25 && compCount >= 3 ? 'BUY' : profit > 50 && discount > 15 ? 'CONSIDER' : profit < 0 ? 'OVERPRICED' : 'RESEARCH';
+            const vc = verdict === 'BUY' ? 'var(--green)' : verdict === 'CONSIDER' ? 'var(--orange)' : verdict === 'OVERPRICED' ? 'var(--red)' : 'var(--dim)';
+
+            try {
+                const resp = await fetch(`/api/comps/smart?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(category)}&price=${price}`);
+                const d = await resp.json();
+                const vs = d.stats || {};
+
+                content.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <div style="font-size:32px;font-weight:800;color:${vc};">${verdict}</div>
+                        <div style="text-align:right;font-size:12px;color:var(--dim);">${category}</div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${price}</div><div class="stat-lbl">Listed At</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val" style="color:var(--accent);">$${median || (vs.median ? Math.round(vs.median) : '--')}</div><div class="stat-lbl">Median</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val" style="color:${profit>0?'var(--green)':'var(--red)'};">${profit>0?'+':''}$${profit}</div><div class="stat-lbl">Profit</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${vs.count || compCount}</div><div class="stat-lbl">Comps</div></div>
+                    </div>
+
+                    ${d.comps?.length ? `<div class="section-title">Validated Comps (${d.validated}/${d.raw})</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Link</th></tr></thead>
+                        <tbody>${d.comps.map(c => `<tr>
+                            <td class="trunc">${c.title}</td>
+                            <td class="r g b">$${Math.round(c.price)}</td>
+                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : ''}
+
+                    ${d.removed?.length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim);">Filtered: ${d.removed.map(r => '$'+r.price+' '+r.title).join(', ')}</div>` : ''}
+
+                    <div style="display:flex;gap:8px;margin-top:16px;">
+                        ${url ? `<a href="${url}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;">View on eBay</a>` : ''}
+                    </div>
+                `;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        // Promo item → detail + comps
+        async function drillPromoItem(title, price, adRate, totalCost, status) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = title;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            const tl = title.toLowerCase();
+            let artist = '';
+            if (tl.includes('fairey') || tl.includes('obey')) artist = 'Shepard Fairey';
+            else if (tl.includes('death nyc')) artist = 'Death NYC';
+            else if (tl.includes('kaws')) artist = 'KAWS';
+            else if (tl.includes('banksy')) artist = 'Banksy';
+
+            try {
+                const resp = await fetch(`/api/comps/smart?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&price=${price}`);
+                const d = await resp.json();
+                const vs = d.stats || {};
+
+                const statusColor = status === 'overspending' ? 'var(--red)' : status === 'optimized' ? 'var(--green)' : 'var(--dim)';
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${price}</div><div class="stat-lbl">Price</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${adRate}%</div><div class="stat-lbl">Ad Rate</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val o">$${totalCost.toFixed(2)}</div><div class="stat-lbl">Ad Cost/30d</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val" style="color:${statusColor};">${status.toUpperCase()}</div><div class="stat-lbl">Status</div></div>
+                    </div>
+
+                    ${vs.median ? `<div style="background:rgba(10,132,255,0.06);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;">
+                        Market median: <b>$${Math.round(vs.median)}</b> from ${vs.count} comps · Range: $${Math.round(vs.min)} — $${Math.round(vs.max)}
+                        ${price > vs.median * 1.3 ? ' · <span style="color:var(--red);">Overpriced vs market</span>' : price < vs.median * 0.8 ? ' · <span style="color:var(--green);">Below market — should sell fast</span>' : ''}
+                    </div>` : ''}
+
+                    ${d.comps?.length ? `<div class="section-title">Market Comps (${d.validated} validated)</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Link</th></tr></thead>
+                        <tbody>${d.comps.map(c => `<tr>
+                            <td class="trunc">${c.title}</td>
+                            <td class="r g b">$${Math.round(c.price)}</td>
+                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : '<div style="color:var(--dim);text-align:center;padding:20px;">No comp data</div>'}
+                `;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        // Rate bucket → show items at that rate
+        async function drillRateBucket(name, items, sold, convRate, roi) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = 'Ad Rate: ' + name;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/promotions/costs');
+                const d = await resp.json();
+                const all = d?.products || [];
+
+                // Parse bucket range
+                const match = name.match(/(\d+)/g);
+                let lo = 0, hi = 100;
+                if (match) {
+                    if (match.length === 2) { lo = parseInt(match[0]); hi = parseInt(match[1]); }
+                    else if (name.includes('+') || name.includes('>')) { lo = parseInt(match[0]); hi = 100; }
+                    else { lo = 0; hi = parseInt(match[0]); }
+                }
+                if (name.toLowerCase().includes('none') || name === '0%') { lo = 0; hi = 0.01; }
+
+                const filtered = all.filter(i => {
+                    const rate = i.ad_rate || 0;
+                    if (lo === 0 && hi < 1) return rate === 0;
+                    return rate >= lo && rate < hi;
+                });
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val">${items}</div><div class="stat-lbl">Items</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val g">${sold}</div><div class="stat-lbl">Sold</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val ${convRate>10?'g':''}">${convRate}%</div><div class="stat-lbl">Conv Rate</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val ${roi>0?'g':'rd'}">${roi>0?'+':''}${roi}%</div><div class="stat-lbl">ROI</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost/30d</th><th>Status</th></tr></thead>
+                        <tbody>${filtered.slice(0,100).map(i => `<tr onclick="drillPromoItem('${(i.title||'').replace(/'/g,'')}', ${i.price||0}, ${i.ad_rate||0}, ${i.total_cost||0}, '${i.promo_status||''}')" style="cursor:pointer;" title="Click for comps">
+                            <td class="trunc">${i.title||''}</td>
+                            <td class="r g b">$${(i.price||0).toFixed(0)}</td>
+                            <td class="r">${i.ad_rate||0}%</td>
+                            <td class="r o">$${(i.total_cost||0).toFixed(2)}</td>
+                            <td style="font-size:10px;">${(i.promo_status||'').toUpperCase()}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>`;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        // Category → show all items in that category
+        async function drillCategory(cat, items, sold, convRate) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = cat + ' — ' + items + ' listings';
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/inventory/full-analytics');
+                const d = await resp.json();
+                const filtered = (d.items || []).filter(i => i.artist === cat);
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+                        <div class="card" style="text-align:center;"><div class="stat-val">${filtered.length}</div><div class="stat-lbl">Listings</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val g">${sold}</div><div class="stat-lbl">Sold</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val">${convRate}%</div><div class="stat-lbl">Conv Rate</div></div>
+                        <div class="card" style="text-align:center;"><div class="stat-val g">$${Math.round(filtered.reduce((s,i)=>s+(i.suggested_price||0),0)).toLocaleString()}</div><div class="stat-lbl">Total Value</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th>Signal</th><th class="r">Price</th><th class="r">Median</th><th class="r">Ad%</th><th>Velocity</th></tr></thead>
+                        <tbody>${filtered.map(i => {
+                            const sp = i.recommendation?.includes('SELL') ? 'pill-green' : i.recommendation === 'HOLD' ? 'pill-orange' : 'pill-dim';
+                            return `<tr onclick="drillItem('${i.id}','${(i.name||'').replace(/'/g,'')}','${i.artist||''}',${i.suggested_price||0})" style="cursor:pointer;" title="Click for full detail">
+                                <td class="trunc">${i.name||''}</td>
+                                <td><span class="pill ${sp}">${i.recommendation||'--'}</span></td>
+                                <td class="r g b">$${Math.round(i.suggested_price||0)}</td>
+                                <td class="r d">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
+                                <td class="r">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
+                                <td style="font-size:11px;">${i.velocity||'--'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>`;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
 
         // ==========================================
         // Price chart popup

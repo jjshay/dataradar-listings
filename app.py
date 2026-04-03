@@ -1659,11 +1659,27 @@ FAKE_INDICATORS = [
 
 FAKE_PRICE_THRESHOLDS = {
     'KAWS': 200,        # Real KAWS figures/prints rarely under $200
+    'KAWS Figurine': 200,
+    'KAWS Print': 500,
     'Banksy': 300,      # Real Banksy prints rarely under $300
     'Invader': 200,
     'Shepard Fairey': 50,
     'Mr. Brainwash': 75,
     'Bearbrick': 60,
+    'Bearbrick 1000%': 200,
+    'Bearbrick 400%': 60,
+    'Murakami': 150,
+    'Arsham': 150,
+    'Nara': 200,
+    'Futura': 150,
+    'Stik': 200,
+    'Warhol': 300,
+    'Basquiat': 300,
+    'Haring': 300,
+    'Hirst': 300,
+    'Brantley': 100,
+    'Beatles/Rock': 100,
+    'Signed Apollo': 100,
 }
 
 
@@ -2622,6 +2638,211 @@ def get_enhanced_deals():
         'deals': enhanced,
         'categories': cat_summary,
         'total': len(enhanced),
+    })
+
+
+@app.route('/api/deals/product-search')
+def deal_product_search():
+    """Search for a product on eBay, find comps, calculate profit — full deal analysis.
+    Returns product cards with images, comparable sales, BUY/PASS verdict."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'error': 'Missing query'}), 400
+
+    # Detect artist from query
+    q_lower = query.lower()
+    artist = ''
+    artist_map = [
+        (['bearbrick', 'be@rbrick'], 'Bearbrick'),
+        (['shepard fairey', 'obey giant', 'obey print'], 'Shepard Fairey'),
+        (['death nyc'], 'Death NYC'),
+        (['kaws'], 'KAWS'),
+        (['banksy'], 'Banksy'),
+        (['brainwash', 'mbw'], 'Mr. Brainwash'),
+        (['invader mosaic', 'invader signed', 'invader print', 'invader alias', 'invader rubik'], 'Invader'),
+        (['murakami', 'takashi'], 'Murakami'),
+        (['arsham', 'daniel arsham'], 'Arsham'),
+        (['nara', 'yoshitomo'], 'Nara'),
+        (['futura 2000', 'futura pointman'], 'Futura'),
+        (['stik signed', 'stik print', 'stik holding'], 'Stik'),
+        (['retna signed', 'retna print', 'retna original'], 'Retna'),
+        (['warhol', 'andy warhol'], 'Warhol'),
+        (['basquiat'], 'Basquiat'),
+        (['keith haring', 'haring pop'], 'Haring'),
+        (['damien hirst', 'hirst spot', 'hirst butterfly', 'hirst currency'], 'Hirst'),
+        (['hebru brantley', 'brantley flyboy'], 'Brantley'),
+        (['apollo', 'astronaut signed', 'nasa signed', 'buzz aldrin', 'neil armstrong'], 'Signed Apollo'),
+        (['beatles signed', 'lennon signed', 'elvis signed', 'bowie signed'], 'Beatles/Rock'),
+    ]
+    for keywords, name in artist_map:
+        if any(kw in q_lower for kw in keywords):
+            artist = name
+            break
+
+    min_price = float(request.args.get('min_price', 0))
+    max_price = float(request.args.get('max_price', 10000))
+
+    # Search eBay for products matching query
+    products = search_ebay(query, max_price, min_price, limit=40)
+
+    # Filter fakes
+    filtered = []
+    for p in products:
+        fake, reason = is_likely_fake(p.get('title', ''), p.get('price', 0), artist)
+        if not fake:
+            filtered.append(p)
+
+    # Deduplicate by title similarity
+    seen = set()
+    unique = []
+    for p in filtered:
+        key = re.sub(r'[^a-z0-9]', '', p.get('title', '').lower())[:40]
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+
+    # For each product, get comp data and calculate profit
+    enriched = []
+    for p in unique[:20]:  # Cap at 20 to avoid too many API calls
+        title = p.get('title', '')
+        price = p.get('price', 0)
+
+        # Get historical comps
+        historical = lookup_historical_prices(title, artist, 15)
+        h_prices = [h['price'] for h in historical if h.get('price', 0) > 0]
+
+        # Get smart comps from eBay active listings (lightweight — no LLM)
+        noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+                 'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+                 'screen', 'edition', 'limited', 'art', 'original', 'artist', 'proof', 'framed',
+                 'obey', 'giant', 'authentic', 'vinyl', 'figure', 'open'}
+        title_words = [w for w in re.findall(r'\w+', title) if w.lower() not in noise and len(w) > 2]
+        title_word_set = set(w.lower() for w in title_words)
+
+        # Search for sold comps with key title words
+        comp_query = f"{artist} {' '.join(title_words[:3])}" if artist else ' '.join(title_words[:4])
+        comp_min = FAKE_PRICE_THRESHOLDS.get(artist, 15)
+        active_comps = []
+        if comp_query.strip():
+            try:
+                raw_comps = search_ebay(comp_query, max(price * 4, 500), comp_min, limit=15)
+                # Pre-filter: require at least 1 meaningful title word overlap
+                for c in raw_comps:
+                    c_words = set(w.lower() for w in re.findall(r'\w+', c.get('title', '')) if len(w) > 2)
+                    overlap = title_word_set & c_words
+                    if len(overlap) >= 1:
+                        active_comps.append(c)
+            except Exception:
+                pass
+
+        # Combine all comp prices
+        all_prices = h_prices + [c['price'] for c in active_comps if c.get('price', 0) > 0]
+
+        # IQR outlier removal
+        if len(all_prices) >= 4:
+            sp = sorted(all_prices)
+            q1, q3 = sp[len(sp)//4], sp[3*len(sp)//4]
+            iqr = q3 - q1
+            all_prices = [x for x in all_prices if q1 - 1.5*iqr <= x <= q3 + 1.5*iqr]
+
+        comp_count = len(all_prices)
+        if all_prices:
+            sp = sorted(all_prices)
+            median_val = sp[len(sp)//2]
+            avg_val = round(sum(sp)/len(sp))
+            low_val = sp[0]
+            high_val = sp[-1]
+        else:
+            median_val = avg_val = low_val = high_val = 0
+
+        # Calculate profit potential
+        profit = round(median_val - price) if median_val > 0 else 0
+        discount_pct = round((1 - price / median_val) * 100) if median_val > 0 else 0
+
+        # Hotness score
+        hotness = 0
+        if comp_count >= 8: hotness += 30
+        elif comp_count >= 4: hotness += 20
+        elif comp_count >= 2: hotness += 10
+        if discount_pct >= 50: hotness += 30
+        elif discount_pct >= 30: hotness += 20
+        elif discount_pct >= 15: hotness += 10
+        if profit > 500: hotness += 25
+        elif profit > 200: hotness += 15
+        elif profit > 50: hotness += 10
+        if h_prices: hotness += 15  # Has historical data
+        hotness = min(100, hotness)
+
+        # Liquidity
+        if comp_count >= 8: liquidity = 'High'
+        elif comp_count >= 4: liquidity = 'Medium'
+        elif comp_count >= 2: liquidity = 'Low'
+        else: liquidity = 'Unknown'
+
+        # Verdict
+        if profit > 100 and discount_pct > 25 and comp_count >= 3:
+            verdict = 'BUY'
+        elif profit > 50 and discount_pct > 15 and comp_count >= 2:
+            verdict = 'CONSIDER'
+        elif profit < 0:
+            verdict = 'OVERPRICED'
+        elif comp_count < 2:
+            verdict = 'RESEARCH'
+        else:
+            verdict = 'PASS'
+
+        # Reasons
+        reasons = []
+        if discount_pct > 40: reasons.append(f'{discount_pct}% below median')
+        elif discount_pct > 15: reasons.append(f'{discount_pct}% below market')
+        if profit > 200: reasons.append(f'${profit} profit potential')
+        elif profit > 50: reasons.append(f'${profit} upside')
+        if comp_count >= 5: reasons.append(f'{comp_count} comps confirm value')
+        if not reasons:
+            if profit > 0: reasons.append('Priced below comparable sales')
+            elif profit == 0: reasons.append('No comp data — needs research')
+            else: reasons.append(f'${abs(profit)} over market')
+
+        # Item attributes
+        attrs = extract_item_attributes(title)
+
+        enriched.append({
+            'title': title,
+            'price': price,
+            'image': p.get('image', ''),
+            'url': p.get('url', ''),
+            'condition': p.get('condition', ''),
+            'seller': p.get('seller', ''),
+            'buying_option': p.get('buying_option', ''),
+            'artist': artist,
+            'verdict': verdict,
+            'hotness': hotness,
+            'liquidity': liquidity,
+            'profit': profit,
+            'discount_pct': discount_pct,
+            'median': median_val,
+            'avg': avg_val,
+            'comp_low': low_val,
+            'comp_high': high_val,
+            'comp_count': comp_count,
+            'historical_count': len(h_prices),
+            'active_comp_count': len(active_comps),
+            'reasons': reasons,
+            'signed': attrs['signed'],
+            'numbered': attrs['numbered'],
+            'comps': [{'title': c.get('title', '')[:60], 'price': c['price'], 'url': c.get('url', '')} for c in active_comps[:5]],
+            'historical_comps': [{'name': h.get('name', '')[:60], 'price': h['price'], 'date': h.get('date', ''), 'source': h.get('source', '')} for h in historical[:5]],
+        })
+
+    # Sort by verdict priority then hotness
+    verdict_order = {'BUY': 0, 'CONSIDER': 1, 'RESEARCH': 2, 'PASS': 3, 'OVERPRICED': 4}
+    enriched.sort(key=lambda x: (verdict_order.get(x['verdict'], 3), -x['hotness'], -x['profit']))
+
+    return jsonify({
+        'products': enriched,
+        'total': len(enriched),
+        'query': query,
+        'artist': artist,
     })
 
 
@@ -5720,6 +5941,156 @@ def get_deep_analytics():
 # =============================================================================
 # Feature: LLM-Validated Comps
 # =============================================================================
+
+@app.route('/api/comps/smart')
+def get_smart_comps():
+    """LLM-first comp matching — AI picks the search query AND validates results"""
+    title = request.args.get('title', '')
+    artist = request.args.get('artist', '')
+    price = float(request.args.get('price', 0))
+
+    if not title:
+        return jsonify({'error': 'Missing title'}), 400
+
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    if not claude_key:
+        return jsonify({'error': 'No Claude API key'}), 500
+
+    # Step 1: Build smart search queries programmatically (no LLM — faster, deterministic)
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'screen', 'edition', 'limited', 'art', 'original', 'artist', 'proof', 'framed',
+             'obey', 'giant', 'authentic', 'vinyl', 'figure', 'open'}
+
+    # Extract meaningful words (the title of the work)
+    artist_first = artist.lower().split()[0] if artist else ''
+    words = [w for w in re.findall(r'\w+', title) if w.lower() not in noise and len(w) > 2 and w.lower() != artist_first]
+
+    # Build 3 queries
+    queries = []
+    if artist:
+        # Query 1: Artist + first 2 meaningful words
+        q1_words = words[:2]
+        if q1_words:
+            queries.append(f"{artist} {' '.join(q1_words)}")
+
+        # Query 2: Artist + next 2 words
+        q2_words = words[1:3] if len(words) > 2 else words[:2]
+        if q2_words:
+            queries.append(f"{artist} {' '.join(q2_words)}")
+
+        # Query 3: Just artist + first word (broader)
+        if words:
+            queries.append(f"{artist} {words[0]}")
+    else:
+        queries = [' '.join(words[:4])]
+
+    # Category-specific minimum prices
+    min_prices = {'KAWS': 200, 'Banksy': 50, 'Shepard Fairey': 40, 'Death NYC': 20, 'Mr. Brainwash': 50}
+    min_price = min_prices.get(artist, 20)
+
+    if not queries:
+        queries = [title[:40]]
+
+    # Step 2: Search eBay with queries
+    all_results = []
+    for q in queries[:3]:
+        try:
+            results = search_ebay(q, max(price * 3, 500), min_price, limit=15)
+            all_results.extend(results)
+        except Exception:
+            pass
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for r in all_results:
+        key = r.get('title', '')[:30]
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+
+    if not unique:
+        return jsonify({'comps': [], 'queries': queries, 'validated': 0})
+
+    # Step 2.5: PRE-FILTER — require at least 1 meaningful word from item title in each comp
+    # This catches "Fragile Peace" matching "Peace Goddess", stickers matching prints, etc.
+    title_word_set = set(w.lower() for w in words if len(w) > 2)
+    pre_filtered = []
+    pre_removed = []
+    for r in unique:
+        comp_words = set(w.lower() for w in re.findall(r'\w+', r.get('title', '')) if len(w) > 2)
+        overlap = title_word_set & comp_words
+        # Also check: if item is a print, comp shouldn't be a sticker/shirt/book
+        comp_title_lower = r.get('title', '').lower()
+        is_wrong_type = any(x in comp_title_lower for x in ['sticker', 'pin', 't-shirt', 'tshirt', 'tee ', 'book', 'magazine', 'postcard', 'magnet', 'keychain', 'patch', 'button'])
+        if len(overlap) >= 1 and not is_wrong_type:
+            pre_filtered.append(r)
+        else:
+            pre_removed.append(r)
+
+    if not pre_filtered:
+        return jsonify({'comps': [], 'queries': queries, 'validated': 0, 'pre_filtered': len(unique), 'reason': 'No results matched title words'})
+
+    # Step 3: Ask Claude to validate which pre-filtered results are real comps
+    comp_text = '\n'.join([f"{i+1}. ${r['price']:.0f} — {r.get('title', '')[:70]}" for i, r in enumerate(pre_filtered[:15])])
+
+    validate_prompt = f"""I need to find comparable sales for this SPECIFIC item: "{title}" by {artist}.
+
+CRITICAL RULES — be STRICT:
+1. The comp must be the EXACT same work or very close variant (same print name, same figure model)
+2. "{title}" is the item — if a comp is a DIFFERENT work by the same artist, REJECT it
+3. Same artist is REQUIRED but NOT SUFFICIENT — "Shepard Fairey Peace Goddess" is NOT a comp for "Shepard Fairey Fragile Peace"
+4. Reject different product types (stickers, shirts, books, postcards if item is a print/figure)
+5. Reject obvious fakes/reproductions
+
+Listings to evaluate:
+{comp_text}
+
+Which numbers are VALID comps for "{title}"? Be strict — when in doubt, REJECT.
+Respond ONLY with JSON: {{"valid": [1, 3], "reason": "brief explanation"}}
+If NONE are valid, respond: {{"valid": [], "reason": "none match"}}"""
+
+    valid_indices = set(range(len(pre_filtered)))
+    reason = ''
+
+    try:
+        resp = requests.post('https://api.anthropic.com/v1/messages',
+            headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': validate_prompt}]},
+            timeout=15)
+        if resp.status_code == 200:
+            text = resp.json().get('content', [{}])[0].get('text', '')
+            match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+            if match:
+                parsed = json.loads(match.group())
+                nums = parsed.get('valid', [])
+                if isinstance(nums, list):
+                    valid_indices = set(n - 1 for n in nums if 1 <= n <= len(pre_filtered))
+                reason = parsed.get('reason', '')
+    except Exception:
+        reason = 'Validation failed — showing pre-filtered only'
+
+    validated = [pre_filtered[i] for i in sorted(valid_indices) if i < len(pre_filtered)]
+    removed = pre_removed + [pre_filtered[i] for i in range(len(pre_filtered)) if i not in valid_indices]
+
+    v_prices = [c['price'] for c in validated if c.get('price', 0) > 0]
+    stats = {}
+    if v_prices:
+        sp = sorted(v_prices)
+        stats = {'count': len(sp), 'min': sp[0], 'max': sp[-1], 'median': sp[len(sp)//2], 'avg': round(sum(sp)/len(sp))}
+
+    return jsonify({
+        'comps': [{'title': c.get('title', '')[:60], 'price': c['price'], 'url': c.get('url', ''), 'condition': c.get('condition', '')} for c in validated],
+        'removed': [{'title': r.get('title', '')[:40], 'price': r['price']} for r in removed],
+        'stats': stats,
+        'queries': queries,
+        'min_price': min_price,
+        'validated': len(validated),
+        'raw': len(unique),
+        'reason': reason if 'reason' in dir() else '',
+    })
+
 
 @app.route('/api/comps/validated')
 def get_validated_comps():
