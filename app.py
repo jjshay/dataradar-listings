@@ -516,6 +516,12 @@ def search_ebay(query, max_price, min_price=0, limit=20):
             if price <= 0 or price > max_price:
                 continue
 
+            # Extract listing date
+            listed_date = item.get('itemCreationDate', '')
+            if listed_date:
+                # eBay returns ISO format like 2026-03-15T10:30:00.000Z
+                listed_date = listed_date[:10]  # Just the date part
+
             deals.append({
                 'id': item.get('itemId', ''),
                 'title': item.get('title', 'Unknown'),
@@ -525,7 +531,8 @@ def search_ebay(query, max_price, min_price=0, limit=20):
                 'condition': item.get('condition', 'Unknown'),
                 'seller': item.get('seller', {}).get('username', 'Unknown'),
                 'buying_option': item.get('buyingOptions', [''])[0] if item.get('buyingOptions') else '',
-                'location': item.get('itemLocation', {}).get('country', '')
+                'location': item.get('itemLocation', {}).get('country', ''),
+                'listed_date': listed_date,
             })
 
         return deals
@@ -1679,7 +1686,7 @@ FAKE_PRICE_THRESHOLDS = {
     'Hirst': 300,
     'Brantley': 100,
     'Beatles/Rock': 100,
-    'Signed Apollo': 100,
+    'Signed Apollo': 25,
 }
 
 
@@ -2682,8 +2689,8 @@ def deal_product_search():
     min_price = float(request.args.get('min_price', 0))
     max_price = float(request.args.get('max_price', 10000))
 
-    # Search eBay for products matching query
-    products = search_ebay(query, max_price, min_price, limit=40)
+    # Search eBay for products matching query — pull lots of results
+    products = search_ebay(query, max_price, min_price, limit=200)
 
     # Filter fakes
     filtered = []
@@ -2703,7 +2710,7 @@ def deal_product_search():
 
     # For each product, get comp data and calculate profit
     enriched = []
-    for p in unique[:20]:  # Cap at 20 to avoid too many API calls
+    for p in unique[:60]:  # Cap at 60 products with comp enrichment
         title = p.get('title', '')
         price = p.get('price', 0)
 
@@ -2814,6 +2821,7 @@ def deal_product_search():
             'condition': p.get('condition', ''),
             'seller': p.get('seller', ''),
             'buying_option': p.get('buying_option', ''),
+            'listed_date': p.get('listed_date', ''),
             'artist': artist,
             'verdict': verdict,
             'hotness': hotness,
@@ -8144,20 +8152,25 @@ def submit_feedback():
 
     for fb in feedbacks:
         item_id = fb.get('item_id', '')
-        buyer = fb.get('buyer', '')
+        # target_user is who we're leaving feedback FOR — buyer OR seller
+        target_user = fb.get('buyer', '') or fb.get('seller', '') or fb.get('target_user', '')
         comment = fb.get('comment', '')
         txn_id = fb.get('transaction_id', '')
 
-        if not item_id or not buyer or not comment:
+        if not item_id or not target_user or not comment:
             failed += 1
+            errors.append(f'{item_id}: missing item_id/target_user/comment')
             continue
+
+        # Escape XML special chars in comment
+        safe_comment = comment[:80].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
         xml = f'''<?xml version="1.0" encoding="utf-8"?>
         <LeaveFeedbackRequest xmlns="urn:ebay:apis:eBLBaseComponents">
             <ItemID>{item_id}</ItemID>
-            <CommentText>{comment[:80]}</CommentText>
+            <CommentText>{safe_comment}</CommentText>
             <CommentType>Positive</CommentType>
-            <TargetUser>{buyer}</TargetUser>
+            <TargetUser>{target_user}</TargetUser>
             {f'<TransactionID>{txn_id}</TransactionID>' if txn_id else ''}
         </LeaveFeedbackRequest>'''
 

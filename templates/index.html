@@ -423,11 +423,24 @@
                             <option value="price_high">Price High</option>
                             <option value="profit">Most Profit</option>
                             <option value="discount">Biggest Discount</option>
+                            <option value="newest">Newest Listed</option>
+                            <option value="oldest">Oldest Listed</option>
                         </select>
                         <button class="btn-green btn" style="padding:8px 20px;font-size:13px;" onclick="searchDeals()">Find Deals</button>
                     </div>
+                    <!-- Price range sliders -->
+                    <div style="display:flex;gap:12px;align-items:center;margin-top:8px;padding:8px 12px;background:var(--card);border-radius:10px;border:1px solid var(--border);">
+                        <span style="font-size:11px;color:var(--dim);white-space:nowrap;">Price:</span>
+                        <span style="font-size:12px;font-weight:600;color:var(--green);min-width:40px;" id="deal-min-label">$0</span>
+                        <input type="range" id="deal-min-slider" min="0" max="10000" value="0" step="10" style="flex:1;accent-color:var(--accent);" oninput="document.getElementById('deal-min-label').textContent='$'+this.value;document.getElementById('deal-min-val').value=this.value;">
+                        <span style="font-size:11px;color:var(--dim);">to</span>
+                        <input type="range" id="deal-max-slider" min="0" max="50000" value="10000" step="100" style="flex:1;accent-color:var(--accent);" oninput="document.getElementById('deal-max-label').textContent='$'+Number(this.value).toLocaleString();document.getElementById('deal-max-val').value=this.value;">
+                        <span style="font-size:12px;font-weight:600;color:var(--orange);min-width:55px;" id="deal-max-label">$10,000</span>
+                        <input type="hidden" id="deal-min-val" value="0">
+                        <input type="hidden" id="deal-max-val" value="10000">
+                    </div>
                     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Shepard Fairey signed print';searchDeals()">Shepard Fairey</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Shepard Fairey signed numbered';searchDeals()">Shepard Fairey</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='KAWS figure authentic';searchDeals()">KAWS</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Banksy signed print';searchDeals()">Banksy</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Death NYC signed';searchDeals()">Death NYC</button>
@@ -440,7 +453,11 @@
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Andy Warhol signed';searchDeals()">Warhol</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Daniel Arsham eroded';searchDeals()">Arsham</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Stik signed print';searchDeals()">Stik</button>
-                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Apollo astronaut signed';searchDeals()">Space/NASA</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Neil Armstrong signed photo';searchDeals()">Armstrong</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Buzz Aldrin signed';searchDeals()">Aldrin</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Apollo astronaut signed';searchDeals()">Apollo</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='NASA signed photo astronaut';searchDeals()">NASA</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Shepard Fairey signed book';searchDeals()">SF Books</button>
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Beatles signed autograph';searchDeals()">Beatles/Rock</button>
                     </div>
                 </div>
@@ -723,41 +740,53 @@
 
         async function generateAllFeedback() {
             if (!fbOverview) { toast('Load feedback first'); return; }
-            toast('Generating AI feedback... Claude writes → GPT edits');
+            const statusEl = document.getElementById('fb-status');
+            statusEl.innerHTML = '<span style="color:var(--accent);">Generating AI feedback... Claude writes → GPT edits</span>';
 
-            // Generate for buyers
-            if (fbOverview.for_buyers?.length) {
+            let totalGenerated = 0;
+
+            // Generate for buyers in batches of 20
+            const buyers = fbOverview.for_buyers || [];
+            for (let i = 0; i < buyers.length; i += 20) {
+                const batch = buyers.slice(i, i + 20);
+                statusEl.innerHTML = `<span style="color:var(--accent);">Generating buyer feedback... ${i}/${buyers.length}</span>`;
                 try {
                     const resp = await fetch('/api/feedback/generate', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({items: fbOverview.for_buyers.map(i => ({...i, role: 'seller'}))})
+                        body: JSON.stringify({items: batch.map(b => ({...b, role: 'seller'}))})
                     });
                     const d = await resp.json();
-                    fbGenerated.buyers = d.feedback || [];
-                    fbGenerated.buyers.forEach((f, i) => {
-                        const input = document.getElementById('fb-b-' + i);
+                    const results = d.feedback || [];
+                    results.forEach((f, j) => {
+                        const input = document.getElementById('fb-b-' + (i + j));
                         if (input) input.value = f.final;
+                        totalGenerated++;
                     });
-                } catch(e) {}
+                } catch(e) { console.error('Generate buyer batch error:', e); }
             }
 
-            // Generate for sellers
-            if (fbOverview.for_sellers?.length) {
+            // Generate for sellers in batches of 20
+            const sellers = fbOverview.for_sellers || [];
+            for (let i = 0; i < sellers.length; i += 20) {
+                const batch = sellers.slice(i, i + 20);
+                statusEl.innerHTML = `<span style="color:var(--accent);">Generating seller feedback... ${i}/${sellers.length}</span>`;
                 try {
                     const resp = await fetch('/api/feedback/generate', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({items: fbOverview.for_sellers.map(i => ({...i, role: 'buyer'}))})
+                        body: JSON.stringify({items: batch.map(s => ({...s, role: 'buyer'}))})
                     });
                     const d = await resp.json();
-                    fbGenerated.sellers = d.feedback || [];
-                    fbGenerated.sellers.forEach((f, i) => {
-                        const input = document.getElementById('fb-s-' + i);
+                    const results = d.feedback || [];
+                    results.forEach((f, j) => {
+                        const input = document.getElementById('fb-s-' + (i + j));
                         if (input) input.value = f.final;
+                        totalGenerated++;
                     });
-                } catch(e) {}
+                } catch(e) { console.error('Generate seller batch error:', e); }
             }
 
-            toast('All feedback generated — review and submit');
+            statusEl.innerHTML = `<span class="g b">${totalGenerated} feedback generated — review and submit</span>`;
+            toast(totalGenerated + ' feedback ready — review then submit');
         }
 
         async function submitAllFeedback() {
@@ -765,19 +794,19 @@
 
             const feedbacks = [];
 
-            // Buyer feedback
+            // Buyer feedback (you sold → leave for buyer)
             (fbOverview.for_buyers || []).forEach((item, i) => {
                 const input = document.getElementById('fb-b-' + i);
                 if (input?.value) {
-                    feedbacks.push({item_id: item.item_id, buyer: item.buyer, comment: input.value, transaction_id: item.transaction_id});
+                    feedbacks.push({item_id: item.item_id, target_user: item.buyer, comment: input.value, transaction_id: item.transaction_id});
                 }
             });
 
-            // Seller feedback
+            // Seller feedback (you bought → leave for seller)
             (fbOverview.for_sellers || []).forEach((item, i) => {
                 const input = document.getElementById('fb-s-' + i);
                 if (input?.value) {
-                    feedbacks.push({item_id: item.item_id, buyer: item.seller, comment: input.value, transaction_id: item.transaction_id});
+                    feedbacks.push({item_id: item.item_id, target_user: item.seller, comment: input.value, transaction_id: item.transaction_id});
                 }
             });
 
@@ -988,15 +1017,20 @@
         // ==========================================
         let dealSearchData = null;
 
+        let dealShowCount = 200;
+
         async function searchDeals() {
             const query = document.getElementById('deal-search-input').value.trim();
             if (!query) return;
+            const minPrice = document.getElementById('deal-min-val')?.value || 0;
+            const maxPrice = document.getElementById('deal-max-val')?.value || 10000;
             const el = document.getElementById('deal-search-results');
             el.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:12px;color:var(--dim);margin-top:8px;">Searching eBay + pulling comps...</div></div>';
             toast('Searching deals for: ' + query);
+            dealShowCount = 200;
 
             try {
-                const resp = await fetch(`/api/deals/product-search?q=${encodeURIComponent(query)}`);
+                const resp = await fetch(`/api/deals/product-search?q=${encodeURIComponent(query)}&min_price=${minPrice}&max_price=${maxPrice}`);
                 const d = await resp.json();
                 dealSearchData = d;
                 renderDealResults(d);
@@ -1005,9 +1039,9 @@
 
         function renderDealResults(d) {
             const el = document.getElementById('deal-search-results');
-            let products = d.products || [];
+            let products = [...(d.products || [])];
             if (!products.length) {
-                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--dim);">No products found. Try a different search.</div>';
+                el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--dim);">No products found. Try a different search or adjust the price range.</div>';
                 return;
             }
 
@@ -1017,20 +1051,27 @@
             else if (sort === 'price_high') products.sort((a,b) => b.price - a.price);
             else if (sort === 'profit') products.sort((a,b) => b.profit - a.profit);
             else if (sort === 'discount') products.sort((a,b) => b.discount_pct - a.discount_pct);
+            else if (sort === 'newest') products.sort((a,b) => (b.listed_date||'').localeCompare(a.listed_date||''));
+            else if (sort === 'oldest') products.sort((a,b) => (a.listed_date||'').localeCompare(b.listed_date||''));
 
             // Summary stats
             const buys = products.filter(p => p.verdict === 'BUY').length;
             const considers = products.filter(p => p.verdict === 'CONSIDER').length;
+            const showing = Math.min(dealShowCount, products.length);
 
             el.innerHTML = `
                 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-                    <div style="font-size:13px;color:var(--dim);">${products.length} products found${d.artist ? ' · '+d.artist : ''}</div>
+                    <div style="font-size:13px;color:var(--dim);">${products.length} products found${d.artist ? ' · '+d.artist : ''}${showing < products.length ? ' · showing '+showing : ''}</div>
                     ${buys ? `<span class="pill pill-green">${buys} BUY</span>` : ''}
                     ${considers ? `<span class="pill pill-orange">${considers} CONSIDER</span>` : ''}
                 </div>
                 <div id="deal-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">
-                    ${products.map((p, i) => renderDealCard(p, i)).join('')}
+                    ${products.slice(0, showing).map((p, i) => renderDealCard(p, i)).join('')}
                 </div>
+                ${products.length > showing ? `<div style="text-align:center;padding:16px;">
+                    <button class="btn btn-primary" style="padding:12px 32px;font-size:14px;" onclick="dealShowCount=Math.min(dealShowCount+200,1000);renderDealResults(dealSearchData);">Show More (${Math.min(products.length - showing, 200)} more)</button>
+                    <div style="font-size:11px;color:var(--dim);margin-top:6px;">${showing} of ${products.length} shown</div>
+                </div>` : ''}
             `;
         }
 
@@ -1078,7 +1119,10 @@
                     </div>
                 </div>
                 <div style="font-size:11px;color:var(--dim);margin-top:6px;">${p.reasons.join(' · ')}</div>
-                ${p.seller ? `<div style="font-size:10px;color:var(--dim);margin-top:2px;">Seller: ${p.seller} · ${p.condition || 'N/A'} · ${p.liquidity} liquidity</div>` : ''}
+                <div style="display:flex;justify-content:space-between;margin-top:2px;">
+                    ${p.seller ? `<div style="font-size:10px;color:var(--dim);">Seller: ${p.seller} · ${p.condition || 'N/A'} · ${p.liquidity} liq.</div>` : ''}
+                    ${p.listed_date ? `<div style="font-size:10px;color:var(--accent);">Listed: ${p.listed_date}</div>` : ''}
+                </div>
             </div>`;
         }
 
@@ -1468,15 +1512,19 @@
                     allDeals.forEach(dl => { dealCats[dl.category] = (dealCats[dl.category]||0)+1; });
                     let dealFilter = 'all';
 
-                    function renderDeals(filter) {
+                    let dealsShowCount = 200;
+                    function renderDeals(filter, showMore) {
                         dealFilter = filter;
+                        if (showMore) dealsShowCount = Math.min(dealsShowCount + 200, 1000);
+                        else dealsShowCount = 200;
                         const deals = filter === 'all' ? allDeals : allDeals.filter(dl => dl.category === filter);
+                        const showing = Math.min(dealsShowCount, deals.length);
                         const tableEl = document.getElementById('deals-table-area');
                         if (!tableEl) return;
-                        tableEl.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${deals.length} deals</div>
+                        tableEl.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${showing} of ${deals.length} deals</div>
                         <div class="table-wrap"><table>
                             <thead><tr><th>Title</th><th>Category</th><th class="r">Price</th><th class="r">Low</th><th class="r">Median</th><th class="r">High</th><th class="r">Profit</th><th class="r">Disc%</th><th>Hot</th><th>Liq.</th><th>Why</th><th>Link</th></tr></thead>
-                            <tbody>${deals.slice(0,200).map(dl => {
+                            <tbody>${deals.slice(0,showing).map(dl => {
                                 const hc = dl.hotness>=60?'pill-red':dl.hotness>=30?'pill-orange':'pill-dim';
                                 const reasons = (dl.reasons||[]).join('; ');
                                 return `<tr onclick="drillDealItem('${dl.title.replace(/'/g,'')}', ${dl.price||0}, '${dl.category}', ${dl.median||0}, ${dl.comp_count||0}, '${dl.url||''}')" style="cursor:pointer;" title="Click for full deal analysis | ${reasons}">
@@ -1494,7 +1542,7 @@
                                     <td onclick="event.stopPropagation();">${dl.url?`<a href="${dl.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay ↗</a>`:'--'}</td>
                                 </tr>`;
                             }).join('')}</tbody></table></div>` +
-                            (deals.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${deals.length}</div>` : '');
+                            (deals.length > showing ? `<div style="text-align:center;padding:12px;"><button class="btn btn-primary" style="padding:10px 28px;font-size:13px;" onclick="renderDeals('${filter}',true)">Show More (${Math.min(deals.length - showing, 200)} more)</button><div style="font-size:11px;color:var(--dim);margin-top:4px;">${showing} of ${deals.length}</div></div>` : '');
                     }
 
                     el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
@@ -1783,7 +1831,6 @@
             modal.classList.add('show');
 
             try {
-                // Load competing + chart in parallel
                 const [compResp, chartResp, valResp] = await Promise.all([
                     fetch(`/api/drill/competing?title=${encodeURIComponent(name)}&id=${id}`),
                     fetch(`/api/listing/chart/${id}`),
@@ -1795,26 +1842,39 @@
 
                 const vs = valData.stats || {};
                 const comps = compData.items || [];
+                const points = chartData.chart_points || [];
+                const st = chartData.stats || {};
+
+                // Split into current (eBay active) and historical (WorthPoint sold)
+                const activePoints = points.filter(p => p.type === 'active');
+                const historicalPoints = points.filter(p => p.type === 'sold');
+                const yourPoint = points.filter(p => p.type === 'yours');
 
                 content.innerHTML = `
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
-                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Smart Price</div><div style="font-size:20px;font-weight:700;color:var(--green);">$${Math.round(price)}</div></div>
-                        ${vs.median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Validated Median</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${Math.round(vs.median)}</div></div>` : ''}
-                        ${vs.min ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Range</div><div style="font-size:14px;font-weight:600;">$${Math.round(vs.min)} — $${Math.round(vs.max)}</div></div>` : ''}
-                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Comps</div><div style="font-size:20px;font-weight:700;">${vs.count || 0}</div></div>
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Your Price</div><div style="font-size:20px;font-weight:700;color:var(--green);">$${Math.round(price)}</div></div>
+                        ${vs.median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Market Median</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${Math.round(vs.median)}</div></div>` : ''}
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Historical</div><div style="font-size:20px;font-weight:700;color:var(--accent);">${st.historical_count||0}</div></div>
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Active Comps</div><div style="font-size:20px;font-weight:700;color:var(--orange);">${st.active_count||0}</div></div>
+                        ${st.hist_median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Hist Median</div><div style="font-size:16px;font-weight:700;">$${Math.round(st.hist_median)}</div></div>` : ''}
                     </div>
 
                     ${valData.reason ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">
                         <div style="font-weight:600;margin-bottom:4px;">AI Comp Validation (${valData.validated}/${valData.raw} passed)</div>
                         ${valData.reason}
                         ${valData.queries ? `<div style="margin-top:4px;color:var(--dim);font-size:11px;">Searched: ${valData.queries.join(' | ')}</div>` : ''}
-                        ${valData.removed?.length ? `<div style="margin-top:4px;color:var(--red);font-size:11px;">Removed: ${valData.removed.map(r=>'$'+r.price+' '+r.title).join(', ')}</div>` : ''}
                     </div>` : ''}
 
-                    <canvas id="drill-chart" height="200" style="margin-bottom:16px;"></canvas>
+                    <!-- Combined line chart: Historical vs Current -->
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Price History — WorthPoint (blue) vs eBay Active (orange)</div>
+                    <canvas id="drill-combo-chart" height="220" style="margin-bottom:20px;"></canvas>
 
-                    <div class="section-title">Competing Listings (${comps.length})</div>
-                    <div class="table-wrap"><table>
+                    <!-- Section 1: Current eBay Listings -->
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--orange);">Current eBay Listings (${comps.length})</span>
+                        ${st.active_median ? `<span>Median: $${Math.round(st.active_median)}</span>` : ''}
+                    </div>
+                    ${comps.length ? `<div class="table-wrap" style="margin-bottom:20px;"><table>
                         <thead><tr><th>Item</th><th class="r">Price</th><th>Seller</th><th>Link</th></tr></thead>
                         <tbody>${comps.slice(0,15).map(c => `<tr>
                             <td class="trunc">${c.title||''}</td>
@@ -1822,24 +1882,101 @@
                             <td class="d" style="font-size:11px;">${c.seller||''}</td>
                             <td>${c.url?`<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
                         </tr>`).join('')}</tbody>
-                    </table></div>`;
+                    </table></div>` : '<div style="color:var(--dim);font-size:12px;margin-bottom:20px;">No active competitors found</div>'}
 
-                // Draw chart
-                const points = chartData.chart_points || [];
-                if (points.length && document.getElementById('drill-chart')) {
-                    new Chart(document.getElementById('drill-chart'), {
-                        type: 'scatter',
-                        data: {
-                            datasets: [
-                                {label:'Historical', data:points.filter(p=>p.type==='sold').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(10,132,255,0.7)', pointRadius:5},
-                                {label:'Active', data:points.filter(p=>p.type==='active').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(255,159,10,0.7)', pointRadius:6, pointStyle:'triangle'},
-                                {label:'Yours', data:points.filter(p=>p.type==='yours').map(p=>({x:p.date,y:p.price})), backgroundColor:'rgba(48,209,88,1)', pointRadius:8, pointStyle:'star'},
-                            ]
-                        },
-                        options: {responsive:true, plugins:{legend:{labels:{color:'#86868b',font:{size:10}}}},
-                            scales:{x:{type:'category',ticks:{color:'#86868b',font:{size:8},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},
-                                y:{ticks:{color:'#86868b',callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}
-                    });
+                    <!-- Section 2: WorthPoint Historical Sales -->
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--accent);">WorthPoint Historical Sales (${historicalPoints.length})</span>
+                        ${st.hist_median ? `<span>Median: $${Math.round(st.hist_median)} · Avg: $${Math.round(st.hist_avg||0)}</span>` : ''}
+                    </div>
+                    ${historicalPoints.length ? `<div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Source</th></tr></thead>
+                        <tbody>${historicalPoints.map(h => `<tr>
+                            <td class="trunc">${h.name||''}</td>
+                            <td class="r g b">$${Math.round(h.price).toLocaleString()}</td>
+                            <td class="d" style="font-size:11px;">${h.date||'--'}</td>
+                            <td class="d" style="font-size:10px;">${h.source||''}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : '<div style="color:var(--dim);font-size:12px;">No WorthPoint historical data found</div>'}
+
+                    ${valData.removed?.length ? `<div style="margin-top:12px;font-size:11px;color:var(--dim);">Filtered out: ${valData.removed.map(r=>'$'+r.price+' '+r.title).join(', ')}</div>` : ''}
+                `;
+
+                // Draw combined line chart
+                if (points.length && document.getElementById('drill-combo-chart')) {
+                    // Group historical by date for line chart
+                    const histDated = historicalPoints.filter(p => p.date && p.date !== 'Unknown').sort((a,b) => a.date.localeCompare(b.date));
+                    const activeDated = activePoints.sort((a,b) => a.price - b.price);
+
+                    // Build datasets
+                    const datasets = [];
+
+                    if (histDated.length) {
+                        datasets.push({
+                            label: 'WorthPoint Sales',
+                            data: histDated.map(p => ({x: p.date, y: p.price})),
+                            borderColor: '#0a84ff',
+                            backgroundColor: 'rgba(10,132,255,0.15)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 5,
+                            pointHoverRadius: 8,
+                            borderWidth: 2,
+                        });
+                    }
+
+                    if (activeDated.length) {
+                        const today = new Date().toISOString().slice(0,10);
+                        datasets.push({
+                            label: 'eBay Active',
+                            data: activeDated.map((p,i) => ({x: today, y: p.price})),
+                            borderColor: '#ff9f0a',
+                            backgroundColor: 'rgba(255,159,10,0.5)',
+                            pointRadius: 7,
+                            pointStyle: 'triangle',
+                            borderWidth: 0,
+                            showLine: false,
+                        });
+                    }
+
+                    // Your price line
+                    if (histDated.length >= 2) {
+                        datasets.push({
+                            label: 'Your Price ($' + Math.round(price) + ')',
+                            data: [{x: histDated[0].date, y: price}, {x: histDated[histDated.length-1].date, y: price}],
+                            borderColor: '#30d158',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            fill: false,
+                        });
+                    }
+
+                    setTimeout(() => {
+                        const ctx = document.getElementById('drill-combo-chart');
+                        if (ctx) {
+                            new Chart(ctx, {
+                                type: 'line',
+                                data: { datasets },
+                                options: {
+                                    responsive: true,
+                                    interaction: { mode: 'nearest', intersect: false },
+                                    plugins: {
+                                        legend: { labels: { color: '#86868b', font: { size: 10 } } },
+                                        tooltip: { callbacks: { label: ctx => {
+                                            const pt = ctx.raw;
+                                            const src = ctx.dataset.label;
+                                            return src + ': $' + Math.round(pt.y);
+                                        }}}
+                                    },
+                                    scales: {
+                                        x: { type: 'category', ticks: { color: '#86868b', font: { size: 8 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                                        y: { ticks: { color: '#86868b', callback: v => '$' + v }, grid: { color: 'rgba(255,255,255,0.04)' } }
+                                    }
+                                }
+                            });
+                        }
+                    }, 100);
                 }
             } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load detail</div>'; }
         }
