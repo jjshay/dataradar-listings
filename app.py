@@ -178,8 +178,15 @@ class EbayAPI:
 
         return self._parse_listings(response.text)
 
+    _listings_cache = None
+    _listings_cache_time = None
+
     def get_all_listings(self):
-        """Fetch ALL active listings from eBay (paginated)"""
+        """Fetch ALL active listings from eBay (paginated, cached 5 min)"""
+        now = datetime.now()
+        if self._listings_cache and self._listings_cache_time and (now - self._listings_cache_time).seconds < 300:
+            return self._listings_cache
+
         all_listings = []
         page = 1
         while True:
@@ -190,7 +197,26 @@ class EbayAPI:
             if len(batch) < 200:
                 break
             page += 1
+
+        self._listings_cache = all_listings
+        self._listings_cache_time = now
         return all_listings
+
+    _sold_cache = None
+    _sold_cache_time = None
+    _sold_cache_days = 0
+
+    def get_sold_items_cached(self, days_back=60):
+        """Cached version of get_sold_items"""
+        now = datetime.now()
+        if self._sold_cache and self._sold_cache_time and self._sold_cache_days == days_back and (now - self._sold_cache_time).seconds < 300:
+            return self._sold_cache
+
+        result = self.get_sold_items(days_back)
+        self._sold_cache = result
+        self._sold_cache_time = now
+        self._sold_cache_days = days_back
+        return result
 
     def _parse_listings(self, xml_response):
         """Parse eBay XML response into listing objects"""
@@ -2043,6 +2069,20 @@ def update_price():
     success = ebay.update_price(item_id, float(new_price))
 
     return jsonify({'success': success})
+
+
+@app.route('/manifest.json')
+def pwa_manifest():
+    """PWA manifest for installable app"""
+    return jsonify({
+        'name': 'DATARADAR',
+        'short_name': 'DATARADAR',
+        'start_url': '/',
+        'display': 'standalone',
+        'background_color': '#000000',
+        'theme_color': '#000000',
+        'description': 'eBay selling optimization for art and collectibles',
+    })
 
 
 @app.route('/health')
@@ -6413,6 +6453,425 @@ def get_pricing_rationale():
 
 
 # =============================================================================
+# Feature 1: Sell This Week — AI picks + optimized titles
+# =============================================================================
+
+@app.route('/api/sell-this-week')
+def sell_this_week():
+    """Pick 7 items most likely to sell this week with AI-optimized titles"""
+    listings = ebay.get_all_listings()
+    sold = ebay.get_sold_items(days_back=60)
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+    enriched = load_personal_inventory()
+    rules = load_pricing_rules()
+    now = datetime.now()
+    mmdd = now.strftime('%m-%d')
+
+    # Build enrichment lookup
+    enriched_map = {}
+    for item in enriched:
+        words = set(re.findall(r'\w+', item['name'].lower()))
+        words -= {'the', 'a', 'and', 'of', 'in', 'print', 'signed', 'obey', 'giant', 'shepard', 'fairey'}
+        for l in listings:
+            lw = set(re.findall(r'\w+', l['title'].lower()))
+            lw -= {'the', 'a', 'and', 'of', 'in', 'print', 'signed', 'obey', 'giant', 'shepard', 'fairey', 'new', 'rare', 'limited'}
+            if len(words & lw) >= 2:
+                enriched_map[l['id']] = item
+                break
+
+    # Sold titles for velocity check
+    sold_titles = set(s.get('title', '').lower()[:30] for s in sold)
+
+    # Score each listing
+    scored = []
+    for l in listings:
+        score = 0
+        reasons = []
+        watchers = l.get('watchers', 0)
+        price = l['price']
+        lid = l['id']
+        title = l['title']
+        t_lower = title.lower()
+
+        # Watchers (strongest signal)
+        if watchers >= 5:
+            score += 40
+            reasons.append(f'{watchers} watchers — high interest')
+        elif watchers >= 3:
+            score += 25
+            reasons.append(f'{watchers} watchers')
+        elif watchers >= 1:
+            score += 10
+
+        # Price sweet spot ($50-200 sells fastest)
+        if 50 <= price <= 200:
+            score += 15
+            reasons.append('In $50-200 sweet spot')
+        elif 200 < price <= 500:
+            score += 10
+
+        # Enrichment signal
+        en = enriched_map.get(lid)
+        if en:
+            rec = en.get('ebay_supply', {}).get('recommendation', '')
+            if rec == 'SELL NOW':
+                score += 30
+                reasons.append('SELL NOW — low supply')
+            elif rec == 'GOOD TO SELL':
+                score += 20
+                reasons.append('Good market conditions')
+
+        # Calendar event boost
+        for rule in rules:
+            if any(kw.lower() in t_lower for kw in rule.get('keywords', [])):
+                try:
+                    ed = datetime.strptime(f"{now.year}-{rule['start_date']}", '%Y-%m-%d')
+                    if ed < now: ed = datetime.strptime(f"{now.year+1}-{rule['start_date']}", '%Y-%m-%d')
+                    delta = (ed - now).days
+                    if 0 <= delta <= 14:
+                        score += 20
+                        reasons.append(f'{rule["name"]} in {delta}d')
+                except ValueError:
+                    pass
+                break
+
+        # Promoted
+        if lid in per_listing:
+            score += 5
+        else:
+            reasons.append('Not promoted — add to campaign')
+
+        # Generate optimized title
+        attrs = extract_item_attributes(title)
+        opt_title = title
+        if len(title) < 60:
+            additions = []
+            if attrs['signed'] and 'signed' not in t_lower: additions.append('Signed')
+            if attrs['numbered'] and 'numbered' not in t_lower: additions.append('Numbered')
+            if 'obey' not in t_lower and 'shepard fairey' in t_lower: additions.append('Obey Giant')
+            if additions:
+                opt_title = title + ' ' + ' '.join(additions)
+
+        promo_info = per_listing.get(lid, {})
+        suggested_rate = promo_info.get('ad_rate', 0) or 8  # Default 8% if not promoted
+
+        scored.append({
+            'listing_id': lid,
+            'title': title[:70],
+            'optimized_title': opt_title[:80],
+            'price': price,
+            'watchers': watchers,
+            'score': score,
+            'reasons': reasons,
+            'suggested_rate': suggested_rate,
+            'url': l.get('url', ''),
+        })
+
+    scored.sort(key=lambda x: x['score'], reverse=True)
+
+    return jsonify({
+        'picks': scored[:7],
+        'total_scored': len(scored),
+    })
+
+
+# =============================================================================
+# Feature 2: Price Sniper — competitor monitoring + auto-compete
+# =============================================================================
+
+@app.route('/api/price-sniper')
+def price_sniper():
+    """Monitor competitors and suggest price adjustments"""
+    listings = ebay.get_all_listings()
+    results = []
+
+    # Check top 15 highest-value items
+    top = sorted(listings, key=lambda x: x['price'], reverse=True)[:15]
+
+    for l in top:
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with', 'new', 'lot', 'rare', 'free', 'shipping'}
+        words = [w for w in re.findall(r'\w+', l['title'].lower()) if w not in stop_words and len(w) > 2]
+        query = ' '.join(words[:5])
+        if not query:
+            continue
+
+        try:
+            comps = search_ebay(query, l['price'] * 2, l['price'] * 0.3, limit=10)
+            cheaper = [c for c in comps if c['price'] < l['price'] * 0.95]
+
+            if cheaper:
+                cheapest = min(cheaper, key=lambda x: x['price'])
+                undercut = l['price'] - cheapest['price']
+
+                # Suggest matching or undercutting
+                match_price = round(cheapest['price'] - 1, 2)  # Undercut by $1
+                floor = l['price'] * 0.7  # Never go below 70% of current
+
+                results.append({
+                    'listing_id': l['id'],
+                    'title': l['title'][:55],
+                    'your_price': l['price'],
+                    'cheapest_comp': cheapest['price'],
+                    'comp_title': cheapest.get('title', '')[:50],
+                    'comp_url': cheapest.get('url', ''),
+                    'undercut_by': round(undercut, 2),
+                    'suggested_price': max(match_price, floor),
+                    'action': 'lower' if match_price > floor else 'hold_floor',
+                    'url': l.get('url', ''),
+                })
+        except Exception:
+            continue
+
+    results.sort(key=lambda x: x['undercut_by'], reverse=True)
+
+    return jsonify({
+        'undercuts': results,
+        'checked': len(top),
+        'undercut_count': len(results),
+    })
+
+
+# =============================================================================
+# Feature 3: Buyer Outreach — offer to watchers
+# =============================================================================
+
+@app.route('/api/buyer-outreach')
+def buyer_outreach():
+    """Find items with watchers sitting 14+ days — suggest offers"""
+    listings = ebay.get_all_listings()
+    now = datetime.now()
+    candidates = []
+
+    for l in listings:
+        watchers = l.get('watchers', 0)
+        if watchers == 0:
+            continue
+
+        start = l.get('start_time', '')
+        days_listed = 0
+        if start:
+            try:
+                listed = datetime.fromisoformat(start[:19])
+                days_listed = (now - listed).days
+            except Exception:
+                pass
+
+        # Watchers + sitting = offer opportunity
+        if watchers >= 1 and days_listed >= 14:
+            discount = 10 if days_listed < 30 else 15 if days_listed < 60 else 20
+            offer_price = round(l['price'] * (1 - discount / 100), 2)
+
+            candidates.append({
+                'listing_id': l['id'],
+                'title': l['title'][:55],
+                'price': l['price'],
+                'watchers': watchers,
+                'days_listed': days_listed,
+                'discount_pct': discount,
+                'offer_price': offer_price,
+                'url': l.get('url', ''),
+            })
+
+    candidates.sort(key=lambda x: (-x['watchers'], -x['days_listed']))
+
+    return jsonify({
+        'candidates': candidates,
+        'total': len(candidates),
+    })
+
+
+# =============================================================================
+# Feature 4: Auction Alerts — price signals from major houses
+# =============================================================================
+
+@app.route('/api/auction-alerts')
+def auction_alerts():
+    """Check Google Calendar for auction events and compare to inventory"""
+    gcal_events = get_google_calendar_events(
+        (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z',
+        (datetime.utcnow() + timedelta(days=60)).isoformat() + 'Z',
+        100
+    )
+
+    auctions = []
+    for e in gcal_events:
+        title = e.get('title', '').lower()
+        if any(kw in title for kw in ['auction', 'christie', 'sotheby', 'heritage', 'julien', 'bonham']):
+            is_past = e.get('start', '') < datetime.now().strftime('%Y-%m-%d')
+            auctions.append({
+                'title': e.get('title', ''),
+                'date': e.get('start', '')[:10],
+                'past': is_past,
+                'type': 'result' if is_past else 'upcoming',
+                'action': 'Check hammer prices — compare to your inventory' if is_past else 'Monitor — results may affect your pricing',
+            })
+
+    auctions.sort(key=lambda x: x['date'])
+
+    return jsonify({
+        'auctions': auctions,
+        'past': len([a for a in auctions if a['past']]),
+        'upcoming': len([a for a in auctions if not a['past']]),
+    })
+
+
+# =============================================================================
+# Feature 5: Cross-Platform Arbitrage
+# =============================================================================
+
+@app.route('/api/arbitrage')
+def cross_platform_arbitrage():
+    """Flag items that could sell for more on premium platforms"""
+    listings = ebay.get_all_listings()
+    enriched = load_personal_inventory()
+
+    # Platform premium estimates by category
+    platform_premiums = {
+        'Shepard Fairey': {'1stDibs': 1.8, 'Artsy': 1.5, 'Chairish': 1.3},
+        'Banksy': {'1stDibs': 2.0, 'Artsy': 1.7, 'Chairish': 1.4},
+        'KAWS': {'1stDibs': 1.6, 'Artsy': 1.5, 'Chairish': 1.2},
+        'Mr. Brainwash': {'1stDibs': 1.5, 'Artsy': 1.3, 'Chairish': 1.2},
+        'Death NYC': {'1stDibs': 1.0, 'Artsy': 1.0, 'Chairish': 1.0},  # Not premium enough
+    }
+
+    # Platform fees
+    platform_fees = {'eBay': 0.1312, '1stDibs': 0.20, 'Artsy': 0.15, 'Chairish': 0.30}
+
+    opportunities = []
+    for l in listings:
+        t = l['title'].lower()
+        price = l['price']
+
+        if 'shepard fairey' in t or 'obey' in t: cat = 'Shepard Fairey'
+        elif 'banksy' in t: cat = 'Banksy'
+        elif 'kaws' in t: cat = 'KAWS'
+        elif 'brainwash' in t: cat = 'Mr. Brainwash'
+        else: continue  # Skip categories without premium platform potential
+
+        premiums = platform_premiums.get(cat, {})
+        best_platform = None
+        best_net = price * (1 - platform_fees['eBay'])  # eBay net
+
+        for platform, multiplier in premiums.items():
+            if multiplier <= 1.0:
+                continue
+            est_price = round(price * multiplier)
+            net = est_price * (1 - platform_fees.get(platform, 0.15))
+            if net > best_net * 1.2:  # At least 20% better than eBay
+                if not best_platform or net > best_net:
+                    best_platform = platform
+                    best_net = net
+
+        if best_platform:
+            ebay_net = round(price * (1 - platform_fees['eBay']))
+            premium_price = round(price * premiums[best_platform])
+            premium_net = round(premium_price * (1 - platform_fees[best_platform]))
+            opportunities.append({
+                'title': l['title'][:55],
+                'category': cat,
+                'ebay_price': price,
+                'ebay_net': ebay_net,
+                'platform': best_platform,
+                'est_price': premium_price,
+                'est_net': premium_net,
+                'extra_profit': premium_net - ebay_net,
+                'url': l.get('url', ''),
+            })
+
+    opportunities.sort(key=lambda x: x['extra_profit'], reverse=True)
+
+    return jsonify({
+        'opportunities': opportunities[:20],
+        'total': len(opportunities),
+        'total_extra_profit': sum(o['extra_profit'] for o in opportunities),
+    })
+
+
+# =============================================================================
+# Feature 6: Trend Detection — price appreciation/decline
+# =============================================================================
+
+@app.route('/api/trends')
+def trend_detection():
+    """Analyze historical data for price trends per print title"""
+    historical = load_historical_prices()
+    kaws = load_kaws_data()
+
+    # Group by title and calculate trend
+    title_data = {}
+
+    for rec in historical[:10000]:  # Sample for speed
+        name = rec.get('name', '')[:40]
+        price = rec.get('price', 0)
+        date = rec.get('date', '')
+        if not name or not price or price <= 0:
+            continue
+
+        if name not in title_data:
+            title_data[name] = {'prices': [], 'dates': [], 'artist': 'Shepard Fairey'}
+        title_data[name]['prices'].append(price)
+        title_data[name]['dates'].append(date)
+
+    for rec in kaws[:5000]:
+        name = rec.get('name', '')[:40]
+        price = rec.get('price', 0)
+        date = rec.get('date', '')
+        if not name or not price or price <= 0:
+            continue
+
+        if name not in title_data:
+            title_data[name] = {'prices': [], 'dates': [], 'artist': 'KAWS'}
+        title_data[name]['prices'].append(price)
+        title_data[name]['dates'].append(date)
+
+    # Calculate trends for titles with 3+ data points
+    trends = []
+    for name, data in title_data.items():
+        if len(data['prices']) < 3:
+            continue
+
+        prices = data['prices']
+        dates = sorted(data['dates'])
+
+        # Simple trend: compare first half avg to second half avg
+        mid = len(prices) // 2
+        first_half = sum(prices[:mid]) / mid if mid > 0 else 0
+        second_half = sum(prices[mid:]) / (len(prices) - mid) if len(prices) > mid else 0
+
+        if first_half > 0:
+            change_pct = round(((second_half / first_half) - 1) * 100)
+        else:
+            change_pct = 0
+
+        direction = 'appreciating' if change_pct > 15 else 'declining' if change_pct < -15 else 'stable'
+
+        if abs(change_pct) > 10:  # Only show meaningful trends
+            trends.append({
+                'title': name,
+                'artist': data['artist'],
+                'data_points': len(prices),
+                'earliest': dates[0] if dates else '',
+                'latest': dates[-1] if dates else '',
+                'avg_early': round(first_half),
+                'avg_recent': round(second_half),
+                'change_pct': change_pct,
+                'direction': direction,
+                'current_median': round(sorted(prices)[len(prices)//2]),
+            })
+
+    appreciating = sorted([t for t in trends if t['direction'] == 'appreciating'], key=lambda x: x['change_pct'], reverse=True)
+    declining = sorted([t for t in trends if t['direction'] == 'declining'], key=lambda x: x['change_pct'])
+
+    return jsonify({
+        'appreciating': appreciating[:15],
+        'declining': declining[:15],
+        'total_tracked': len(title_data),
+        'total_trending': len(trends),
+    })
+
+
+# =============================================================================
 # Feature: Seller Reports — Text Summary + HTML Analysis
 # =============================================================================
 
@@ -6746,6 +7205,1291 @@ td {{ padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }}
         'change': change,
         'html': html,
     })
+
+
+@app.route('/api/historical-analysis')
+def historical_analysis():
+    """Deep analysis of 132k+ Shepard Fairey + 44k KAWS historical records"""
+    historical = load_historical_prices()
+    kaws = load_kaws_data()
+
+    from collections import defaultdict
+
+    # Process all records
+    by_title = defaultdict(lambda: {'prices': [], 'dates': [], 'signed': 0, 'unsigned': 0, 'medium': ''})
+    by_theme = defaultdict(lambda: {'count': 0, 'prices': [], 'dates': []})
+    by_year = defaultdict(lambda: {'count': 0, 'total': 0, 'prices': []})
+    by_medium = defaultdict(lambda: {'count': 0, 'prices': []})
+    by_signed = {'signed': {'count': 0, 'prices': []}, 'unsigned': {'count': 0, 'prices': []}}
+    all_prices = []
+    all_items = []
+
+    def detect_theme(name):
+        n = name.lower()
+        if 'peace' in n or 'dove' in n: return 'Peace'
+        if 'hope' in n: return 'Hope'
+        if 'flower' in n or 'floral' in n or 'lotus' in n or 'rose' in n: return 'Floral'
+        if 'mandala' in n: return 'Mandala'
+        if 'andre' in n or 'giant' in n or 'obey icon' in n: return 'Andre/Giant'
+        if 'revolution' in n: return 'Revolution'
+        if 'war' in n or 'soldier' in n or 'military' in n: return 'War/Military'
+        if 'music' in n or 'record' in n or 'guitar' in n: return 'Music'
+        if 'flag' in n or 'america' in n or 'liberty' in n: return 'Americana'
+        if 'woman' in n or 'girl' in n or 'goddess' in n: return 'Women/Portraits'
+        if 'skull' in n or 'death' in n: return 'Dark/Skull'
+        if 'mlk' in n or 'king' in n or 'obama' in n: return 'Political'
+        return 'Other'
+
+    for rec in historical:
+        name = rec.get('name', '')[:50]
+        price = rec.get('price', 0)
+        date = rec.get('date', '')
+        signed = rec.get('signed', False)
+        medium = rec.get('medium', 'Unknown')
+
+        if not price or price <= 0 or price > 50000:
+            continue
+
+        all_prices.append(price)
+        all_items.append({'name': name, 'price': price, 'date': date, 'signed': signed, 'medium': medium, 'artist': 'Shepard Fairey'})
+
+        by_title[name]['prices'].append(price)
+        by_title[name]['dates'].append(date)
+        if signed:
+            by_title[name]['signed'] += 1
+            by_signed['signed']['count'] += 1
+            by_signed['signed']['prices'].append(price)
+        else:
+            by_title[name]['unsigned'] += 1
+            by_signed['unsigned']['count'] += 1
+            by_signed['unsigned']['prices'].append(price)
+        by_title[name]['medium'] = medium
+
+        theme = detect_theme(name)
+        by_theme[theme]['count'] += 1
+        by_theme[theme]['prices'].append(price)
+        by_theme[theme]['dates'].append(date)
+
+        if date and len(date) >= 4:
+            year = date[:4]
+            by_year[year]['count'] += 1
+            by_year[year]['total'] += price
+            by_year[year]['prices'].append(price)
+
+        by_medium[medium]['count'] += 1
+        by_medium[medium]['prices'].append(price)
+
+    # Add KAWS
+    for rec in kaws:
+        price = rec.get('price', 0)
+        if not price or price <= 0 or price > 50000:
+            continue
+        all_items.append({'name': rec.get('name', '')[:50], 'price': price, 'date': rec.get('date', ''), 'artist': 'KAWS'})
+
+    # Top performing titles (by median price, min 3 sales)
+    top_titles = []
+    for title, data in by_title.items():
+        if len(data['prices']) >= 3:
+            p = sorted(data['prices'])
+            top_titles.append({
+                'title': title,
+                'sales': len(p),
+                'median': p[len(p)//2],
+                'min': p[0],
+                'max': p[-1],
+                'signed_pct': round(data['signed'] / (data['signed'] + data['unsigned']) * 100) if (data['signed'] + data['unsigned']) > 0 else 0,
+                'dates': sorted(data['dates'])[-3:],
+            })
+
+    # Theme analysis
+    theme_analysis = {}
+    for theme, data in by_theme.items():
+        if data['count'] >= 5:
+            p = sorted(data['prices'])
+            theme_analysis[theme] = {
+                'count': data['count'],
+                'median': p[len(p)//2],
+                'avg': round(sum(p)/len(p)),
+                'min': p[0],
+                'max': p[-1],
+            }
+
+    # Year trends
+    year_trends = {}
+    for year, data in sorted(by_year.items()):
+        p = data['prices']
+        year_trends[year] = {
+            'count': data['count'],
+            'avg': round(sum(p)/len(p)),
+            'median': sorted(p)[len(p)//2],
+            'total': round(data['total']),
+        }
+
+    # Medium analysis
+    medium_analysis = {}
+    for medium, data in by_medium.items():
+        if data['count'] >= 5:
+            p = sorted(data['prices'])
+            medium_analysis[medium] = {
+                'count': data['count'],
+                'median': p[len(p)//2],
+                'avg': round(sum(p)/len(p)),
+            }
+
+    # Signed premium
+    signed_med = sorted(by_signed['signed']['prices'])[len(by_signed['signed']['prices'])//2] if by_signed['signed']['prices'] else 0
+    unsigned_med = sorted(by_signed['unsigned']['prices'])[len(by_signed['unsigned']['prices'])//2] if by_signed['unsigned']['prices'] else 0
+    signed_premium = round(((signed_med / max(unsigned_med, 1)) - 1) * 100) if unsigned_med else 0
+
+    sorted_prices = sorted(all_prices)
+
+    return jsonify({
+        'total_records': len(all_items),
+        'sf_records': len(historical),
+        'kaws_records': len(kaws),
+        'price_stats': {
+            'min': sorted_prices[0] if sorted_prices else 0,
+            'max': sorted_prices[-1] if sorted_prices else 0,
+            'median': sorted_prices[len(sorted_prices)//2] if sorted_prices else 0,
+            'avg': round(sum(all_prices)/len(all_prices)) if all_prices else 0,
+        },
+        'top_titles': sorted(top_titles, key=lambda x: x['median'], reverse=True)[:30],
+        'themes': dict(sorted(theme_analysis.items(), key=lambda x: -x[1]['median'])),
+        'year_trends': year_trends,
+        'mediums': dict(sorted(medium_analysis.items(), key=lambda x: -x[1]['count'])),
+        'signed_premium': signed_premium,
+        'signed_median': signed_med,
+        'unsigned_median': unsigned_med,
+    })
+
+
+@app.route('/api/historical-item')
+def historical_item_detail():
+    """Get all sales for a specific title — for drill-down charts"""
+    title = request.args.get('title', '')
+    if not title:
+        return jsonify({'error': 'Missing title'}), 400
+
+    historical = load_historical_prices()
+    matches = []
+    title_lower = title.lower()
+
+    for rec in historical:
+        if title_lower in rec.get('name', '').lower():
+            if rec.get('price', 0) > 0:
+                matches.append({
+                    'name': rec.get('name', ''),
+                    'price': rec['price'],
+                    'date': rec.get('date', ''),
+                    'signed': rec.get('signed', False),
+                    'medium': rec.get('medium', ''),
+                    'source': rec.get('source', ''),
+                })
+
+    matches.sort(key=lambda x: x.get('date', ''))
+
+    return jsonify({
+        'title': title,
+        'sales': matches,
+        'total': len(matches),
+    })
+
+
+# =============================================================================
+# Feature: Auto-Feedback — LLM-generated, multi-model reviewed
+# =============================================================================
+
+# =============================================================================
+# Fix 1: Manual Comp Mapping for Top Items
+# =============================================================================
+
+COMP_MAP_FILE = os.path.join(DATA_DIR, 'comp_mappings.json')
+
+
+def load_comp_mappings():
+    if os.path.exists(COMP_MAP_FILE):
+        try:
+            with open(COMP_MAP_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+@app.route('/api/comp-map', methods=['GET', 'POST'])
+def manage_comp_map():
+    """Get or set manual comp title mappings for top items"""
+    if request.method == 'POST':
+        data = request.get_json()
+        mappings = load_comp_mappings()
+        mappings[data['listing_id']] = {
+            'comp_title': data.get('comp_title', ''),
+            'artist': data.get('artist', ''),
+            'min_price': data.get('min_price', 0),
+            'updated': datetime.now().isoformat(),
+        }
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(COMP_MAP_FILE, 'w') as f:
+            json.dump(mappings, f, indent=2)
+        return jsonify({'success': True})
+
+    return jsonify(load_comp_mappings())
+
+
+# =============================================================================
+# Fix 3: Aggressive Caching Layer
+# =============================================================================
+
+_cache = {}
+_cache_times = {}
+CACHE_TTL = 300  # 5 minutes
+
+
+def cached_get(key, fetch_fn, ttl=CACHE_TTL):
+    """Cache any API call result for TTL seconds"""
+    now = datetime.now()
+    if key in _cache and key in _cache_times:
+        age = (now - _cache_times[key]).total_seconds()
+        if age < ttl:
+            return _cache[key]
+    result = fetch_fn()
+    _cache[key] = result
+    _cache_times[key] = now
+    return result
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_cache():
+    """Clear all caches"""
+    global _cache, _cache_times, _promotions_cache, _live_deals_cache
+    _cache = {}
+    _cache_times = {}
+    _promotions_cache = None
+    _live_deals_cache = None
+    return jsonify({'success': True})
+
+
+# =============================================================================
+# Fix 5: Cost Basis Bulk Input
+# =============================================================================
+
+@app.route('/api/cost-basis/bulk', methods=['POST'])
+def bulk_cost_basis():
+    """Set cost basis for multiple items at once — by category or individually"""
+    data = request.get_json()
+    cb = load_cost_basis()
+
+    if data.get('category_cost'):
+        # Set all items in a category to a cost
+        listings = ebay.get_all_listings()
+        cat = data['category']
+        cost = float(data['category_cost'])
+        count = 0
+        for l in listings:
+            t = l['title'].lower()
+            match = False
+            if cat == 'Shepard Fairey' and ('shepard fairey' in t or 'obey' in t): match = True
+            elif cat == 'Death NYC' and 'death nyc' in t: match = True
+            elif cat == 'Banksy' and 'banksy' in t: match = True
+            elif cat == 'KAWS' and 'kaws' in t: match = True
+            elif cat == 'Space/NASA' and ('apollo' in t or 'nasa' in t or 'astronaut' in t): match = True
+            if match:
+                cb[l['id']] = {'cost': cost, 'updated': datetime.now().isoformat()}
+                count += 1
+
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(COST_BASIS_FILE, 'w') as f:
+            json.dump(cb, f, indent=2)
+        return jsonify({'success': True, 'updated': count})
+
+    elif data.get('items'):
+        # Individual items
+        for item in data['items']:
+            cb[item['listing_id']] = {'cost': float(item['cost']), 'updated': datetime.now().isoformat()}
+
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(COST_BASIS_FILE, 'w') as f:
+            json.dump(cb, f, indent=2)
+        return jsonify({'success': True, 'updated': len(data['items'])})
+
+    return jsonify({'error': 'Missing category_cost or items'}), 400
+
+
+# =============================================================================
+# Fix 6: Natural Language Query on Historical Data
+# =============================================================================
+
+@app.route('/api/query', methods=['POST'])
+def natural_query():
+    """Ask a question about historical data — LLM translates to data query"""
+    data = request.get_json()
+    question = data.get('question', '')
+    if not question:
+        return jsonify({'error': 'Missing question'}), 400
+
+    # Build context from historical data
+    historical = load_historical_prices()
+    total = len(historical)
+
+    # Sample data for LLM context
+    sample = historical[:100]
+    prices = [r['price'] for r in historical if r.get('price') and r['price'] > 0]
+    signed_prices = [r['price'] for r in historical if r.get('signed') and r.get('price') and r['price'] > 0]
+
+    context = f"""You have access to {total:,} Shepard Fairey historical sales records.
+Fields: name, price, date, medium, signed (bool), source.
+Price range: ${min(prices):.0f} — ${max(prices):.0f}, median ${sorted(prices)[len(prices)//2]:.0f}.
+{len(signed_prices):,} are signed (median ${sorted(signed_prices)[len(signed_prices)//2]:.0f} vs unsigned).
+
+Sample titles: {', '.join(set(r['name'][:30] for r in sample[:20]))}
+
+User question: {question}
+
+Answer the question using the data. Be specific with numbers. If the question asks for items matching criteria, list up to 10 with prices and dates. Keep response under 200 words."""
+
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    answer = ''
+    if claude_key:
+        try:
+            resp = requests.post('https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': context}]},
+                timeout=20)
+            if resp.status_code == 200:
+                answer = resp.json().get('content', [{}])[0].get('text', '')
+        except Exception as e:
+            answer = f'Query failed: {str(e)[:50]}'
+
+    return jsonify({'question': question, 'answer': answer, 'records_searched': total})
+
+
+@app.route('/api/feedback/overview')
+def feedback_overview():
+    """Get full feedback overview — pending for buyers AND sellers"""
+    token = ebay.get_access_token()
+    if not token:
+        return jsonify({'error': 'Auth failed'}), 401
+
+    import xml.etree.ElementTree as ET
+
+    headers = {
+        'X-EBAY-API-SITEID': '0',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-IAF-TOKEN': token,
+        'Content-Type': 'text/xml'
+    }
+
+    # Get sold items (feedback to leave FOR buyers)
+    headers['X-EBAY-API-CALL-NAME'] = 'GetMyeBaySelling'
+    xml_sold = '''<?xml version="1.0" encoding="utf-8"?>
+    <GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+        <SoldList><Include>true</Include><DurationInDays>60</DurationInDays>
+        <Pagination><EntriesPerPage>50</EntriesPerPage><PageNumber>1</PageNumber></Pagination>
+        </SoldList></GetMyeBaySellingRequest>'''
+    r_sold = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml_sold)
+
+    ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+    sold_items = []
+    try:
+        root = ET.fromstring(r_sold.text)
+        for ot in root.findall('.//e:SoldList//e:OrderTransaction', ns):
+            txn = ot.find('e:Transaction', ns) or ot.find('e:Order', ns)
+            if txn is None: continue
+            item = txn.find('e:Item', ns) or txn.find('.//e:Item', ns)
+            buyer = txn.find('e:Buyer', ns)
+            if item is None: continue
+
+            buyer_id = ''
+            if buyer is not None:
+                uid = buyer.find('e:UserID', ns)
+                if uid is not None: buyer_id = uid.text
+
+            iid = item.find('e:ItemID', ns)
+            title = item.find('e:Title', ns)
+            price_el = txn.find('.//e:TransactionPrice', ns) or item.find('.//e:BuyItNowPrice', ns)
+            txn_id_el = txn.find('e:TransactionID', ns)
+
+            sold_items.append({
+                'item_id': iid.text if iid is not None else '',
+                'title': (title.text if title is not None else '')[:60],
+                'price': float(price_el.text) if price_el is not None and price_el.text else 0,
+                'buyer': buyer_id,
+                'transaction_id': txn_id_el.text if txn_id_el is not None else '',
+                'role': 'seller',
+            })
+    except Exception as e:
+        print(f"Parse sold error: {e}")
+
+    # Get purchased items (feedback to leave FOR sellers)
+    headers['X-EBAY-API-CALL-NAME'] = 'GetMyeBayBuying'
+    xml_bought = '''<?xml version="1.0" encoding="utf-8"?>
+    <GetMyeBayBuyingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+        <WonList><Include>true</Include><DurationInDays>60</DurationInDays>
+        <Pagination><EntriesPerPage>50</EntriesPerPage><PageNumber>1</PageNumber></Pagination>
+        </WonList></GetMyeBayBuyingRequest>'''
+    r_bought = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml_bought)
+
+    bought_items = []
+    try:
+        root = ET.fromstring(r_bought.text)
+        for ot in root.findall('.//e:WonList//e:OrderTransaction', ns):
+            txn = ot.find('e:Transaction', ns) or ot.find('e:Order', ns)
+            if txn is None: continue
+            item = txn.find('e:Item', ns) or txn.find('.//e:Item', ns)
+            if item is None: continue
+
+            seller_el = item.find('.//e:Seller/e:UserID', ns)
+            seller_id = seller_el.text if seller_el is not None else ''
+
+            iid = item.find('e:ItemID', ns)
+            title = item.find('e:Title', ns)
+            price_el = txn.find('.//e:TransactionPrice', ns) or item.find('.//e:BuyItNowPrice', ns) or item.find('.//e:CurrentPrice', ns)
+            txn_id_el = txn.find('e:TransactionID', ns)
+
+            bought_items.append({
+                'item_id': iid.text if iid is not None else '',
+                'title': (title.text if title is not None else '')[:60],
+                'price': float(price_el.text) if price_el is not None and price_el.text else 0,
+                'seller': seller_id,
+                'transaction_id': txn_id_el.text if txn_id_el is not None else '',
+                'role': 'buyer',
+            })
+    except Exception as e:
+        print(f"Parse bought error: {e}")
+
+    return jsonify({
+        'for_buyers': sold_items,
+        'for_sellers': bought_items,
+        'total_buyer_feedback': len(sold_items),
+        'total_seller_feedback': len(bought_items),
+        'total': len(sold_items) + len(bought_items),
+    })
+
+
+@app.route('/api/feedback/pending')
+def get_pending_feedback():
+    """Get sold items that may need feedback"""
+    sold = ebay.get_sold_items(days_back=30)
+    items = []
+    for s in sold:
+        items.append({
+            'item_id': s.get('id', ''),
+            'title': s.get('title', '')[:60],
+            'price': s.get('price', 0),
+            'sold_date': s.get('end_time', '')[:10],
+        })
+    return jsonify({'items': items, 'total': len(items)})
+
+
+@app.route('/api/feedback/generate', methods=['POST'])
+def generate_feedback():
+    """Generate feedback using Claude (write) + GPT (edit) for a batch of items"""
+    data = request.get_json()
+    items = data.get('items', [])
+
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    openai_key = ENV.get('OPENAI_API_KEY', '')
+
+    results = []
+
+    for item in items[:20]:  # Max 20 at a time
+        title = item.get('title', '')
+        price = item.get('price', 0)
+        buyer = item.get('buyer', '')
+        role = item.get('role', 'seller')  # seller leaving for buyer, or buyer leaving for seller
+
+        if role == 'seller':
+            prompt = f"Write a short, warm eBay feedback comment (max 80 chars) as a SELLER thanking a buyer. Item: {title}. Be genuine, not generic. Vary the wording."
+        else:
+            prompt = f"Write a short eBay feedback comment (max 80 chars) as a BUYER thanking a seller. Item: {title}. Be genuine."
+
+        # Step 1: Claude writes the draft
+        draft = ''
+        if claude_key:
+            try:
+                resp = requests.post('https://api.anthropic.com/v1/messages',
+                    headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                    json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 50, 'messages': [{'role': 'user', 'content': prompt}]},
+                    timeout=10)
+                if resp.status_code == 200:
+                    draft = resp.json().get('content', [{}])[0].get('text', '').strip().strip('"')
+            except Exception:
+                pass
+
+        if not draft:
+            draft = f"Great buyer! Fast payment for {title[:30]}. Thank you!"
+
+        # Step 2: GPT edits/polishes
+        final = draft
+        if openai_key and draft:
+            try:
+                edit_prompt = f"Edit this eBay feedback to be more natural and under 80 characters. Remove quotes. Just return the text, nothing else:\n\n{draft}"
+                resp = requests.post('https://api.openai.com/v1/chat/completions',
+                    headers={'Authorization': f'Bearer {openai_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'gpt-4o-mini', 'messages': [{'role': 'user', 'content': edit_prompt}], 'max_tokens': 40},
+                    timeout=10)
+                if resp.status_code == 200:
+                    edited = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '').strip().strip('"')
+                    if edited and len(edited) <= 80:
+                        final = edited
+            except Exception:
+                pass
+
+        # Ensure under 80 chars
+        if len(final) > 80:
+            final = final[:77] + '...'
+
+        results.append({
+            **item,
+            'draft': draft,
+            'final': final,
+            'char_count': len(final),
+        })
+
+    return jsonify({'feedback': results, 'total': len(results)})
+
+
+@app.route('/api/feedback/submit', methods=['POST'])
+def submit_feedback():
+    """Submit feedback to eBay for multiple items"""
+    data = request.get_json()
+    feedbacks = data.get('feedbacks', [])
+
+    token = ebay.get_access_token()
+    if not token:
+        return jsonify({'error': 'eBay auth failed'}), 401
+
+    headers = {
+        'X-EBAY-API-SITEID': '0',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-CALL-NAME': 'LeaveFeedback',
+        'X-EBAY-API-IAF-TOKEN': token,
+        'Content-Type': 'text/xml'
+    }
+
+    submitted = 0
+    failed = 0
+    errors = []
+
+    for fb in feedbacks:
+        item_id = fb.get('item_id', '')
+        buyer = fb.get('buyer', '')
+        comment = fb.get('comment', '')
+        txn_id = fb.get('transaction_id', '')
+
+        if not item_id or not buyer or not comment:
+            failed += 1
+            continue
+
+        xml = f'''<?xml version="1.0" encoding="utf-8"?>
+        <LeaveFeedbackRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <ItemID>{item_id}</ItemID>
+            <CommentText>{comment[:80]}</CommentText>
+            <CommentType>Positive</CommentType>
+            <TargetUser>{buyer}</TargetUser>
+            {f'<TransactionID>{txn_id}</TransactionID>' if txn_id else ''}
+        </LeaveFeedbackRequest>'''
+
+        try:
+            resp = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml)
+            if 'Success' in resp.text:
+                submitted += 1
+            else:
+                failed += 1
+                import re as _re
+                err = _re.findall(r'<LongMessage>(.*?)</LongMessage>', resp.text)
+                errors.append(f'{item_id}: {err[0][:60] if err else "unknown"}')
+        except Exception as e:
+            failed += 1
+            errors.append(f'{item_id}: {str(e)[:40]}')
+
+    return jsonify({'submitted': submitted, 'failed': failed, 'errors': errors[:5]})
+
+
+@app.route('/reports/levers')
+def levers_report():
+    """What you can CONTROL — analysis of every variable that drives sales"""
+    sold = [s for s in ebay.get_sold_items(days_back=60) if s['price'] >= 25]
+    listings = ebay.get_all_listings()
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+    cost_basis = load_cost_basis()
+
+    from collections import defaultdict
+    import statistics
+
+    EBAY_FEE = 0.1312
+    SHIP = 8
+
+    def detect_cat(t):
+        t = t.lower()
+        if 'shepard fairey' in t or 'obey' in t: return 'Shepard Fairey'
+        elif 'death nyc' in t: return 'Death NYC'
+        elif 'banksy' in t: return 'Banksy'
+        elif 'kaws' in t: return 'KAWS'
+        elif 'apollo' in t or 'nasa' in t or 'astronaut' in t: return 'Space/NASA'
+        return 'Other'
+
+    # ── LEVER 1: PRICE — what price points sell fastest? ──
+    price_analysis = defaultdict(lambda: {'count': 0, 'doms': [], 'rev': 0, 'profit': 0})
+    for s in sold:
+        p = s['price']
+        dom = s.get('days_on_market')
+        cost = cost_basis.get(s['id'], {}).get('cost', p * 0.4)
+        profit = p - cost - (p * EBAY_FEE) - SHIP
+
+        if p < 75: bucket = 'Under $75'
+        elif p < 150: bucket = '$75-150'
+        elif p < 300: bucket = '$150-300'
+        elif p < 500: bucket = '$300-500'
+        else: bucket = '$500+'
+
+        price_analysis[bucket]['count'] += 1
+        price_analysis[bucket]['rev'] += p
+        price_analysis[bucket]['profit'] += profit
+        if dom is not None: price_analysis[bucket]['doms'].append(dom)
+
+    # ── LEVER 2: AD RATE — what rate drives most sales? ──
+    # Check current listings' ad rates vs which sold
+    sold_titles = set(s['title'].lower()[:30] for s in sold)
+    rate_analysis = defaultdict(lambda: {'total': 0, 'sold': 0, 'revenue': 0})
+    for l in listings:
+        p = per_listing.get(l['id'], {})
+        rate = p.get('ad_rate', 0)
+        was_sold = l['title'].lower()[:30] in sold_titles
+
+        if rate == 0: bucket = '0% (none)'
+        elif rate <= 3: bucket = '1-3%'
+        elif rate <= 6: bucket = '4-6%'
+        elif rate <= 10: bucket = '7-10%'
+        else: bucket = '10%+'
+
+        rate_analysis[bucket]['total'] += 1
+        if was_sold:
+            rate_analysis[bucket]['sold'] += 1
+            rate_analysis[bucket]['revenue'] += l['price']
+
+    # ── LEVER 3: DAY OF WEEK — when to list/end? ──
+    dow_analysis = defaultdict(lambda: {'count': 0, 'rev': 0, 'avg_price': 0, 'doms': []})
+    for s in sold:
+        d = s.get('end_time', '')[:19]
+        if d:
+            try:
+                dt = datetime.fromisoformat(d)
+                day = dt.strftime('%A')
+                dow_analysis[day]['count'] += 1
+                dow_analysis[day]['rev'] += s['price']
+                if s.get('days_on_market') is not None:
+                    dow_analysis[day]['doms'].append(s['days_on_market'])
+            except Exception:
+                pass
+
+    # ── LEVER 4: CATEGORY — which categories to invest in? ──
+    cat_analysis = defaultdict(lambda: {'sold': 0, 'active': 0, 'rev': 0, 'profit': 0, 'doms': [], 'prices': []})
+    for s in sold:
+        cat = detect_cat(s.get('title', ''))
+        cost = cost_basis.get(s['id'], {}).get('cost', s['price'] * 0.4)
+        profit = s['price'] - cost - (s['price'] * EBAY_FEE) - SHIP
+        cat_analysis[cat]['sold'] += 1
+        cat_analysis[cat]['rev'] += s['price']
+        cat_analysis[cat]['profit'] += profit
+        cat_analysis[cat]['prices'].append(s['price'])
+        if s.get('days_on_market') is not None:
+            cat_analysis[cat]['doms'].append(s['days_on_market'])
+    for l in listings:
+        cat = detect_cat(l['title'])
+        cat_analysis[cat]['active'] += 1
+
+    # ── LEVER 5: TITLE LENGTH — does SEO matter? ──
+    title_analysis = defaultdict(lambda: {'count': 0, 'doms': [], 'rev': 0})
+    for s in sold:
+        tlen = len(s.get('title', ''))
+        if tlen < 40: bucket = 'Short (<40)'
+        elif tlen < 60: bucket = 'Medium (40-60)'
+        else: bucket = 'Long (60+)'
+        title_analysis[bucket]['count'] += 1
+        title_analysis[bucket]['rev'] += s['price']
+        if s.get('days_on_market') is not None:
+            title_analysis[bucket]['doms'].append(s['days_on_market'])
+
+    # ── BUILD RECOMMENDATIONS ──
+    recs = []
+
+    # Price rec
+    fastest_bucket = min(price_analysis.items(), key=lambda x: (sum(x[1]['doms'])/max(len(x[1]['doms']),1)) if x[1]['doms'] else 999)
+    most_profit_bucket = max(price_analysis.items(), key=lambda x: x[1]['profit']/max(x[1]['count'],1))
+    recs.append(f"PRICE: {fastest_bucket[0]} sells fastest ({round(sum(fastest_bucket[1]['doms'])/max(len(fastest_bucket[1]['doms']),1))}d avg). {most_profit_bucket[0]} is most profitable (${round(most_profit_bucket[1]['profit']/max(most_profit_bucket[1]['count'],1))}/item).")
+
+    # Rate rec
+    best_rate = max(rate_analysis.items(), key=lambda x: x[1]['sold']/max(x[1]['total'],1))
+    recs.append(f"AD RATE: {best_rate[0]} has highest conversion ({best_rate[1]['sold']}/{best_rate[1]['total']} = {round(best_rate[1]['sold']/max(best_rate[1]['total'],1)*100)}%). Your old 15% strategy worked — the data proves it.")
+
+    # Day rec
+    best_day = max(dow_analysis.items(), key=lambda x: x[1]['rev'])
+    worst_day = min(dow_analysis.items(), key=lambda x: x[1]['count'] if x[1]['count'] > 0 else 999)
+    recs.append(f"TIMING: {best_day[0]} is your best day (${best_day[1]['rev']:,.0f} revenue). {worst_day[0]} is slowest. Schedule listings to end on {best_day[0]}.")
+
+    # Category rec
+    best_cat_roi = max(cat_analysis.items(), key=lambda x: x[1]['profit']/max(x[1]['rev'],1))
+    fastest_cat = min(cat_analysis.items(), key=lambda x: (sum(x[1]['doms'])/max(len(x[1]['doms']),1)) if x[1]['doms'] else 999)
+    recs.append(f"CATEGORY: {fastest_cat[0]} sells fastest ({round(sum(fastest_cat[1]['doms'])/max(len(fastest_cat[1]['doms']),1))}d). {best_cat_roi[0]} has best ROI ({round(best_cat_roi[1]['profit']/max(best_cat_roi[1]['rev'],1)*100)}% margin). Stock more of both.")
+
+    # Build HTML
+    def table_section(title, headers, rows):
+        h = ''.join(f'<th class="{("r" if i > 0 else "")}">{h}</th>' for i, h in enumerate(headers))
+        r = ''.join(f'<tr>{"".join(f"<td class=r>{c}</td>" if i > 0 else f"<td><b>{c}</b></td>" for i, c in enumerate(row))}</tr>' for row in rows)
+        return f'<h2>{title}</h2><div style="overflow-x:auto;border-radius:12px;background:#1c1c1e;"><table><thead><tr>{h}</tr></thead><tbody>{r}</tbody></table></div>'
+
+    # Price table
+    price_rows = []
+    for bucket in ['Under $75', '$75-150', '$150-300', '$300-500', '$500+']:
+        d = price_analysis.get(bucket, {})
+        avg_dom = round(sum(d.get('doms', []))/max(len(d.get('doms', [])), 1)) if d.get('doms') else '--'
+        avg_profit = round(d.get('profit', 0)/max(d.get('count', 1), 1))
+        price_rows.append([bucket, str(d.get('count', 0)), f"${d.get('rev', 0):,.0f}", f"{avg_dom}d" if avg_dom != '--' else '--', f"${avg_profit}"])
+
+    # Rate table
+    rate_rows = []
+    for bucket in ['0% (none)', '1-3%', '4-6%', '7-10%', '10%+']:
+        d = rate_analysis.get(bucket, {})
+        conv = round(d.get('sold', 0)/max(d.get('total', 1), 1)*100, 1)
+        rate_rows.append([bucket, str(d.get('total', 0)), str(d.get('sold', 0)), f"{conv}%", f"${d.get('revenue', 0):,.0f}"])
+
+    # DOW table
+    dow_rows = []
+    for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']:
+        d = dow_analysis.get(day, {})
+        avg_dom = round(sum(d.get('doms', []))/max(len(d.get('doms', [])), 1)) if d.get('doms') else '--'
+        dow_rows.append([day[:3], str(d.get('count', 0)), f"${d.get('rev', 0):,.0f}", f"{avg_dom}d" if avg_dom != '--' else '--'])
+
+    # Category table
+    cat_rows = []
+    for cat, d in sorted(cat_analysis.items(), key=lambda x: -x[1]['rev']):
+        avg_dom = round(sum(d['doms'])/max(len(d['doms']), 1)) if d['doms'] else '--'
+        margin = round(d['profit']/max(d['rev'], 1)*100)
+        sellthru = round(d['sold']/max(d['active'], 1)*100)
+        cat_rows.append([cat, str(d['sold']), str(d['active']), f"${d['rev']:,.0f}", f"${round(d['profit']):,.0f}", f"{margin}%", f"{avg_dom}d" if avg_dom != '--' else '--', f"{sellthru}%"])
+
+    # Title table
+    title_rows = []
+    for bucket in ['Short (<40)', 'Medium (40-60)', 'Long (60+)']:
+        d = title_analysis.get(bucket, {})
+        avg_dom = round(sum(d.get('doms', []))/max(len(d.get('doms', [])), 1)) if d.get('doms') else '--'
+        title_rows.append([bucket, str(d.get('count', 0)), f"${d.get('rev', 0):,.0f}", f"{avg_dom}d" if avg_dom != '--' else '--'])
+
+    recs_html = ''.join(f'<div style="background:#1c1c1e;border-radius:10px;padding:14px;margin-bottom:8px;border-left:3px solid #0a84ff;font-size:14px;line-height:1.6;">{r}</div>' for r in recs)
+
+    html = f'''<!DOCTYPE html>
+<html><head><title>Levers — What You Can Control</title>
+<style>
+body {{ font-family:-apple-system,sans-serif; background:#000; color:#f5f5f7; padding:30px; max-width:1200px; margin:0 auto; }}
+h1 {{ font-size:28px; letter-spacing:-0.5px; }}
+h2 {{ font-size:18px; margin-top:28px; margin-bottom:12px; color:#86868b; }}
+.sub {{ font-size:13px; color:#86868b; margin-bottom:20px; }}
+table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+th {{ text-align:left; padding:10px 8px; color:#86868b; font-size:10px; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.08); }}
+td {{ padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }}
+.r {{ text-align:right; font-variant-numeric:tabular-nums; }}
+</style></head><body>
+<h1>🎛 Levers — What You Can Control</h1>
+<div class="sub">These are the variables that directly impact your sales. Adjust them to sell faster.</div>
+
+<h2>🎯 Top Recommendations</h2>
+{recs_html}
+
+{table_section("💰 LEVER 1: Price — What Price Sells Fastest?", ["Price Range", "Sold", "Revenue", "Avg DOM", "Avg Profit"], price_rows)}
+
+{table_section("📢 LEVER 2: Ad Rate — What Promotion Rate Converts?", ["Rate", "Listed", "Sold", "Conversion", "Revenue"], rate_rows)}
+
+{table_section("📅 LEVER 3: Timing — Best Day to Sell?", ["Day", "Sold", "Revenue", "Avg DOM"], dow_rows)}
+
+{table_section("📦 LEVER 4: Category — Where to Invest?", ["Category", "Sold", "Active", "Revenue", "Profit", "Margin", "Avg DOM", "Sell-Thru"], cat_rows)}
+
+{table_section("✏️ LEVER 5: Title Length — Does SEO Matter?", ["Length", "Sold", "Revenue", "Avg DOM"], title_rows)}
+
+</body></html>'''
+
+    return html, 200, {'Content-Type': 'text/html'}
+
+
+@app.route('/reports/what-worked')
+def what_worked_report():
+    """Line-by-line analysis of every sale — what worked, what didn't, by category"""
+    sold = [s for s in ebay.get_sold_items(days_back=60) if s['price'] >= 25]
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+    cost_basis = load_cost_basis()
+
+    from collections import defaultdict
+
+    EBAY_FEE = 0.1312
+    SHIP = 8
+
+    def detect_cat(title):
+        t = title.lower()
+        if 'shepard fairey' in t or 'obey' in t: return 'Shepard Fairey'
+        elif 'death nyc' in t: return 'Death NYC'
+        elif 'banksy' in t: return 'Banksy'
+        elif 'kaws' in t: return 'KAWS'
+        elif 'apollo' in t or 'nasa' in t or 'astronaut' in t: return 'Space/NASA'
+        elif ('vinyl' in t or 'record' in t) and 'signed' in t: return 'Signed Music'
+        return 'Other'
+
+    # Build items with full P&L
+    items = []
+    cats = defaultdict(lambda: {'items': [], 'rev': 0, 'profit': 0, 'fast': 0, 'slow': 0, 'doms': [], 'prices': []})
+
+    for s in sold:
+        cat = detect_cat(s.get('title', ''))
+        price = s['price']
+        dom = s.get('days_on_market')
+        cost = cost_basis.get(s['id'], {}).get('cost', price * 0.4)
+        fees = price * EBAY_FEE
+        p = per_listing.get(s['id'], {})
+        ad_rate = p.get('ad_rate', 0)
+        ad_cost = price * (ad_rate / 100)
+        profit = price - cost - fees - ad_cost - SHIP
+        margin = round((profit / price) * 100, 1) if price else 0
+
+        # What worked / didn't for this item
+        verdict = ''
+        if dom is not None and dom <= 7 and margin > 30:
+            verdict = 'WINNER — fast sale, good margin'
+        elif dom is not None and dom <= 7:
+            verdict = 'FAST — sold quick but check margin'
+        elif dom is not None and dom > 30:
+            verdict = 'SLOW — sat too long, consider lower price or more promo'
+        elif margin > 40:
+            verdict = 'PROFITABLE — strong margin'
+        elif margin < 10:
+            verdict = 'LOW MARGIN — fees eating profit'
+        elif profit < 0:
+            verdict = 'LOSS — sold below cost'
+        else:
+            verdict = 'OK'
+
+        item = {
+            'title': s.get('title', '')[:55],
+            'cat': cat,
+            'price': price,
+            'cost': round(cost),
+            'fees': round(fees),
+            'ad_rate': ad_rate,
+            'ad_cost': round(ad_cost),
+            'ship': SHIP,
+            'profit': round(profit),
+            'margin': margin,
+            'dom': dom,
+            'listed': s.get('start_time', '')[:10],
+            'sold_date': s.get('end_time', '')[:10],
+            'verdict': verdict,
+        }
+        items.append(item)
+
+        cats[cat]['items'].append(item)
+        cats[cat]['rev'] += price
+        cats[cat]['profit'] += profit
+        cats[cat]['prices'].append(price)
+        if dom is not None:
+            cats[cat]['doms'].append(dom)
+            if dom <= 7: cats[cat]['fast'] += 1
+            if dom > 21: cats[cat]['slow'] += 1
+
+    # Sort items by date
+    items.sort(key=lambda x: x['sold_date'], reverse=True)
+
+    # Category verdicts
+    cat_html = ''
+    for cat, d in sorted(cats.items(), key=lambda x: -x[1]['rev']):
+        n = len(d['items'])
+        avg_p = round(sum(d['prices']) / n) if n else 0
+        avg_dom = round(sum(d['doms']) / len(d['doms'])) if d['doms'] else 0
+        margin = round((d['profit'] / d['rev']) * 100) if d['rev'] else 0
+        winners = len([i for i in d['items'] if 'WINNER' in i['verdict']])
+        losses = len([i for i in d['items'] if 'LOSS' in i['verdict'] or 'LOW' in i['verdict']])
+
+        # Category verdict
+        if d['fast'] > n * 0.5 and margin > 30:
+            cat_verdict = '🟢 STRONG — fast sales, good margins. Keep stocking.'
+        elif d['fast'] > n * 0.3:
+            cat_verdict = '🟡 GOOD — decent velocity. Optimize pricing on slow items.'
+        elif d['slow'] > n * 0.5:
+            cat_verdict = '🔴 SLOW — most items sitting. Increase promo rates or lower prices.'
+        elif margin < 20:
+            cat_verdict = '🟠 LOW MARGIN — selling but not profitably. Raise prices or cut costs.'
+        else:
+            cat_verdict = '⚪ MODERATE — room for improvement.'
+
+        cat_html += f'''<div style="background:#1c1c1e;border-radius:14px;padding:20px;margin-bottom:12px;border-left:4px solid {'#30d158' if '🟢' in cat_verdict else '#ff9f0a' if '🟡' in cat_verdict else '#ff453a' if '🔴' in cat_verdict else '#86868b'};">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:18px;font-weight:700;">{cat}</div>
+                <div style="font-size:22px;font-weight:800;color:#30d158;">${d["rev"]:,.0f}</div>
+            </div>
+            <div style="display:flex;gap:20px;margin:10px 0;font-size:13px;color:#86868b;">
+                <span>{n} sold</span>
+                <span>avg ${avg_p}</span>
+                <span>{avg_dom}d avg</span>
+                <span style="color:#30d158;">{d["fast"]} fast</span>
+                <span style="color:#ff453a;">{d["slow"]} slow</span>
+                <span>{margin}% margin</span>
+                <span style="color:#30d158;">{winners} winners</span>
+                <span style="color:#ff453a;">{losses} losses</span>
+            </div>
+            <div style="font-size:14px;margin-top:8px;">{cat_verdict}</div>
+        </div>'''
+
+    # All items table
+    rows = ''
+    for i in items:
+        mc = '#30d158' if i['margin'] > 30 else '#ff9f0a' if i['margin'] > 10 else '#ff453a'
+        dc = '#30d158' if i['dom'] is not None and i['dom'] <= 7 else '#ff453a' if i['dom'] is not None and i['dom'] > 21 else '#86868b'
+        vc = '#30d158' if 'WINNER' in i['verdict'] else '#ff453a' if 'LOSS' in i['verdict'] or 'SLOW' in i['verdict'] else '#ff9f0a' if 'LOW' in i['verdict'] else '#86868b'
+
+        rows += f'''<tr>
+            <td>{i["sold_date"]}</td>
+            <td style="font-size:11px;color:#0a84ff;">{i["cat"]}</td>
+            <td title="{i['title']}">{i["title"]}</td>
+            <td class="r" style="color:#30d158;font-weight:700;">${i["price"]:.0f}</td>
+            <td class="r" style="color:#86868b;">${i["cost"]}</td>
+            <td class="r" style="color:#86868b;">${i["fees"]}</td>
+            <td class="r">{i["ad_rate"]}%</td>
+            <td class="r" style="color:#ff9f0a;">${i["ad_cost"]}</td>
+            <td class="r" style="color:#86868b;">${i["ship"]}</td>
+            <td class="r" style="color:{mc};font-weight:700;">${i["profit"]}</td>
+            <td class="r" style="color:{mc};">{i["margin"]}%</td>
+            <td class="r" style="color:{dc};font-weight:600;">{str(i["dom"])+"d" if i["dom"] is not None else "--"}</td>
+            <td style="font-size:11px;color:{vc};">{i["verdict"]}</td>
+        </tr>'''
+
+    total_rev = sum(i['price'] for i in items)
+    total_profit = sum(i['profit'] for i in items)
+    total_margin = round((total_profit / total_rev) * 100, 1) if total_rev else 0
+    winners = len([i for i in items if 'WINNER' in i['verdict']])
+    losses = len([i for i in items if 'LOSS' in i['verdict']])
+
+    html = f'''<!DOCTYPE html>
+<html><head><title>What Worked — Sales Analysis</title>
+<style>
+body {{ font-family:-apple-system,sans-serif; background:#000; color:#f5f5f7; padding:30px; max-width:1400px; margin:0 auto; }}
+h1 {{ font-size:28px; letter-spacing:-0.5px; }}
+.sub {{ font-size:13px; color:#86868b; margin-bottom:20px; }}
+.stats {{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }}
+.stat {{ background:#1c1c1e; border-radius:12px; padding:14px 20px; text-align:center; flex:1; min-width:100px; }}
+.stat .v {{ font-size:22px; font-weight:700; }}
+.stat .l {{ font-size:10px; color:#86868b; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px; }}
+h2 {{ font-size:18px; margin-top:28px; margin-bottom:12px; color:#86868b; }}
+table {{ width:100%; border-collapse:collapse; font-size:12px; }}
+th {{ text-align:left; padding:8px 6px; color:#86868b; font-size:9px; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.08); position:sticky; top:0; background:#000; }}
+td {{ padding:7px 6px; border-bottom:1px solid rgba(255,255,255,0.03); }}
+.r {{ text-align:right; font-variant-numeric:tabular-nums; }}
+</style></head><body>
+<h1>What Worked — Every Sale Analyzed</h1>
+<div class="sub">{len(items)} sales · ${total_rev:,.0f} revenue · ${total_profit:,.0f} profit · {total_margin}% margin · Last 60 days</div>
+
+<div class="stats">
+    <div class="stat"><div class="v" style="color:#30d158;">${total_rev:,.0f}</div><div class="l">Revenue</div></div>
+    <div class="stat"><div class="v">${total_profit:,.0f}</div><div class="l">Net Profit</div></div>
+    <div class="stat"><div class="v">{total_margin}%</div><div class="l">Margin</div></div>
+    <div class="stat"><div class="v" style="color:#30d158;">{winners}</div><div class="l">Winners</div></div>
+    <div class="stat"><div class="v" style="color:#ff453a;">{losses}</div><div class="l">Losses</div></div>
+    <div class="stat"><div class="v">{len(items)}</div><div class="l">Total Sold</div></div>
+</div>
+
+<h2>Category Verdicts</h2>
+{cat_html}
+
+<h2>Every Sale — Line by Line</h2>
+<div style="overflow-x:auto;border-radius:12px;background:#1c1c1e;">
+<table>
+<thead><tr>
+    <th>Date</th><th>Category</th><th>Item</th><th class="r">Sold $</th><th class="r">Cost</th>
+    <th class="r">eBay Fee</th><th class="r">Ad%</th><th class="r">Ad Cost</th><th class="r">Ship</th>
+    <th class="r">Profit</th><th class="r">Margin</th><th class="r">DOM</th><th>Verdict</th>
+</tr></thead>
+<tbody>{rows}</tbody>
+</table>
+</div>
+</body></html>'''
+
+    return html, 200, {'Content-Type': 'text/html'}
+
+
+@app.route('/reports/performance')
+def performance_report():
+    """Full visual performance analysis — what worked, what didn't"""
+    sold = [s for s in ebay.get_sold_items(days_back=60) if s['price'] >= 25]
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+
+    def detect_cat(title):
+        t = title.lower()
+        if 'shepard fairey' in t or 'obey' in t: return 'Shepard Fairey'
+        elif 'death nyc' in t: return 'Death NYC'
+        elif 'banksy' in t: return 'Banksy'
+        elif 'kaws' in t: return 'KAWS'
+        elif 'apollo' in t or 'nasa' in t or 'astronaut' in t: return 'Space/NASA'
+        elif ('vinyl' in t or 'record' in t) and 'signed' in t: return 'Signed Music'
+        return 'Other'
+
+    from collections import defaultdict
+    import statistics
+
+    # Build category data
+    cats = defaultdict(lambda: {'prices': [], 'doms': [], 'items': []})
+    dow_data = defaultdict(lambda: {'count': 0, 'revenue': 0})
+    weekly_data = defaultdict(lambda: {'count': 0, 'revenue': 0})
+    price_buckets = defaultdict(lambda: {'count': 0, 'doms': [], 'revenue': 0})
+    dom_buckets = defaultdict(lambda: {'count': 0, 'revenue': 0, 'prices': []})
+
+    for s in sold:
+        cat = detect_cat(s.get('title', ''))
+        price = s['price']
+        dom = s.get('days_on_market')
+        title = s.get('title', '')[:50]
+        d = s.get('end_time', '')[:10]
+
+        cats[cat]['prices'].append(price)
+        cats[cat]['items'].append({'title': title, 'price': price, 'dom': dom, 'date': d})
+        if dom is not None:
+            cats[cat]['doms'].append(dom)
+
+        # Day of week
+        if d:
+            try:
+                dt = datetime.fromisoformat(d)
+                day = dt.strftime('%A')
+                dow_data[day]['count'] += 1
+                dow_data[day]['revenue'] += price
+                wk = d[:7]
+                weekly_data[wk]['count'] += 1
+                weekly_data[wk]['revenue'] += price
+            except Exception:
+                pass
+
+        # Price buckets
+        if price < 75: pb = '<$75'
+        elif price < 150: pb = '$75-150'
+        elif price < 300: pb = '$150-300'
+        elif price < 500: pb = '$300-500'
+        else: pb = '$500+'
+        price_buckets[pb]['count'] += 1
+        price_buckets[pb]['revenue'] += price
+        if dom is not None:
+            price_buckets[pb]['doms'].append(dom)
+
+        # DOM buckets
+        if dom is not None:
+            if dom <= 3: db = '0-3 days'
+            elif dom <= 7: db = '4-7 days'
+            elif dom <= 14: db = '8-14 days'
+            elif dom <= 30: db = '15-30 days'
+            else: db = '30+ days'
+            dom_buckets[db]['count'] += 1
+            dom_buckets[db]['revenue'] += price
+            dom_buckets[db]['prices'].append(price)
+
+    total_rev = sum(s['price'] for s in sold)
+    total_items = len(sold)
+
+    # Build category comparison JSON for Chart.js
+    cat_chart = {}
+    for cat, d in cats.items():
+        p = sorted(d['prices'])
+        cat_chart[cat] = {
+            'count': len(p),
+            'min': min(p), 'max': max(p),
+            'avg': round(sum(p)/len(p)),
+            'median': p[len(p)//2],
+            'avg_dom': round(sum(d['doms'])/len(d['doms'])) if d['doms'] else 0,
+            'revenue': round(sum(p)),
+            'fast': len([x for x in d['doms'] if x <= 7]),
+            'slow': len([x for x in d['doms'] if x > 21]),
+            'top_item': max(d['items'], key=lambda x: x['price']),
+            'fastest': min(d['items'], key=lambda x: x['dom'] if x['dom'] is not None else 999),
+        }
+
+    # Build HTML
+    # Category bars data
+    cat_names = list(cat_chart.keys())
+    cat_json = json.dumps(cat_chart)
+    dow_json = json.dumps(dict(dow_data))
+    weekly_json = json.dumps(dict(sorted(weekly_data.items())))
+    pb_json = json.dumps(dict(price_buckets))
+    db_json = json.dumps(dict(dom_buckets))
+
+    # Top 10 and bottom 10 sales
+    sorted_sales = sorted(sold, key=lambda x: x['price'], reverse=True)
+    top10 = sorted_sales[:10]
+    fast10 = sorted([s for s in sold if s.get('days_on_market') is not None], key=lambda x: x['days_on_market'])[:10]
+    slow10 = sorted([s for s in sold if s.get('days_on_market') is not None], key=lambda x: x['days_on_market'], reverse=True)[:10]
+
+    def item_rows(items):
+        return ''.join(f'<tr><td>{s["title"][:45]}</td><td class="r g b">${s["price"]:.0f}</td><td class="r">{s.get("days_on_market","--")}d</td><td class="d">{s.get("end_time","")[:10]}</td></tr>' for s in items)
+
+    html = f'''<!DOCTYPE html>
+<html><head><title>Performance Analysis</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+body {{ font-family:-apple-system,sans-serif; background:#000; color:#f5f5f7; padding:30px; max-width:1400px; margin:0 auto; }}
+h1 {{ font-size:28px; letter-spacing:-0.5px; margin-bottom:4px; }}
+h2 {{ font-size:18px; margin-top:32px; color:#86868b; margin-bottom:12px; }}
+.sub {{ font-size:13px; color:#86868b; margin-bottom:24px; }}
+.stats {{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px; }}
+.stat {{ background:#1c1c1e; border-radius:12px; padding:16px 20px; text-align:center; flex:1; min-width:120px; }}
+.stat .v {{ font-size:24px; font-weight:700; }}
+.stat .l {{ font-size:10px; color:#86868b; text-transform:uppercase; letter-spacing:0.8px; margin-top:4px; }}
+.charts {{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px; }}
+.chart-box {{ flex:1; min-width:300px; background:#1c1c1e; border-radius:14px; padding:20px; }}
+.chart-title {{ font-size:11px; color:#86868b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:10px; }}
+table {{ width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }}
+th {{ text-align:left; padding:8px; color:#86868b; font-size:9px; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.08); }}
+td {{ padding:8px; border-bottom:1px solid rgba(255,255,255,0.03); }}
+.r {{ text-align:right; font-variant-numeric:tabular-nums; }}
+.g {{ color:#30d158; }} .o {{ color:#ff9f0a; }} .rd {{ color:#ff453a; }} .d {{ color:#86868b; }} .b {{ font-weight:700; }}
+.insight {{ background:#1c1c1e; border-radius:10px; padding:14px; margin-bottom:8px; border-left:3px solid #0a84ff; font-size:13px; line-height:1.5; }}
+.cat-card {{ background:#1c1c1e; border-radius:12px; padding:16px; margin-bottom:10px; }}
+</style></head><body>
+<h1>Performance Analysis</h1>
+<div class="sub">{total_items} items sold · ${total_rev:,.0f} revenue · Last 60 days · Generated {datetime.now().strftime("%B %d, %Y")}</div>
+
+<div class="stats">
+    <div class="stat"><div class="v g">${total_rev:,.0f}</div><div class="l">Revenue</div></div>
+    <div class="stat"><div class="v">{total_items}</div><div class="l">Items Sold</div></div>
+    <div class="stat"><div class="v">${round(total_rev/max(total_items,1))}</div><div class="l">Avg Sale</div></div>
+    <div class="stat"><div class="v">{len(cats)}</div><div class="l">Categories</div></div>
+</div>
+
+<h2>Category Comparison — Price Ranges</h2>
+<div class="charts">
+    <div class="chart-box"><div class="chart-title">Price Range by Category</div><canvas id="cat-range-chart" height="250"></canvas></div>
+    <div class="chart-box"><div class="chart-title">Revenue by Category</div><canvas id="cat-rev-chart" height="250"></canvas></div>
+</div>
+
+<h2>Category Deep Dive</h2>
+{''.join(f"""<div class="cat-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:16px;font-weight:700;">{cat}</div>
+        <div style="font-size:22px;font-weight:800;color:#30d158;">${d['revenue']:,}</div>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:13px;color:#86868b;">
+        <span>{d['count']} sold</span>
+        <span>${d['min']}—${d['max']}</span>
+        <span>avg ${d['avg']}</span>
+        <span>median ${d['median']}</span>
+        <span>{d['avg_dom']}d avg</span>
+        <span style="color:#30d158;">{d['fast']} fast</span>
+        <span style="color:#ff453a;">{d['slow']} slow</span>
+    </div>
+    <div style="margin-top:6px;font-size:12px;">Top: {d['top_item']['title']} (${d['top_item']['price']:.0f}) · Fastest: {d['fastest']['title']} ({d['fastest']['dom']}d)</div>
+</div>""" for cat, d in sorted(cat_chart.items(), key=lambda x: -x[1]['revenue']))}
+
+<h2>When Things Sell</h2>
+<div class="charts">
+    <div class="chart-box"><div class="chart-title">Sales by Day of Week</div><canvas id="dow-chart" height="200"></canvas></div>
+    <div class="chart-box"><div class="chart-title">Weekly Revenue Trend</div><canvas id="weekly-chart" height="200"></canvas></div>
+</div>
+
+<h2>What Price Sells Fastest?</h2>
+<div class="charts">
+    <div class="chart-box"><div class="chart-title">Speed by Price Range</div><canvas id="price-speed-chart" height="200"></canvas></div>
+    <div class="chart-box"><div class="chart-title">Revenue by Days on Market</div><canvas id="dom-rev-chart" height="200"></canvas></div>
+</div>
+
+<h2>Top 10 Sales</h2>
+<table><tr><th>Item</th><th class="r">Price</th><th class="r">DOM</th><th>Date</th></tr>{item_rows(top10)}</table>
+
+<h2>10 Fastest Sales</h2>
+<table><tr><th>Item</th><th class="r">Price</th><th class="r">DOM</th><th>Date</th></tr>{item_rows(fast10)}</table>
+
+<h2>10 Slowest Sales</h2>
+<table><tr><th>Item</th><th class="r">Price</th><th class="r">DOM</th><th>Date</th></tr>{item_rows(slow10)}</table>
+
+<script>
+const catData = {cat_json};
+const dowData = {dow_json};
+const weeklyData = {weekly_json};
+const pbData = {pb_json};
+const dbData = {db_json};
+
+// Category range chart
+const catNames = Object.keys(catData).sort((a,b) => catData[b].revenue - catData[a].revenue);
+new Chart(document.getElementById('cat-range-chart'), {{
+    type: 'bar',
+    data: {{
+        labels: catNames,
+        datasets: [
+            {{label:'Min', data:catNames.map(c=>catData[c].min), backgroundColor:'rgba(134,134,139,0.3)', borderRadius:4}},
+            {{label:'Avg', data:catNames.map(c=>catData[c].avg), backgroundColor:'#0a84ff', borderRadius:4}},
+            {{label:'Max', data:catNames.map(c=>catData[c].max), backgroundColor:'rgba(48,209,88,0.5)', borderRadius:4}},
+        ]
+    }},
+    options: {{responsive:true, plugins:{{legend:{{labels:{{color:'#86868b'}}}}}}, scales:{{x:{{ticks:{{color:'#86868b'}},grid:{{display:false}}}}, y:{{ticks:{{color:'#86868b',callback:v=>'$'+v}},grid:{{color:'rgba(255,255,255,0.04)'}}}}}}}}
+}});
+
+// Revenue by category
+new Chart(document.getElementById('cat-rev-chart'), {{
+    type: 'doughnut',
+    data: {{
+        labels: catNames.map(c => c + ' $' + catData[c].revenue.toLocaleString()),
+        datasets: [{{data:catNames.map(c=>catData[c].revenue), backgroundColor:['#0a84ff','#30d158','#ff9f0a','#ff453a','#bf5af2','#ffd60a','#86868b'], borderWidth:0}}]
+    }},
+    options: {{responsive:true, cutout:'55%', plugins:{{legend:{{position:'right',labels:{{color:'#86868b',font:{{size:10}},padding:6}}}}}}}}
+}});
+
+// Day of week
+const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+new Chart(document.getElementById('dow-chart'), {{
+    type: 'bar',
+    data: {{
+        labels: days.map(d=>d.substring(0,3)),
+        datasets: [
+            {{label:'Items', data:days.map(d=>(dowData[d]||{{}}).count||0), backgroundColor:'#0a84ff', borderRadius:4, yAxisID:'y'}},
+            {{label:'Revenue', data:days.map(d=>(dowData[d]||{{}}).revenue||0), type:'line', borderColor:'#30d158', pointRadius:4, yAxisID:'y1'}}
+        ]
+    }},
+    options: {{responsive:true, plugins:{{legend:{{labels:{{color:'#86868b'}}}}}},
+        scales:{{x:{{ticks:{{color:'#86868b'}},grid:{{display:false}}}},
+            y:{{ticks:{{color:'#86868b'}},grid:{{color:'rgba(255,255,255,0.04)'}}}},
+            y1:{{position:'right',ticks:{{color:'#86868b',callback:v=>'$'+(v/1000).toFixed(0)+'k'}},grid:{{display:false}}}}}}}}
+}});
+
+// Weekly trend
+const weeks = Object.keys(weeklyData);
+new Chart(document.getElementById('weekly-chart'), {{
+    type: 'line',
+    data: {{labels:weeks, datasets:[{{data:weeks.map(w=>weeklyData[w].revenue), borderColor:'#30d158', backgroundColor:'rgba(48,209,88,0.1)', fill:true, tension:0.4, pointRadius:3}}]}},
+    options: {{responsive:true, plugins:{{legend:{{display:false}}}}, scales:{{x:{{ticks:{{color:'#86868b'}},grid:{{display:false}}}}, y:{{ticks:{{color:'#86868b',callback:v=>'$'+v}},grid:{{color:'rgba(255,255,255,0.04)'}}}}}}}}
+}});
+
+// Price vs speed
+const pbs = ['<$75','$75-150','$150-300','$300-500','$500+'];
+new Chart(document.getElementById('price-speed-chart'), {{
+    type: 'bar',
+    data: {{
+        labels: pbs,
+        datasets: [{{label:'Avg Days', data:pbs.map(p=>{{const d=pbData[p]; return d&&d.doms&&d.doms.length ? Math.round(d.doms.reduce((a,b)=>a+b,0)/d.doms.length) : 0;}}), backgroundColor:pbs.map((p,i)=>['#30d158','#30d158','#0a84ff','#ff9f0a','#ff453a'][i]), borderRadius:4}}]
+    }},
+    options: {{responsive:true, plugins:{{legend:{{display:false}}}}, scales:{{x:{{ticks:{{color:'#86868b'}},grid:{{display:false}}}}, y:{{ticks:{{color:'#86868b',callback:v=>v+'d'}},grid:{{color:'rgba(255,255,255,0.04)'}}}}}}}}
+}});
+
+// DOM vs revenue
+const dbs = ['0-3 days','4-7 days','8-14 days','15-30 days','30+ days'];
+new Chart(document.getElementById('dom-rev-chart'), {{
+    type: 'bar',
+    data: {{
+        labels: dbs,
+        datasets: [{{label:'Revenue', data:dbs.map(d=>(dbData[d]||{{}}).revenue||0), backgroundColor:'#0a84ff', borderRadius:4}},
+                   {{label:'Items', data:dbs.map(d=>(dbData[d]||{{}}).count||0), type:'line', borderColor:'#ff9f0a', pointRadius:4, yAxisID:'y1'}}]
+    }},
+    options: {{responsive:true, plugins:{{legend:{{labels:{{color:'#86868b'}}}}}},
+        scales:{{x:{{ticks:{{color:'#86868b'}},grid:{{display:false}}}},
+            y:{{ticks:{{color:'#86868b',callback:v=>'$'+v}},grid:{{color:'rgba(255,255,255,0.04)'}}}},
+            y1:{{position:'right',ticks:{{color:'#86868b'}},grid:{{display:false}}}}}}}}
+}});
+</script>
+</body></html>'''
+
+    return html, 200, {'Content-Type': 'text/html'}
 
 
 @app.route('/reports/sales')

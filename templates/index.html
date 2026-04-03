@@ -6,6 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>DATARADAR</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#000000">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -125,41 +127,80 @@
                     <button class="btn-primary btn" style="padding:8px 16px;font-size:13px;" onclick="runSearch()">Go</button>
                 </div>
                 <div id="search-results" style="margin-top:12px;"></div>
+                <!-- Natural language query -->
+                <div style="margin-top:8px;">
+                    <div class="search" style="background:rgba(10,132,255,0.05);border-color:rgba(10,132,255,0.2);">
+                        <span style="font-size:14px;">🧠</span>
+                        <input type="text" id="nlq-input" placeholder="Ask anything — 'Show me every peace print over $300 last year'">
+                        <button class="btn-primary btn" style="padding:8px 16px;font-size:13px;" onclick="askQuestion()">Ask</button>
+                    </div>
+                    <div id="nlq-result" style="margin-top:8px;"></div>
+                </div>
             </div>
 
-            <!-- THE BIG BUTTON -->
-            <div class="section">
-                <button class="btn btn-green btn-big" onclick="applySpeedHigh()">
-                    ⚡ Apply Speed High to All Listings
-                </button>
-                <div id="speed-status" style="text-align:center;margin-top:8px;font-size:12px;color:var(--dim);"></div>
+            <!-- Action row -->
+            <div class="section" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-green" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High — All Listings</button>
+                <button class="btn btn-primary" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Scan Competitors</button>
+                <div id="speed-status" style="width:100%;text-align:center;font-size:12px;color:var(--dim);"></div>
             </div>
 
-            <!-- Health + Forecast -->
-            <div class="grid grid-3">
-                <div class="card card-click" onclick="showTab('inventory')">
-                    <div class="stat-val g" id="d-health">--</div>
-                    <div class="stat-lbl">Health Score</div>
+            <!-- Health + Revenue side by side -->
+            <div class="section" style="display:flex;gap:12px;flex-wrap:wrap;">
+                <!-- Left: key numbers -->
+                <div style="flex:1;min-width:200px;">
+                    <div class="grid grid-2" style="padding:0;">
+                        <div class="card card-click" onclick="showTab('inventory')">
+                            <div class="stat-val" id="d-health" style="font-size:36px;">--</div>
+                            <div class="stat-lbl">Health</div>
+                            <div style="height:4px;background:var(--border);border-radius:2px;margin-top:6px;"><div id="d-health-bar" style="height:100%;border-radius:2px;width:0%;transition:width 1s;"></div></div>
+                        </div>
+                        <div class="card card-click" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100);">
+                            <div class="stat-val g" id="d-revenue">--</div>
+                            <div class="stat-lbl">Revenue (60d)</div>
+                        </div>
+                        <div class="card card-click" onclick="drill('sell_now')">
+                            <div class="stat-val" style="color:var(--purple);" id="d-sellnow">--</div>
+                            <div class="stat-lbl">Sell Now</div>
+                        </div>
+                        <div class="card card-click" onclick="showTab('inventory')">
+                            <div class="stat-val" id="d-forecast">--</div>
+                            <div class="stat-lbl">30d Forecast</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card card-click" onclick="showTab('inventory')">
-                    <div class="stat-val" id="d-listings">--</div>
-                    <div class="stat-lbl">Active Listings</div>
+                <!-- Right: revenue trend chart -->
+                <div class="card" style="flex:1;min-width:280px;">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Weekly Revenue</div>
+                    <canvas id="dash-rev-chart" height="130"></canvas>
                 </div>
-                <div class="card card-click" onclick="showTab('reports')">
-                    <div class="stat-val g" id="d-revenue">--</div>
-                    <div class="stat-lbl">Revenue (60d)</div>
+            </div>
+
+            <!-- Key ratios row -->
+            <div class="grid grid-3" style="margin-top:-8px;">
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;" id="d-listings">--</div>
+                    <div class="stat-lbl">Listings</div>
                 </div>
-                <div class="card card-click" onclick="showTab('promos')">
-                    <div class="stat-val o" id="d-adspend">--</div>
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:var(--orange);" id="d-adspend">--</div>
                     <div class="stat-lbl">Ad Spend</div>
                 </div>
-                <div class="card card-click" onclick="drill('sell_now')">
-                    <div class="stat-val" style="color:var(--purple);" id="d-sellnow">--</div>
-                    <div class="stat-lbl">Sell Now</div>
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;" id="d-velocity">--</div>
+                    <div class="stat-lbl">Items/Day</div>
                 </div>
-                <div class="card card-click" onclick="showTab('inventory')">
-                    <div class="stat-val" id="d-forecast">--</div>
-                    <div class="stat-lbl">30d Forecast</div>
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;" id="d-avgprice">--</div>
+                    <div class="stat-lbl">Avg Sale</div>
+                </div>
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;" id="d-watchers">--</div>
+                    <div class="stat-lbl">Watchers</div>
+                </div>
+                <div class="card" style="text-align:center;">
+                    <div style="font-size:18px;font-weight:700;" id="d-promoted">--</div>
+                    <div class="stat-lbl">Promoted %</div>
                 </div>
             </div>
 
@@ -182,6 +223,76 @@
                     <button class="btn-ghost" onclick="showTab('reports')">See Calendar</button>
                 </div>
                 <div id="d-events" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
+            </div>
+
+            <!-- Sell This Week -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Sell This Week</div>
+                    <button class="btn-ghost" onclick="loadSellThisWeek()">Refresh</button>
+                </div>
+                <div id="d-sellweek"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+
+            <!-- Price Sniper -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">🎯 Price Sniper — Competitor Undercuts</div>
+                    <button class="btn-ghost" onclick="loadSniper()">Rescan</button>
+                </div>
+                <div id="d-sniper"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+
+            <!-- Buyer Outreach -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Buyer Outreach</div>
+                </div>
+                <div id="d-outreach"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+
+            <!-- Trends + Arbitrage -->
+            <div class="section">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div class="card" style="flex:1;min-width:250px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Appreciating Prints</div>
+                        <div id="d-appreciate"></div>
+                    </div>
+                    <div class="card" style="flex:1;min-width:250px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Cross-Platform Opportunities</div>
+                        <div id="d-arbitrage"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auction Alerts -->
+            <div class="section">
+                <div class="section-title">Auction Calendar</div>
+                <div id="d-auctions"></div>
+            </div>
+
+            <!-- Feedback Dashboard -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">📝 Feedback</div>
+                    <button class="btn-ghost" onclick="loadFeedbackDash()">Load</button>
+                </div>
+
+                <div id="fb-stats" style="display:flex;gap:8px;margin-bottom:12px;font-size:12px;color:var(--dim);"></div>
+
+                <div class="chips" id="fb-chips" style="margin-bottom:8px;">
+                    <button class="chip active" onclick="showFbTab('buyers');document.querySelectorAll('#fb-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">For Buyers (you sold)</button>
+                    <button class="chip" onclick="showFbTab('sellers');document.querySelectorAll('#fb-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">For Sellers (you bought)</button>
+                </div>
+
+                <div id="fb-buyers" style="font-size:12px;color:var(--dim);">Click "Load" to see pending feedback</div>
+                <div id="fb-sellers" style="display:none;font-size:12px;color:var(--dim);">Click "Load" to see pending feedback</div>
+
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button class="btn btn-primary" style="padding:8px 16px;font-size:12px;" onclick="generateAllFeedback()">Generate AI Feedback</button>
+                    <button class="btn btn-green" style="padding:8px 16px;font-size:12px;" onclick="submitAllFeedback()">Submit All to eBay</button>
+                </div>
+                <div id="fb-status" style="margin-top:8px;font-size:12px;"></div>
             </div>
 
             <!-- Automation -->
@@ -216,6 +327,7 @@
                         <option value="watchers">Watchers</option>
                     </select>
                     <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
+                    <button class="btn-ghost" onclick="showCostBasis()">Set Costs</button>
                     <button class="btn-ghost" onclick="exportInv()">Export</button>
                 </div>
 
@@ -275,6 +387,9 @@
                     <button class="chip" data-rtab="deep" onclick="showRTab('deep')">Deep Analytics</button>
                     <button class="chip" data-rtab="pnl" onclick="showRTab('pnl')">P&L</button>
                     <button class="chip" data-rtab="market" onclick="showRTab('market')">vs Market</button>
+                    <button class="chip" data-rtab="historical" onclick="showRTab('historical')">132k Historical</button>
+                    <button class="chip" data-rtab="allsales" onclick="showRTab('allsales')">All My Sales</button>
+                    <button class="chip" data-rtab="whatworked" onclick="showRTab('whatworked')">What Worked</button>
                 </div>
             </div>
 
@@ -283,6 +398,9 @@
             <div class="section" id="rtab-deep" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="rtab-pnl" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="rtab-market" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-historical" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-allsales" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="rtab-whatworked" style="display:none;"><div style="text-align:center;padding:20px;"><a href="/reports/what-worked" target="_blank" class="btn btn-primary" style="font-size:16px;padding:16px 32px;">Open Full "What Worked" Report →</a><div style="margin-top:8px;font-size:12px;color:var(--dim);">Every sale, line by line, with category verdicts and profit analysis</div></div></div>
         </div>
     </div>
 
@@ -366,13 +484,37 @@
                 const resp = await fetch('/api/executive');
                 const d = await resp.json();
 
+                const hc = d.health_score >= 70 ? 'var(--green)' : d.health_score >= 40 ? 'var(--orange)' : 'var(--red)';
                 document.getElementById('d-health').textContent = d.health_score;
-                document.getElementById('d-health').style.color = d.health_score >= 70 ? 'var(--green)' : d.health_score >= 40 ? 'var(--orange)' : 'var(--red)';
+                document.getElementById('d-health').style.color = hc;
+                const hbar = document.getElementById('d-health-bar');
+                if (hbar) { hbar.style.width = d.health_score + '%'; hbar.style.background = hc; }
+
                 document.getElementById('d-listings').textContent = d.stats.total_listings;
                 document.getElementById('d-revenue').textContent = '$' + (d.stats.total_revenue_60d / 1000).toFixed(1) + 'k';
-                document.getElementById('d-adspend').textContent = '$' + Math.round(d.forecast.current_pace.revenue * 0.05); // estimate
+                document.getElementById('d-adspend').textContent = '$' + Math.round(d.forecast.current_pace.revenue * 0.05);
                 document.getElementById('d-sellnow').textContent = d.quick_wins.filter(w => w.type === 'sell_now').length || d.stats.total_sold_60d;
                 document.getElementById('d-forecast').textContent = d.forecast.current_pace.items + ' items';
+                document.getElementById('d-velocity').textContent = d.forecast.velocity + '/day';
+                document.getElementById('d-avgprice').textContent = '$' + d.forecast.avg_price;
+                document.getElementById('d-watchers').textContent = d.stats.with_watchers;
+                document.getElementById('d-promoted').textContent = Math.round(d.stats.promoted / Math.max(d.stats.total_listings, 1) * 100) + '%';
+
+                // Revenue trend chart
+                const trend = d.revenue_trend || {};
+                const weeks = Object.keys(trend).sort();
+                if (weeks.length) {
+                    const ctx = document.getElementById('dash-rev-chart');
+                    if (ctx) {
+                        new Chart(ctx, {
+                            type:'line', data:{labels:weeks.map(w=>w.substring(5)),
+                                datasets:[{data:weeks.map(w=>trend[w].revenue), borderColor:'#30d158', backgroundColor:'rgba(48,209,88,0.08)', fill:true, tension:0.4, pointRadius:3, borderWidth:2}]},
+                            options:{responsive:true, plugins:{legend:{display:false}},
+                                scales:{x:{ticks:{color:'#86868b',font:{size:9}},grid:{display:false}},
+                                    y:{ticks:{color:'#86868b',callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                        });
+                    }
+                }
 
                 // Brief
                 document.getElementById('d-brief').innerHTML = d.brief.map(b =>
@@ -410,7 +552,309 @@
                 // Time
                 document.getElementById('dash-time').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
 
+                // Load features
+                loadSellThisWeek();
+                loadSniper();
+                loadOutreach();
+                loadTrendsAndArbitrage();
+                loadAuctions();
+
             } catch (e) { console.error('Dashboard error:', e); }
+        }
+
+        // Natural Language Query
+        async function askQuestion() {
+            const q = document.getElementById('nlq-input').value.trim();
+            if (!q) return;
+            const el = document.getElementById('nlq-result');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/query', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})});
+                const d = await resp.json();
+                el.innerHTML = `<div class="card" style="border-left:3px solid var(--accent);">
+                    <div style="font-size:13px;line-height:1.6;">${d.answer || 'No answer'}</div>
+                    <div style="font-size:10px;color:var(--dim);margin-top:6px;">Searched ${(d.records_searched||0).toLocaleString()} records</div>
+                </div>`;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Query failed</div>'; }
+        }
+        document.getElementById('nlq-input')?.addEventListener('keypress', e => { if (e.key === 'Enter') askQuestion(); });
+
+        // Cost Basis Bulk Input
+        async function showCostBasis() {
+            const cats = ['Shepard Fairey', 'Death NYC', 'Banksy', 'KAWS', 'Space/NASA'];
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = 'Set Cost Basis by Category';
+            content.innerHTML = `<div style="font-size:13px;color:var(--dim);margin-bottom:12px;">Set what you paid on average per category. This fixes profit calculations.</div>
+                ${cats.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-weight:600;">${c}</span>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="d">Avg cost $</span>
+                        <input type="number" id="cb-${c.replace(/[^a-zA-Z]/g,'')}" value="0" min="0" style="width:80px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px;font-size:13px;text-align:center;">
+                        <button onclick="setCatCost('${c}','cb-${c.replace(/[^a-zA-Z]/g,'')}')" class="btn" style="background:var(--green);color:#000;padding:4px 12px;font-size:11px;">Set</button>
+                    </div>
+                </div>`).join('')}
+                <div id="cb-status" style="margin-top:12px;font-size:12px;"></div>`;
+            modal.classList.add('show');
+        }
+
+        async function setCatCost(cat, inputId) {
+            const cost = parseFloat(document.getElementById(inputId)?.value) || 0;
+            if (!cost) { toast('Enter a cost'); return; }
+            const resp = await fetch('/api/cost-basis/bulk', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, category_cost:cost})});
+            const d = await resp.json();
+            document.getElementById('cb-status').innerHTML = `<span class="g">${d.updated} ${cat} items set to $${cost} cost basis</span>`;
+            toast(`${d.updated} items updated`);
+        }
+
+        // Feedback Dashboard
+        let fbOverview = null;
+        let fbGenerated = {buyers: [], sellers: []};
+
+        async function loadFeedbackDash() {
+            const statsEl = document.getElementById('fb-stats');
+            statsEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/feedback/overview');
+                fbOverview = await resp.json();
+
+                statsEl.innerHTML = `
+                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val">${fbOverview.total}</div><div class="stat-lbl">Total Pending</div></div>
+                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val g">${fbOverview.total_buyer_feedback}</div><div class="stat-lbl">For Buyers (you sold)</div></div>
+                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val" style="color:var(--accent);">${fbOverview.total_seller_feedback}</div><div class="stat-lbl">For Sellers (you bought)</div></div>
+                `;
+
+                // Render buyer list
+                renderFbList('buyers', fbOverview.for_buyers || []);
+                renderFbList('sellers', fbOverview.for_sellers || []);
+
+            } catch(e) { statsEl.innerHTML = '<div class="d">Failed to load</div>'; }
+        }
+
+        function renderFbList(type, items) {
+            const el = document.getElementById('fb-' + type);
+            if (!items.length) { el.innerHTML = '<div class="d" style="font-size:12px;">None pending</div>'; return; }
+
+            el.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} ${type === 'buyers' ? 'buyers to thank' : 'sellers to review'}</div>` +
+                items.map((item, i) => {
+                    const name = type === 'buyers' ? item.buyer : item.seller;
+                    const prefix = type === 'buyers' ? 'fb-b' : 'fb-s';
+                    return `<div class="card" style="margin-bottom:4px;display:flex;align-items:center;gap:10px;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:12px;font-weight:500;" title="${item.title}">${item.title}</div>
+                            <div style="font-size:10px;color:var(--dim);">$${item.price} · ${name}</div>
+                        </div>
+                        <input type="text" id="${prefix}-${i}" value="" placeholder="AI will fill this..." maxlength="80" style="flex:2;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font-size:12px;">
+                    </div>`;
+                }).join('');
+        }
+
+        function showFbTab(tab) {
+            document.getElementById('fb-buyers').style.display = tab === 'buyers' ? 'block' : 'none';
+            document.getElementById('fb-sellers').style.display = tab === 'sellers' ? 'block' : 'none';
+        }
+
+        async function generateAllFeedback() {
+            if (!fbOverview) { toast('Load feedback first'); return; }
+            toast('Generating AI feedback... Claude writes → GPT edits');
+
+            // Generate for buyers
+            if (fbOverview.for_buyers?.length) {
+                try {
+                    const resp = await fetch('/api/feedback/generate', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({items: fbOverview.for_buyers.map(i => ({...i, role: 'seller'}))})
+                    });
+                    const d = await resp.json();
+                    fbGenerated.buyers = d.feedback || [];
+                    fbGenerated.buyers.forEach((f, i) => {
+                        const input = document.getElementById('fb-b-' + i);
+                        if (input) input.value = f.final;
+                    });
+                } catch(e) {}
+            }
+
+            // Generate for sellers
+            if (fbOverview.for_sellers?.length) {
+                try {
+                    const resp = await fetch('/api/feedback/generate', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({items: fbOverview.for_sellers.map(i => ({...i, role: 'buyer'}))})
+                    });
+                    const d = await resp.json();
+                    fbGenerated.sellers = d.feedback || [];
+                    fbGenerated.sellers.forEach((f, i) => {
+                        const input = document.getElementById('fb-s-' + i);
+                        if (input) input.value = f.final;
+                    });
+                } catch(e) {}
+            }
+
+            toast('All feedback generated — review and submit');
+        }
+
+        async function submitAllFeedback() {
+            if (!fbOverview) { toast('Load feedback first'); return; }
+
+            const feedbacks = [];
+
+            // Buyer feedback
+            (fbOverview.for_buyers || []).forEach((item, i) => {
+                const input = document.getElementById('fb-b-' + i);
+                if (input?.value) {
+                    feedbacks.push({item_id: item.item_id, buyer: item.buyer, comment: input.value, transaction_id: item.transaction_id});
+                }
+            });
+
+            // Seller feedback
+            (fbOverview.for_sellers || []).forEach((item, i) => {
+                const input = document.getElementById('fb-s-' + i);
+                if (input?.value) {
+                    feedbacks.push({item_id: item.item_id, buyer: item.seller, comment: input.value, transaction_id: item.transaction_id});
+                }
+            });
+
+            if (!feedbacks.length) { toast('No feedback to submit — generate first'); return; }
+
+            toast(`Submitting ${feedbacks.length} feedback to eBay...`);
+            try {
+                const resp = await fetch('/api/feedback/submit', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({feedbacks})
+                });
+                const d = await resp.json();
+                const statusEl = document.getElementById('fb-status');
+                statusEl.innerHTML = `<span class="g b">${d.submitted} submitted</span>${d.failed ? ` · <span class="rd">${d.failed} failed</span>` : ''}`;
+                toast(`${d.submitted} feedback posted to eBay`);
+            } catch(e) { toast('Submit failed'); }
+        }
+
+        // Features 1-6
+        async function loadSellThisWeek() {
+            const el = document.getElementById('d-sellweek');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const resp = await fetch('/api/sell-this-week');
+                const d = await resp.json();
+                el.innerHTML = (d.picks || []).map(p => `
+                    <div class="card card-click" style="margin-bottom:6px;border-left:3px solid ${p.score>=40?'var(--green)':p.score>=20?'var(--orange)':'var(--dim)'};" onclick="${p.url ? `window.open('${p.url}','_blank')` : ''}">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="flex:1;">
+                                <div style="font-size:13px;font-weight:500;">${p.title}</div>
+                                <div style="font-size:11px;color:var(--dim);margin-top:2px;">${p.reasons.join(' · ')}</div>
+                            </div>
+                            <div style="text-align:right;margin-left:12px;">
+                                <div style="font-size:16px;font-weight:700;color:var(--green);">$${Math.round(p.price)}</div>
+                                <div style="font-size:10px;color:var(--dim);">${p.watchers}w · ${p.suggested_rate}%</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) { el.innerHTML = '<div class="d">Failed to load</div>'; }
+        }
+
+        async function loadSniper() {
+            const el = document.getElementById('d-sniper');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            toast('Scanning competitors...');
+            try {
+                const resp = await fetch('/api/price-sniper');
+                const d = await resp.json();
+                if (!d.undercuts?.length) {
+                    el.innerHTML = '<div style="color:var(--green);font-size:13px;">No undercuts found — you\'re competitively priced</div>';
+                    return;
+                }
+                el.innerHTML = d.undercuts.map(u => `
+                    <div class="card" style="margin-bottom:6px;border-left:3px solid var(--red);">
+                        <div style="font-size:13px;font-weight:500;">${u.title}</div>
+                        <div style="display:flex;gap:16px;margin-top:4px;font-size:12px;">
+                            <span>You: <b>$${u.your_price}</b></span>
+                            <span style="color:var(--red);">Comp: <b>$${u.cheapest_comp}</b> (-$${u.undercut_by})</span>
+                            <span style="color:var(--accent);">Suggest: <b>$${Math.round(u.suggested_price)}</b></span>
+                        </div>
+                        <div style="margin-top:4px;">
+                            <button onclick="acceptPrice('${u.listing_id}',${u.suggested_price})" class="btn" style="background:var(--accent);color:#fff;padding:3px 10px;font-size:10px;">Match</button>
+                            <a href="${u.comp_url}" target="_blank" style="color:var(--dim);font-size:10px;margin-left:8px;">View comp</a>
+                        </div>
+                    </div>
+                `).join('');
+                toast(d.undercut_count + ' undercuts found');
+            } catch(e) { el.innerHTML = '<div class="d">Scan failed</div>'; }
+        }
+
+        async function loadOutreach() {
+            const el = document.getElementById('d-outreach');
+            try {
+                const resp = await fetch('/api/buyer-outreach');
+                const d = await resp.json();
+                if (!d.candidates?.length) {
+                    el.innerHTML = '<div style="font-size:12px;color:var(--dim);">No outreach candidates — items are fresh</div>';
+                    return;
+                }
+                el.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:8px;">${d.total} items with watchers sitting 14+ days</div>` +
+                    d.candidates.slice(0, 5).map(c => `
+                    <div class="card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                        <div><div style="font-size:12px;">${c.title}</div><div style="font-size:11px;color:var(--dim);">${c.watchers}w · ${c.days_listed}d listed</div></div>
+                        <div style="text-align:right;"><div style="font-size:13px;font-weight:700;color:var(--orange);">$${c.offer_price}</div><div style="font-size:10px;color:var(--dim);">${c.discount_pct}% off</div></div>
+                    </div>
+                `).join('');
+            } catch(e) { el.innerHTML = '<div class="d">Failed</div>'; }
+        }
+
+        async function loadTrendsAndArbitrage() {
+            // Trends
+            try {
+                const resp = await fetch('/api/trends');
+                const d = await resp.json();
+                const el = document.getElementById('d-appreciate');
+                el.innerHTML = (d.appreciating || []).slice(0, 5).map(t => `
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</span>
+                        <span style="color:var(--green);font-weight:700;margin-left:8px;">+${t.change_pct}%</span>
+                    </div>
+                `).join('') || '<div class="d" style="font-size:12px;">Loading trends...</div>';
+            } catch(e) {}
+
+            // Arbitrage
+            try {
+                const resp = await fetch('/api/arbitrage');
+                const d = await resp.json();
+                const el = document.getElementById('d-arbitrage');
+                if (d.opportunities?.length) {
+                    el.innerHTML = d.opportunities.slice(0, 5).map(o => `
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.title}</span>
+                            <span style="color:var(--green);font-weight:700;margin-left:8px;">+$${o.extra_profit} on ${o.platform}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    el.innerHTML = '<div class="d" style="font-size:12px;">No arbitrage opportunities</div>';
+                }
+            } catch(e) {}
+        }
+
+        async function loadAuctions() {
+            try {
+                const resp = await fetch('/api/auction-alerts');
+                const d = await resp.json();
+                const el = document.getElementById('d-auctions');
+                if (!d.auctions?.length) {
+                    el.innerHTML = '<div style="font-size:12px;color:var(--dim);">No upcoming auctions</div>';
+                    return;
+                }
+                el.innerHTML = d.auctions.slice(0, 6).map(a => `
+                    <div class="card" style="margin-bottom:6px;border-left:3px solid ${a.past ? 'var(--dim)' : 'var(--accent)'};">
+                        <div style="display:flex;justify-content:space-between;">
+                            <div style="font-size:13px;font-weight:500;">${a.title}</div>
+                            <div style="font-size:12px;color:var(--dim);">${a.date}</div>
+                        </div>
+                        <div style="font-size:11px;color:${a.past ? 'var(--orange)' : 'var(--accent)'};">${a.action}</div>
+                    </div>
+                `).join('');
+            } catch(e) {}
         }
 
         async function applySpeedHigh() {
@@ -731,7 +1175,7 @@
         function showRTab(tab) {
             document.querySelectorAll('[data-rtab]').forEach(c => c.classList.remove('active'));
             document.querySelector(`[data-rtab="${tab}"]`).classList.add('active');
-            ['deals','calendar','deep','pnl','market'].forEach(t => {
+            ['deals','calendar','deep','pnl','market','historical','allsales','whatworked'].forEach(t => {
                 document.getElementById('rtab-'+t).style.display = t===tab ? 'block' : 'none';
             });
             loadReportTab(tab);
@@ -828,8 +1272,118 @@
                         ${d.dead_stock?.length ? `<div class="section-title" style="margin-top:12px;">Dead Stock (${d.dead_stock_total} items, $${(d.dead_stock_value||0).toLocaleString()})</div><div class="table-wrap"><table><thead><tr><th>Item</th><th class="r">Price</th><th class="r">Days</th></tr></thead><tbody>${d.dead_stock.slice(0,10).map(s => `<tr><td class="trunc">${s.title}</td><td class="r">$${s.price}</td><td class="r rd b">${s.days}d</td></tr>`).join('')}</tbody></table></div>` : ''}`;
 
                 } else if (tab === 'market') {
-                    el.innerHTML = '<div style="text-align:center;padding:20px;"><a href="/reports/vs-market" target="_blank" class="btn btn-primary">Open Market Comparison →</a></div>';
+                    el.innerHTML = '<div style="text-align:center;padding:20px;"><a href="/reports/vs-market" target="_blank" class="btn btn-primary">Open Market Comparison →</a> <a href="/reports/performance" target="_blank" class="btn btn-primary" style="margin-left:8px;">Full Performance →</a></div>';
                     reportsLoaded.market = true;
+
+                } else if (tab === 'historical') {
+                    const resp = await fetch('/api/historical-analysis');
+                    const d = await resp.json();
+                    reportsLoaded.historical = d;
+
+                    const themes = d.themes || {};
+                    const years = d.year_trends || {};
+                    const mediums = d.mediums || {};
+                    const titles = d.top_titles || [];
+
+                    el.innerHTML = `
+                        <div class="stats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val">${(d.total_records||0).toLocaleString()}</div><div class="stat-lbl">Total Records</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val g">$${d.price_stats?.median||0}</div><div class="stat-lbl">Median Price</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val">$${d.price_stats?.avg||0}</div><div class="stat-lbl">Average</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val o">+${d.signed_premium||0}%</div><div class="stat-lbl">Signed Premium</div></div>
+                        </div>
+
+                        <div class="section-title">Theme Performance (click to drill)</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Theme</th><th class="r">Sales</th><th class="r">Median</th><th class="r">Avg</th><th class="r">Range</th></tr></thead>
+                            <tbody>${Object.entries(themes).sort((a,b)=>b[1].median-a[1].median).map(([t,v]) =>
+                                `<tr onclick="drillHistorical('${t}')" style="cursor:pointer;">
+                                    <td class="b">${t}</td><td class="r">${v.count}</td>
+                                    <td class="r g b">$${v.median}</td><td class="r">$${v.avg}</td>
+                                    <td class="r d">$${v.min}—$${v.max}</td></tr>`
+                            ).join('')}</tbody></table></div>
+
+                        <div class="section-title" style="margin-top:16px;">Price Trend by Year</div>
+                        <canvas id="hist-year-chart" height="200" style="margin-bottom:16px;"></canvas>
+
+                        <div class="section-title">Medium Comparison</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Medium</th><th class="r">Sales</th><th class="r">Median</th><th class="r">Avg</th></tr></thead>
+                            <tbody>${Object.entries(mediums).sort((a,b)=>b[1].count-a[1].count).map(([m,v]) =>
+                                `<tr><td class="b">${m}</td><td class="r">${v.count}</td><td class="r g">$${v.median}</td><td class="r">$${v.avg}</td></tr>`
+                            ).join('')}</tbody></table></div>
+
+                        <div class="section-title" style="margin-top:16px;">Top Performing Titles (click for price history)</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Title</th><th class="r">Sales</th><th class="r">Median</th><th class="r">Range</th><th class="r">Signed%</th></tr></thead>
+                            <tbody>${titles.map(t =>
+                                `<tr onclick="drillHistoricalItem('${t.title.replace(/'/g,'')}')" style="cursor:pointer;">
+                                    <td>${t.title}</td><td class="r">${t.sales}</td>
+                                    <td class="r g b">$${t.median}</td><td class="r d">$${t.min}—$${t.max}</td>
+                                    <td class="r">${t.signed_pct}%</td></tr>`
+                            ).join('')}</tbody></table></div>
+                    `;
+
+                    // Year trend chart
+                    setTimeout(() => {
+                        const yrs = Object.keys(years).sort();
+                        const ctx = document.getElementById('hist-year-chart');
+                        if (ctx && yrs.length) {
+                            new Chart(ctx, {
+                                type:'bar', data:{labels:yrs, datasets:[
+                                    {label:'Median', data:yrs.map(y=>years[y].median), backgroundColor:'#0a84ff', borderRadius:4, yAxisID:'y'},
+                                    {label:'Volume', data:yrs.map(y=>years[y].count), type:'line', borderColor:'#ff9f0a', pointRadius:3, yAxisID:'y1'}
+                                ]},
+                                options:{responsive:true, plugins:{legend:{labels:{color:'#86868b'}}},
+                                    scales:{x:{ticks:{color:'#86868b'},grid:{display:false}},
+                                        y:{ticks:{color:'#86868b',callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}},
+                                        y1:{position:'right',ticks:{color:'#86868b'},grid:{display:false}}}}
+                            });
+                        }
+                    }, 100);
+
+                } else if (tab === 'allsales') {
+                    // ALL my sales — every single one, not top 10
+                    const resp = await fetch('/api/analytics/sales-history');
+                    const d = await resp.json();
+                    reportsLoaded.allsales = d;
+                    const items = d.items || [];
+
+                    el.innerHTML = `
+                        <div class="stats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val g">${d.total_sold}</div><div class="stat-lbl">Total Sold</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val">$${Math.round(d.total_revenue).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val">${d.promoted_sold}</div><div class="stat-lbl">Promoted</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val g">${d.organic_sold}</div><div class="stat-lbl">Organic</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val">${d.avg_dom_promoted||0}d</div><div class="stat-lbl">Avg DOM (Promo)</div></div>
+                            <div class="card" style="text-align:center;flex:1;"><div class="stat-val o">$${Math.round(d.total_ad_cost)}</div><div class="stat-lbl">Ad Cost</div></div>
+                        </div>
+
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <span class="d">${items.length} sales — ALL shown</span>
+                            <a href="/reports/performance" target="_blank" class="btn-ghost">Full Visual Report →</a>
+                        </div>
+
+                        <div class="table-wrap"><table>
+                            <thead><tr>
+                                <th>Item</th><th class="r">Sold $</th><th>Listed</th><th>Sold</th>
+                                <th class="r">Days</th><th>Promo</th><th class="r">Ad%</th><th class="r">Ad Cost</th><th>Campaign</th>
+                            </tr></thead>
+                            <tbody>${items.map(i => {
+                                const domColor = i.days_to_sell != null ? (i.days_to_sell <= 7 ? 'g' : i.days_to_sell > 21 ? 'rd' : '') : 'd';
+                                return `<tr>
+                                    <td class="trunc">${i.title}</td>
+                                    <td class="r g b">$${i.price.toFixed(0)}</td>
+                                    <td class="d" style="font-size:11px;">${i.listed}</td>
+                                    <td class="d" style="font-size:11px;">${i.sold}</td>
+                                    <td class="r ${domColor} b">${i.days_to_sell!=null?i.days_to_sell+'d':'--'}</td>
+                                    <td style="font-size:11px;color:${i.promoted?'var(--accent)':'var(--green)'};">${i.promoted?'Promoted':'Organic'}</td>
+                                    <td class="r">${i.ad_rate?i.ad_rate+'%':'--'}</td>
+                                    <td class="r o">${i.ad_cost?'$'+i.ad_cost.toFixed(0):'--'}</td>
+                                    <td class="d trunc" style="font-size:10px;max-width:100px;">${i.campaign||'--'}</td>
+                                </tr>`;
+                            }).join('')}</tbody></table></div>
+                    `;
 
                 } else if (tab === 'calendar') {
                     const resp = await fetch('/api/analytics/seasonality');
@@ -893,6 +1447,63 @@
                     ${i.reason!==undefined?`<td style="font-size:11px;color:var(--dim);">${i.reason||''}</td>`:''}
                     <td>${i.url?`<a href="${i.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
                 </tr>`).join('')}</tbody></table></div>`;
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
+        }
+
+        async function drillHistorical(theme) {
+            drill('sold_history', {category: theme});
+        }
+
+        async function drillHistoricalItem(title) {
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = title;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch(`/api/historical-item?title=${encodeURIComponent(title)}`);
+                const d = await resp.json();
+                const sales = d.sales || [];
+
+                content.innerHTML = `
+                    <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">${sales.length} historical sales</div>
+                    <canvas id="hist-item-chart" height="250" style="margin-bottom:16px;"></canvas>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Signed</th><th>Source</th></tr></thead>
+                        <tbody>${sales.map(s => `<tr>
+                            <td class="trunc">${s.name?.substring(0,40)||''}</td>
+                            <td class="r g b">$${s.price}</td>
+                            <td class="d">${s.date||'--'}</td>
+                            <td>${s.signed ? '✓' : '--'}</td>
+                            <td class="d" style="font-size:10px;">${s.source||''}</td>
+                        </tr>`).join('')}</tbody></table></div>
+                `;
+
+                // Draw chart
+                if (sales.length >= 2) {
+                    const dated = sales.filter(s => s.date).sort((a,b) => a.date.localeCompare(b.date));
+                    if (dated.length >= 2) {
+                        setTimeout(() => {
+                            const ctx = document.getElementById('hist-item-chart');
+                            if (ctx) {
+                                new Chart(ctx, {
+                                    type: 'scatter',
+                                    data: { datasets: [{
+                                        label: 'Sales',
+                                        data: dated.map(s => ({x: s.date, y: s.price})),
+                                        backgroundColor: dated.map(s => s.signed ? '#30d158' : '#0a84ff'),
+                                        pointRadius: 6,
+                                    }]},
+                                    options: {responsive:true, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const s=dated[ctx.dataIndex];return '$'+s.price+' — '+(s.signed?'Signed':'Unsigned')+' — '+s.source;}}}},
+                                        scales:{x:{type:'category',ticks:{color:'#86868b',font:{size:8},maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},
+                                            y:{ticks:{color:'#86868b',callback:v=>'$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}
+                                });
+                            }
+                        }, 100);
+                    }
+                }
             } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
         }
 
