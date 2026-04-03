@@ -2568,6 +2568,174 @@ def check_saved_searches():
     return jsonify({'checked': len(searches), 'new_items': total_new, 'results': results})
 
 
+# =============================================================================
+# Deal Preferences Learning — Like/Pass to train deal ranking
+# =============================================================================
+DEAL_PREFS_FILE = os.path.join(DATA_DIR, 'deal_preferences.json')
+
+
+def load_deal_prefs():
+    if os.path.exists(DEAL_PREFS_FILE):
+        try:
+            with open(DEAL_PREFS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'likes': [], 'passes': [], 'learned': {}, 'stats': {'total_likes': 0, 'total_passes': 0}}
+
+
+def save_deal_prefs(prefs):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(DEAL_PREFS_FILE, 'w') as f:
+        json.dump(prefs, f, indent=2)
+
+
+def learn_deal_preferences(prefs):
+    """Analyze likes vs passes to build a preference model.
+    Extracts: preferred price ranges, categories, keywords, attributes."""
+    from collections import Counter
+
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'screen', 'edition', 'limited', 'art', 'original', 'obey', 'giant', 'authentic'}
+
+    like_words = Counter()
+    pass_words = Counter()
+    like_prices = []
+    pass_prices = []
+    like_cats = Counter()
+    pass_cats = Counter()
+
+    for item in prefs.get('likes', []):
+        words = set(w.lower() for w in re.findall(r'\w+', item.get('title', '')) if w.lower() not in noise and len(w) > 2)
+        for w in words: like_words[w] += 1
+        if item.get('price', 0) > 0: like_prices.append(item['price'])
+        if item.get('category'): like_cats[item['category']] += 1
+
+    for item in prefs.get('passes', []):
+        words = set(w.lower() for w in re.findall(r'\w+', item.get('title', '')) if w.lower() not in noise and len(w) > 2)
+        for w in words: pass_words[w] += 1
+        if item.get('price', 0) > 0: pass_prices.append(item['price'])
+        if item.get('category'): pass_cats[item['category']] += 1
+
+    # Words you like but don't pass on = strong positive signals
+    like_only = {w: c for w, c in like_words.items() if c >= 2 and pass_words.get(w, 0) == 0}
+    # Words you pass on but don't like = negative signals
+    pass_only = {w: c for w, c in pass_words.items() if c >= 2 and like_words.get(w, 0) == 0}
+
+    # Price preference
+    price_pref = {}
+    if like_prices:
+        sp = sorted(like_prices)
+        price_pref['like_median'] = sp[len(sp)//2]
+        price_pref['like_range'] = [sp[0], sp[-1]]
+    if pass_prices:
+        sp = sorted(pass_prices)
+        price_pref['pass_median'] = sp[len(sp)//2]
+
+    # Category preference
+    cat_pref = {}
+    all_cats = set(list(like_cats.keys()) + list(pass_cats.keys()))
+    for cat in all_cats:
+        likes = like_cats.get(cat, 0)
+        passes = pass_cats.get(cat, 0)
+        total = likes + passes
+        if total >= 2:
+            cat_pref[cat] = round(likes / total * 100)  # Like rate %
+
+    learned = {
+        'positive_keywords': dict(sorted(like_only.items(), key=lambda x: -x[1])[:20]),
+        'negative_keywords': dict(sorted(pass_only.items(), key=lambda x: -x[1])[:20]),
+        'price_preference': price_pref,
+        'category_preference': cat_pref,  # Higher % = more liked
+        'total_signals': len(prefs.get('likes', [])) + len(prefs.get('passes', [])),
+    }
+
+    prefs['learned'] = learned
+    return prefs
+
+
+def score_deal_preference(title, price, category, prefs):
+    """Score a deal based on learned preferences. Returns -100 to +100."""
+    learned = prefs.get('learned', {})
+    if not learned or learned.get('total_signals', 0) < 5:
+        return 0  # Not enough data yet
+
+    score = 0
+    t_lower = title.lower()
+    words = set(w for w in re.findall(r'\w+', t_lower) if len(w) > 2)
+
+    # Keyword match
+    for w, count in learned.get('positive_keywords', {}).items():
+        if w in words:
+            score += min(count * 10, 30)
+    for w, count in learned.get('negative_keywords', {}).items():
+        if w in words:
+            score -= min(count * 10, 30)
+
+    # Price match
+    pp = learned.get('price_preference', {})
+    if pp.get('like_range') and price > 0:
+        lo, hi = pp['like_range']
+        if lo <= price <= hi:
+            score += 15  # In your preferred range
+        elif price < lo * 0.5 or price > hi * 2:
+            score -= 10  # Way outside your range
+
+    # Category preference
+    cat_pref = learned.get('category_preference', {})
+    if category in cat_pref:
+        like_rate = cat_pref[category]
+        if like_rate >= 70: score += 20
+        elif like_rate >= 50: score += 10
+        elif like_rate <= 30: score -= 15
+
+    return max(-100, min(100, score))
+
+
+@app.route('/api/deals/like', methods=['POST'])
+def like_deal():
+    """User likes a deal — save and update learning model"""
+    data = request.get_json()
+    prefs = load_deal_prefs()
+    prefs['likes'].append({
+        'title': data.get('title', '')[:80],
+        'price': data.get('price', 0),
+        'category': data.get('category', ''),
+        'url': data.get('url', ''),
+        'date': datetime.now().isoformat(),
+    })
+    prefs['stats']['total_likes'] = len(prefs['likes'])
+    prefs = learn_deal_preferences(prefs)
+    save_deal_prefs(prefs)
+    return jsonify({'success': True, 'total_likes': len(prefs['likes']), 'learned_signals': prefs['learned'].get('total_signals', 0)})
+
+
+@app.route('/api/deals/pass', methods=['POST'])
+def pass_deal():
+    """User passes on a deal — save and update learning model"""
+    data = request.get_json()
+    prefs = load_deal_prefs()
+    prefs['passes'].append({
+        'title': data.get('title', '')[:80],
+        'price': data.get('price', 0),
+        'category': data.get('category', ''),
+        'url': data.get('url', ''),
+        'date': datetime.now().isoformat(),
+    })
+    prefs['stats']['total_passes'] = len(prefs['passes'])
+    prefs = learn_deal_preferences(prefs)
+    save_deal_prefs(prefs)
+    return jsonify({'success': True, 'total_passes': len(prefs['passes']), 'learned_signals': prefs['learned'].get('total_signals', 0)})
+
+
+@app.route('/api/deals/preferences')
+def get_deal_prefs():
+    """Get learned deal preferences"""
+    prefs = load_deal_prefs()
+    return jsonify(prefs.get('learned', {}))
+
+
 LIVE_DEALS_FILE = os.path.join(DATA_DIR, 'live_deals_cache.json')
 _live_deals_cache = None
 _live_deals_time = None
@@ -3158,15 +3326,26 @@ def deal_product_search():
             'historical_comps': [{'name': h.get('name', '')[:60], 'price': h['price'], 'date': h.get('date', ''), 'source': h.get('source', '')} for h in historical[:5]],
         })
 
-    # Sort by verdict priority then hotness
-    verdict_order = {'BUY': 0, 'CONSIDER': 1, 'RESEARCH': 2, 'PASS': 3, 'OVERPRICED': 4}
-    enriched.sort(key=lambda x: (verdict_order.get(x['verdict'], 3), -x['hotness'], -x['profit']))
+    # Apply learned preferences — boost/penalize based on like/pass history
+    deal_prefs = load_deal_prefs()
+    for p in enriched:
+        p['pref_score'] = score_deal_preference(p['title'], p['price'], p.get('artist', ''), deal_prefs)
 
+    # Sort: smart sort factors in preference score
+    verdict_order = {'BUY': 0, 'CONSIDER': 1, 'RESEARCH': 2, 'PASS': 3, 'OVERPRICED': 4}
+    enriched.sort(key=lambda x: (verdict_order.get(x['verdict'], 3), -x['hotness'] - x.get('pref_score', 0), -x['profit']))
+
+    pref_learned = deal_prefs.get('learned', {})
     return jsonify({
         'products': enriched,
         'total': len(enriched),
         'query': query,
         'artist': artist,
+        'preferences': {
+            'signals': pref_learned.get('total_signals', 0),
+            'positive_keywords': list(pref_learned.get('positive_keywords', {}).keys())[:5],
+            'negative_keywords': list(pref_learned.get('negative_keywords', {}).keys())[:5],
+        },
     })
 
 

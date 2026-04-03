@@ -122,6 +122,19 @@
         .progress-desc { font-size:12px; color:var(--dim); margin-top:2px; }
         .progress-detail { font-size:11px; color:var(--dim); margin-top:4px; }
 
+        /* Like/Pass deal cards */
+        .deal-card { position:relative; transition:transform 0.3s, opacity 0.3s; }
+        .deal-card.liked { transform:translateX(100%); opacity:0; max-height:0; overflow:hidden; padding:0; margin:0; transition:all 0.4s; }
+        .deal-card.passed { transform:translateX(-100%); opacity:0; max-height:0; overflow:hidden; padding:0; margin:0; transition:all 0.4s; }
+        .like-pass-btns { display:flex; gap:4px; margin-top:6px; }
+        .btn-like { background:rgba(48,209,88,0.15); color:var(--green); border:1px solid rgba(48,209,88,0.3); border-radius:8px; padding:4px 12px; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+        .btn-like:hover { background:rgba(48,209,88,0.3); }
+        .btn-pass { background:rgba(255,69,58,0.1); color:var(--red); border:1px solid rgba(255,69,58,0.2); border-radius:8px; padding:4px 12px; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+        .btn-pass:hover { background:rgba(255,69,58,0.25); }
+        .pref-badge { font-size:9px; font-weight:700; padding:2px 6px; border-radius:10px; }
+        .pref-up { background:rgba(48,209,88,0.15); color:var(--green); }
+        .pref-down { background:rgba(255,69,58,0.1); color:var(--red); }
+
         /* Comp row dismiss */
         .comp-row { position:relative; transition:transform 0.3s, opacity 0.3s; }
         .comp-row.dismissed { transform:translateX(-100%); opacity:0; max-height:0; overflow:hidden; padding:0; margin:0; transition:all 0.4s; }
@@ -1485,6 +1498,7 @@
                     <div style="font-size:13px;color:var(--dim);">${products.length} products found${d.artist ? ' · '+d.artist : ''}${showing < products.length ? ' · showing '+showing : ''}</div>
                     ${buys ? `<span class="pill pill-green">${buys} BUY</span>` : ''}
                     ${considers ? `<span class="pill pill-orange">${considers} CONSIDER</span>` : ''}
+                    ${d.preferences?.signals > 5 ? `<span class="pill pill-blue" title="AI learned from ${d.preferences.signals} likes/passes${d.preferences.positive_keywords?.length ? '. Likes: '+d.preferences.positive_keywords.join(', ') : ''}${d.preferences.negative_keywords?.length ? '. Avoids: '+d.preferences.negative_keywords.join(', ') : ''}">AI Tuned (${d.preferences.signals})</span>` : ''}
                     <button class="btn-ghost" style="font-size:11px;margin-left:auto;" onclick="saveSearch('${d.query?.replace(/'/g,'') || ''}', '${d.artist || ''}')">Save This Search</button>
                 </div>
                 <div id="deal-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">
@@ -1507,7 +1521,9 @@
             if (p.numbered) badges.push('<span class="pill pill-blue" style="font-size:8px;">NUMBERED</span>');
             if (p.buying_option === 'AUCTION') badges.push('<span class="pill pill-orange" style="font-size:8px;">AUCTION</span>');
 
-            return `<div class="card card-click" style="border-left:4px solid ${vc};overflow:hidden;" onclick="showDealDetail(${idx})">
+            const prefBadge = p.pref_score > 15 ? '<span class="pref-badge pref-up">For You</span>' : p.pref_score < -15 ? '<span class="pref-badge pref-down">Not Your Type</span>' : '';
+
+            return `<div class="card card-click deal-card" id="deal-card-${idx}" style="border-left:4px solid ${vc};overflow:hidden;" onclick="showDealDetail(${idx})">
                 <div style="display:flex;gap:12px;">
                     ${p.image ? `<div style="flex-shrink:0;"><img src="${p.image}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;background:var(--card2);" onerror="this.style.display='none'"></div>` : ''}
                     <div style="flex:1;min-width:0;">
@@ -1541,9 +1557,13 @@
                     </div>
                 </div>
                 <div style="font-size:11px;color:var(--dim);margin-top:6px;">${p.reasons.join(' · ')}</div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
-                    <div style="font-size:10px;color:var(--dim);">${p.seller ? 'Seller: '+p.seller+' · ' : ''}${p.condition || ''} · ${p.liquidity} liq.${p.listed_date ? ' · '+p.listed_date : ''}</div>
-                    <button class="btn-ghost" style="font-size:9px;padding:2px 8px;" onclick="event.stopPropagation();saveToWatchlist('${p.title.replace(/'/g,'')}',${p.price},'${(p.url||'').replace(/'/g,'')}','${(p.image||'').replace(/'/g,'')}')">Save</button>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                    <div style="font-size:10px;color:var(--dim);">${p.seller ? p.seller+' · ' : ''}${p.condition || ''}${p.listed_date ? ' · '+p.listed_date : ''} ${prefBadge}</div>
+                    <div class="like-pass-btns" onclick="event.stopPropagation();">
+                        <button class="btn-like" onclick="likeDeal(${idx},'deal-card-${idx}')">Like</button>
+                        <button class="btn-pass" onclick="passDeal(${idx},'deal-card-${idx}')">Pass</button>
+                        <button class="btn-ghost" style="font-size:9px;padding:2px 8px;" onclick="saveToWatchlist('${p.title.replace(/'/g,'')}',${p.price},'${(p.url||'').replace(/'/g,'')}','${(p.image||'').replace(/'/g,'')}')">Save</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1696,6 +1716,76 @@
             loadSavedSearches();
             pollNotifications();
         }
+
+        // ==========================================
+        // Like / Pass Learning
+        // ==========================================
+        async function likeDeal(idx, cardId) {
+            if (!dealSearchData) return;
+            const p = dealSearchData.products[idx];
+            if (!p) return;
+
+            const card = document.getElementById(cardId);
+            if (card) card.classList.add('liked');
+
+            await fetch('/api/deals/like', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title: p.title, price: p.price, category: p.artist || '', url: p.url || ''})
+            });
+            toast('Liked — AI learning your preferences');
+            setTimeout(() => { if (card) card.style.display = 'none'; }, 400);
+        }
+
+        async function passDeal(idx, cardId) {
+            if (!dealSearchData) return;
+            const p = dealSearchData.products[idx];
+            if (!p) return;
+
+            const card = document.getElementById(cardId);
+            if (card) card.classList.add('passed');
+
+            await fetch('/api/deals/pass', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title: p.title, price: p.price, category: p.artist || '', url: p.url || ''})
+            });
+            toast('Passed — AI learning what to skip');
+            setTimeout(() => { if (card) card.style.display = 'none'; }, 400);
+        }
+
+        // Swipe on deal cards — right=like, left=pass
+        (function() {
+            let startX = 0, currentCard = null, currentIdx = -1;
+            document.addEventListener('touchstart', e => {
+                const card = e.target.closest('.deal-card');
+                if (card) {
+                    startX = e.touches[0].clientX;
+                    currentCard = card;
+                    currentIdx = parseInt(card.id?.replace('deal-card-', '') || -1);
+                }
+            }, {passive: true});
+            document.addEventListener('touchmove', e => {
+                if (!currentCard) return;
+                const dx = e.touches[0].clientX - startX;
+                if (Math.abs(dx) > 20) {
+                    currentCard.style.transform = `translateX(${dx}px)`;
+                    currentCard.style.opacity = Math.max(0.3, 1 - Math.abs(dx) / 300);
+                }
+            }, {passive: true});
+            document.addEventListener('touchend', e => {
+                if (!currentCard) return;
+                const dx = e.changedTouches[0].clientX - startX;
+                if (dx > 80 && currentIdx >= 0) {
+                    likeDeal(currentIdx, currentCard.id);
+                } else if (dx < -80 && currentIdx >= 0) {
+                    passDeal(currentIdx, currentCard.id);
+                } else {
+                    currentCard.style.transform = '';
+                    currentCard.style.opacity = '';
+                }
+                currentCard = null;
+                currentIdx = -1;
+            });
+        })();
 
         async function saveToWatchlist(title, price, url, image) {
             await fetch('/api/watchlist/add', {
