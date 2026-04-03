@@ -490,6 +490,7 @@
                         <button class="btn-ghost" style="font-size:11px;" onclick="document.getElementById('deal-search-input').value='Beatles signed autograph';searchDeals()">Beatles/Rock</button>
                     </div>
                 </div>
+                <div id="scrape-progress"></div>
                 <div id="deal-search-results"></div>
             </div>
 
@@ -1364,6 +1365,62 @@
 
         document.getElementById('deal-search-sort')?.addEventListener('change', () => { if (dealSearchData) renderDealResults(dealSearchData); });
 
+        // Full background scrape with live progress
+        let scrapePolling = null;
+        async function startFullScrape() {
+            const el = document.getElementById('scrape-progress');
+            showProgress(el, 0, 'Starting full scrape...', 'Launching background scraper for all 172 deal targets');
+            toast('Starting full scrape...');
+
+            try {
+                const resp = await fetch('/api/scrape/start', {method:'POST'});
+                const d = await resp.json();
+                if (d.error) {
+                    showProgress(el, 50, 'Scrape in progress...', d.error);
+                } else {
+                    toast('Scraping ' + d.targets + ' targets in background');
+                }
+            } catch(e) { showProgressError(el, 'Failed to start scrape'); return; }
+
+            // Poll for progress
+            if (scrapePolling) clearInterval(scrapePolling);
+            scrapePolling = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/scrape/status');
+                    const s = await resp.json();
+                    if (s.running) {
+                        showProgress(el, s.pct || 0, `Scraping ${s.progress}/${s.total} targets`, `"${s.last_query}" — ${s.found} deals found so far${s.errors ? ' · '+s.errors+' errors' : ''}`);
+                    } else {
+                        clearInterval(scrapePolling);
+                        scrapePolling = null;
+                        if (s.found > 0) {
+                            showProgressDone(el, `${s.found} deals scraped`, `${s.total} targets searched in ${s.duration_sec||'?'}s${s.errors ? ' · '+s.errors+' errors' : ''}`);
+                            // Refresh the deals tab
+                            reportsLoaded.deals = null;
+                            toast(s.found + ' deals ready — refreshing...');
+                        } else if (s.last_run) {
+                            showProgressDone(el, `Last scrape: ${s.found} deals`, `${new Date(s.last_run).toLocaleString()}`);
+                        }
+                    }
+                } catch(e) { /* ignore polling errors */ }
+            }, 2000);
+        }
+
+        // Check if a scrape was running on page load
+        (async () => {
+            try {
+                const resp = await fetch('/api/scrape/status');
+                const s = await resp.json();
+                const el = document.getElementById('scrape-progress');
+                if (el && s.running) {
+                    startFullScrape(); // Resume polling
+                } else if (el && s.last_run && s.found > 0) {
+                    const age = Math.round((Date.now() - new Date(s.last_run).getTime()) / 3600000);
+                    el.innerHTML = `<div style="font-size:11px;color:var(--dim);padding:4px 0;">Last scrape: ${s.found} deals · ${age}h ago${age > 4 ? ' · <span style="color:var(--orange);">Stale — click Full Scrape</span>' : ''}</div>`;
+                }
+            } catch(e) {}
+        })();
+
         // ==========================================
         // Inventory
         // ==========================================
@@ -1749,8 +1806,8 @@
                             ).join('')}
                         </div>
                         <div style="display:flex;gap:6px;">
-                            <button class="btn-primary btn" style="padding:6px 14px;font-size:12px;" onclick="reportsLoaded.deals=null;el.innerHTML='<div class=loading><div class=spinner></div></div>';loadReportTab('deals');">Refresh Live</button>
-                            <button class="btn-ghost" onclick="toast('Open Manage Searches from the old UI backup')">Manage</button>
+                            <button class="btn-primary btn" style="padding:6px 14px;font-size:12px;" onclick="reportsLoaded.deals=null;el.innerHTML='<div class=loading><div class=spinner></div></div>';loadReportTab('deals');">Refresh</button>
+                            <button class="btn-green btn" style="padding:6px 14px;font-size:12px;" onclick="startFullScrape()">Full Scrape (172 targets)</button>
                         </div>
                     </div>
                     <div id="deals-table-area"></div>`;

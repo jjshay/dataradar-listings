@@ -472,7 +472,7 @@ def get_browse_token():
 
 
 def search_ebay(query, max_price, min_price=0, limit=20):
-    """Search eBay for items using Browse API"""
+    """Search eBay for items using Browse API — paginates automatically for limit > 200"""
     token = get_browse_token()
     if not token:
         return []
@@ -488,58 +488,71 @@ def search_ebay(query, max_price, min_price=0, limit=20):
     else:
         price_filter = f'price:[..{max_price}]'
 
-    params = {
-        'q': query,
-        'filter': f'{price_filter},priceCurrency:USD,buyingOptions:{{FIXED_PRICE|AUCTION}}',
-        'sort': 'price',
-        'limit': limit
-    }
+    all_deals = []
+    page_size = min(limit, 200)  # eBay max per page is 200
+    offset = 0
+    max_pages = max(1, (limit + page_size - 1) // page_size)  # ceil division
 
-    try:
-        response = requests.get(
-            'https://api.ebay.com/buy/browse/v1/item_summary/search',
-            headers=headers,
-            params=params
-        )
+    for page in range(max_pages):
+        params = {
+            'q': query,
+            'filter': f'{price_filter},priceCurrency:USD,buyingOptions:{{FIXED_PRICE|AUCTION}}',
+            'sort': 'price',
+            'limit': page_size,
+            'offset': offset,
+        }
 
-        if response.status_code != 200:
-            return []
+        try:
+            response = requests.get(
+                'https://api.ebay.com/buy/browse/v1/item_summary/search',
+                headers=headers,
+                params=params
+            )
 
-        data = response.json()
-        items = data.get('itemSummaries', [])
+            if response.status_code != 200:
+                break
 
-        deals = []
-        for item in items:
-            price_info = item.get('price', {})
-            price = float(price_info.get('value', 0))
+            data = response.json()
+            items = data.get('itemSummaries', [])
 
-            if price <= 0 or price > max_price:
-                continue
+            if not items:
+                break  # No more results
 
-            # Extract listing date
-            listed_date = item.get('itemCreationDate', '')
-            if listed_date:
-                # eBay returns ISO format like 2026-03-15T10:30:00.000Z
-                listed_date = listed_date[:10]  # Just the date part
+            for item in items:
+                price_info = item.get('price', {})
+                price = float(price_info.get('value', 0))
 
-            deals.append({
-                'id': item.get('itemId', ''),
-                'title': item.get('title', 'Unknown'),
-                'price': price,
-                'image': item.get('image', {}).get('imageUrl', ''),
-                'url': item.get('itemWebUrl', ''),
-                'condition': item.get('condition', 'Unknown'),
-                'seller': item.get('seller', {}).get('username', 'Unknown'),
-                'buying_option': item.get('buyingOptions', [''])[0] if item.get('buyingOptions') else '',
-                'location': item.get('itemLocation', {}).get('country', ''),
-                'listed_date': listed_date,
-            })
+                if price <= 0 or price > max_price:
+                    continue
 
-        return deals
+                listed_date = item.get('itemCreationDate', '')
+                if listed_date:
+                    listed_date = listed_date[:10]
 
-    except Exception as e:
-        print(f"Search error: {e}")
-        return []
+                all_deals.append({
+                    'id': item.get('itemId', ''),
+                    'title': item.get('title', 'Unknown'),
+                    'price': price,
+                    'image': item.get('image', {}).get('imageUrl', ''),
+                    'url': item.get('itemWebUrl', ''),
+                    'condition': item.get('condition', 'Unknown'),
+                    'seller': item.get('seller', {}).get('username', 'Unknown'),
+                    'buying_option': item.get('buyingOptions', [''])[0] if item.get('buyingOptions') else '',
+                    'location': item.get('itemLocation', {}).get('country', ''),
+                    'listed_date': listed_date,
+                })
+
+            # Check if more pages exist
+            total_available = data.get('total', 0)
+            offset += page_size
+            if offset >= total_available or len(all_deals) >= limit:
+                break
+
+        except Exception as e:
+            print(f"Search error page {page}: {e}")
+            break
+
+    return all_deals[:limit]
 
 # =============================================================================
 # eBay Marketing API (Promotions, Campaigns, Coupons)
@@ -2430,15 +2443,143 @@ LIVE_DEALS_FILE = os.path.join(DATA_DIR, 'live_deals_cache.json')
 _live_deals_cache = None
 _live_deals_time = None
 
+# Background scraper state
+SCRAPE_STATUS_FILE = os.path.join(DATA_DIR, 'scrape_status.json')
+_scrape_running = False
+
+
+def _save_scrape_status(status):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(SCRAPE_STATUS_FILE, 'w') as f:
+        json.dump(status, f, indent=2)
+
+
+def _load_scrape_status():
+    if os.path.exists(SCRAPE_STATUS_FILE):
+        try:
+            with open(SCRAPE_STATUS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'running': False, 'progress': 0, 'total': 0, 'found': 0, 'last_query': '', 'last_run': None, 'errors': 0}
+
+
+def run_background_scrape():
+    """Run full scrape of all deal targets with pagination — called in background thread"""
+    global _scrape_running, _live_deals_cache, _live_deals_time
+
+    if _scrape_running:
+        return
+
+    _scrape_running = True
+    targets = load_deal_targets()
+    active_targets = [t for t in targets if t.get('active', True)]
+    all_deals = []
+    errors = 0
+
+    status = {'running': True, 'progress': 0, 'total': len(active_targets), 'found': 0, 'last_query': '', 'started': datetime.now().isoformat(), 'errors': 0}
+    _save_scrape_status(status)
+
+    for idx, target in enumerate(active_targets):
+        query = target.get('query', '')
+        min_price = target.get('min_price', 0)
+        max_price = target.get('max_price', 500)
+        category = target.get('category', 'Other')
+
+        status['progress'] = idx + 1
+        status['last_query'] = query
+        status['pct'] = round((idx + 1) / max(len(active_targets), 1) * 100)
+        _save_scrape_status(status)
+
+        try:
+            # Pull up to 400 per target (2 pages of 200)
+            results = search_ebay(query, max_price, min_price, limit=400)
+            for r in results:
+                r['category'] = category
+                r['search_query'] = query
+                fake, reason = is_likely_fake(r.get('title', ''), r.get('price', 0), category)
+                if fake:
+                    continue
+                if not passes_artist_quality_gate(r.get('title', ''), category):
+                    continue
+                all_deals.append(r)
+        except Exception as e:
+            errors += 1
+            print(f"Scrape error for '{query}': {e}")
+
+        status['found'] = len(all_deals)
+        status['errors'] = errors
+
+    # Deduplicate by item ID
+    seen = set()
+    unique = []
+    for d in all_deals:
+        did = d.get('id', '')
+        if did and did not in seen:
+            seen.add(did)
+            unique.append(d)
+
+    # Save to cache
+    result = {
+        'deals': unique,
+        'total': len(unique),
+        'categories': sorted(list(set(d['category'] for d in unique))),
+        'searched': len(active_targets),
+        'fetched': datetime.now().isoformat(),
+    }
+
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(LIVE_DEALS_FILE, 'w') as f:
+            json.dump(result, f)
+    except Exception:
+        pass
+
+    _live_deals_cache = result
+    _live_deals_time = datetime.now()
+    _scrape_running = False
+
+    status = {
+        'running': False,
+        'progress': len(active_targets),
+        'total': len(active_targets),
+        'found': len(unique),
+        'pct': 100,
+        'last_run': datetime.now().isoformat(),
+        'duration_sec': round((datetime.now() - datetime.fromisoformat(status['started'])).total_seconds()),
+        'errors': errors,
+        'last_query': 'Complete',
+    }
+    _save_scrape_status(status)
+    print(f"Scrape complete: {len(unique)} deals from {len(active_targets)} targets in {status['duration_sec']}s")
+
+
+@app.route('/api/scrape/start', methods=['POST'])
+def start_scrape():
+    """Start a background full scrape of all deal targets"""
+    import threading
+    if _scrape_running:
+        return jsonify({'error': 'Scrape already running', 'status': _load_scrape_status()})
+
+    thread = threading.Thread(target=run_background_scrape, daemon=True)
+    thread.start()
+    return jsonify({'started': True, 'targets': len([t for t in load_deal_targets() if t.get('active', True)])})
+
+
+@app.route('/api/scrape/status')
+def scrape_status():
+    """Get current scrape progress"""
+    return jsonify(_load_scrape_status())
+
 
 @app.route('/api/deals/live')
 def get_live_deals():
-    """Search eBay LIVE for deals from all deal targets. Cached for 30 min."""
+    """Search eBay LIVE for deals from all deal targets. Cached for 4 hours."""
     global _live_deals_cache, _live_deals_time
     force = request.args.get('refresh', '').lower() == 'true'
 
-    # Check cache
-    if not force and _live_deals_cache and _live_deals_time and (datetime.now() - _live_deals_time).seconds < 1800:
+    # Check cache — 4 hour TTL (was 30 min)
+    if not force and _live_deals_cache and _live_deals_time and (datetime.now() - _live_deals_time).seconds < 14400:
         return jsonify(_live_deals_cache)
 
     if not force and os.path.exists(LIVE_DEALS_FILE):
@@ -2466,11 +2607,10 @@ def get_live_deals():
         category = target.get('category', 'Other')
 
         try:
-            results = search_ebay(query, max_price, min_price, limit=200)
+            results = search_ebay(query, max_price, min_price, limit=400)
             for r in results:
                 r['category'] = category
                 r['search_query'] = query
-                # Filter fakes + artist quality gate
                 fake, reason = is_likely_fake(r.get('title', ''), r.get('price', 0), category)
                 if fake:
                     continue
