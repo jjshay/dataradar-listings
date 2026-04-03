@@ -2777,11 +2777,14 @@ def deal_product_search():
         if comp_query.strip():
             try:
                 raw_comps = search_ebay(comp_query, max(price * 4, 500), comp_min, limit=15)
-                # Pre-filter: require at least 1 meaningful title word overlap
+                # Pre-filter: word overlap + quality gate + learned rejections
+                rej_data = load_comp_rejections()
                 for c in raw_comps:
-                    c_words = set(w.lower() for w in re.findall(r'\w+', c.get('title', '')) if len(w) > 2)
+                    ct = c.get('title', '')
+                    c_words = set(w.lower() for w in re.findall(r'\w+', ct) if len(w) > 2)
                     overlap = title_word_set & c_words
-                    if len(overlap) >= 1:
+                    is_rej, _ = comp_matches_learned_rejection(ct, rej_data)
+                    if len(overlap) >= 1 and passes_artist_quality_gate(ct, artist) and not is_rej:
                         active_comps.append(c)
             except Exception:
                 pass
@@ -6349,8 +6352,9 @@ def get_smart_comps():
     if not unique:
         return jsonify({'comps': [], 'queries': queries, 'validated': 0})
 
-    # Step 2.5: PRE-FILTER — word overlap + artist quality gate + wrong type rejection
+    # Step 2.5: PRE-FILTER — word overlap + quality gate + learned rejections
     title_word_set = set(w.lower() for w in words if len(w) > 2)
+    rejections_data = load_comp_rejections()
     pre_filtered = []
     pre_removed = []
     for r in unique:
@@ -6359,9 +6363,10 @@ def get_smart_comps():
         overlap = title_word_set & comp_words
         comp_title_lower = comp_title.lower()
         is_wrong_type = any(x in comp_title_lower for x in ['sticker', 'pin', 't-shirt', 'tshirt', 'tee ', 'book', 'magazine', 'postcard', 'magnet', 'keychain', 'patch', 'button'])
-        # Artist quality gate — e.g., Shepard Fairey must be signed/numbered
         passes_gate = passes_artist_quality_gate(comp_title, artist)
-        if len(overlap) >= 1 and not is_wrong_type and passes_gate:
+        # Check learned rejections
+        is_learned_reject, reject_reason = comp_matches_learned_rejection(comp_title, rejections_data)
+        if len(overlap) >= 1 and not is_wrong_type and passes_gate and not is_learned_reject:
             pre_filtered.append(r)
         else:
             pre_removed.append(r)
@@ -6445,6 +6450,122 @@ If NONE are valid, respond: {{"valid": [], "reason": "none match"}}"""
         'raw': len(unique),
         'reason': reason if 'reason' in dir() else '',
     })
+
+
+# =============================================================================
+# Comp Rejection Learning System
+# =============================================================================
+COMP_REJECTIONS_FILE = os.path.join(DATA_DIR, 'comp_rejections.json')
+
+
+def load_comp_rejections():
+    if os.path.exists(COMP_REJECTIONS_FILE):
+        try:
+            with open(COMP_REJECTIONS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'rejected_titles': [], 'rejected_patterns': [], 'learned_rules': [], 'stats': {'total_rejected': 0, 'total_learned': 0}}
+
+
+def save_comp_rejections(data):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(COMP_REJECTIONS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def learn_from_rejections(rejections_data):
+    """Analyze rejected comps and extract reusable rejection patterns.
+    If the same word appears in 3+ rejected titles AND is NOT in the item titles, it becomes a learned rule."""
+    from collections import Counter
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'obey', 'giant', 'screen', 'edition', 'limited', 'art', 'original', 'artist',
+             'shepard', 'fairey', 'kaws', 'banksy', 'death', 'nyc'}
+
+    word_counts = Counter()
+    # Collect words from the items being comped — these should NOT become rejection patterns
+    item_words = set()
+    for rej in rejections_data.get('rejected_titles', []):
+        item_title = rej.get('item_title', '').lower()
+        item_words.update(w for w in re.findall(r'\w+', item_title) if len(w) > 2)
+        title = rej.get('comp_title', '').lower()
+        words = set(w for w in re.findall(r'\w+', title) if w not in noise and len(w) > 2)
+        for w in words:
+            word_counts[w] += 1
+
+    # Words appearing in 3+ rejections AND not in any item title
+    learned = [{'word': w, 'count': c, 'type': 'word_pattern'} for w, c in word_counts.items() if c >= 3 and w not in item_words]
+    rejections_data['learned_rules'] = learned
+    rejections_data['stats']['total_learned'] = len(learned)
+    return rejections_data
+
+
+def comp_matches_learned_rejection(comp_title, rejections_data):
+    """Check if a comp matches any learned rejection pattern"""
+    t = comp_title.lower()
+
+    # Check exact rejected titles (normalized)
+    for rej in rejections_data.get('rejected_titles', []):
+        rej_title = rej.get('comp_title', '').lower()[:30]
+        if rej_title and rej_title in t[:30]:
+            return True, f'Previously rejected: {rej_title[:25]}'
+
+    # Check learned word patterns
+    for rule in rejections_data.get('learned_rules', []):
+        word = rule.get('word', '')
+        if word and word in t and rule.get('count', 0) >= 3:
+            return True, f'Learned: "{word}" appears in {rule["count"]} rejected comps'
+
+    return False, ''
+
+
+@app.route('/api/comps/reject', methods=['POST'])
+def reject_comp():
+    """User rejects a comp — save it and update learning model"""
+    data = request.get_json()
+    comp_title = data.get('comp_title', '')
+    comp_price = data.get('comp_price', 0)
+    item_title = data.get('item_title', '')
+    artist = data.get('artist', '')
+    reason = data.get('reason', 'user_rejected')
+
+    if not comp_title:
+        return jsonify({'error': 'Missing comp_title'}), 400
+
+    rejections = load_comp_rejections()
+    rejections['rejected_titles'].append({
+        'comp_title': comp_title[:80],
+        'comp_price': comp_price,
+        'item_title': item_title[:80],
+        'artist': artist,
+        'reason': reason,
+        'date': datetime.now().isoformat(),
+    })
+    rejections['stats']['total_rejected'] = len(rejections['rejected_titles'])
+
+    # Re-learn patterns
+    rejections = learn_from_rejections(rejections)
+    save_comp_rejections(rejections)
+
+    return jsonify({
+        'success': True,
+        'total_rejected': rejections['stats']['total_rejected'],
+        'learned_rules': len(rejections.get('learned_rules', [])),
+    })
+
+
+@app.route('/api/comps/rejections')
+def get_comp_rejections():
+    """Get all rejection data and learned rules"""
+    return jsonify(load_comp_rejections())
+
+
+@app.route('/api/comps/rejections/clear', methods=['POST'])
+def clear_comp_rejections():
+    """Clear all rejections and learned rules"""
+    save_comp_rejections({'rejected_titles': [], 'rejected_patterns': [], 'learned_rules': [], 'stats': {'total_rejected': 0, 'total_learned': 0}})
+    return jsonify({'success': True})
 
 
 @app.route('/api/comps/validated')
