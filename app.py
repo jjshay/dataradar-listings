@@ -11352,10 +11352,262 @@ def send_watcher_offers():
 
 
 # =============================================================================
+# Cron Scheduler — Background automation engine
+# =============================================================================
+SCHEDULER_CONFIG_FILE = os.path.join(DATA_DIR, 'scheduler_config.json')
+
+
+def load_scheduler_config():
+    if os.path.exists(SCHEDULER_CONFIG_FILE):
+        try:
+            with open(SCHEDULER_CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        'enabled': False,
+        'tasks': {
+            'scrape': {'enabled': True, 'interval_hours': 4, 'last_run': None},
+            'reprice': {'enabled': True, 'day': 'monday', 'hour': 9, 'last_run': None},
+            'offers': {'enabled': True, 'day': 'tuesday', 'hour': 10, 'last_run': None},
+            'deal_alerts': {'enabled': True, 'interval_hours': 4, 'last_run': None},
+        },
+        'log': [],
+    }
+
+
+def save_scheduler_config(config):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(SCHEDULER_CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+def check_deal_alerts():
+    """Check scraped deals for hot ones and create notifications"""
+    try:
+        if not os.path.exists(LIVE_DEALS_FILE):
+            return 0
+
+        with open(LIVE_DEALS_FILE, 'r') as f:
+            cache = json.load(f)
+
+        deals = cache.get('deals', [])
+        alerts = 0
+
+        for d in deals:
+            price = d.get('price', 0)
+            title = d.get('title', '')
+            cat = d.get('category', '')
+
+            # Alert on extreme discounts (items way below typical prices)
+            threshold = FAKE_PRICE_THRESHOLDS.get(cat, 50)
+            if price > threshold and price < threshold * 3:
+                # Cheap but not fake — potential deal
+                add_notification('deal_alert',
+                    f'Deal: ${price:.0f} {title[:40]}',
+                    f'{cat} item at ${price:.0f} — check if legitimate',
+                    severity='high',
+                    data={'price': price, 'title': title, 'url': d.get('url', ''), 'category': cat})
+                alerts += 1
+                if alerts >= 5:
+                    break  # Cap at 5 alerts per check
+
+        return alerts
+    except Exception as e:
+        print(f"Deal alert error: {e}")
+        return 0
+
+
+def scheduler_loop():
+    """Background scheduler — checks every 60 seconds if any task is due"""
+    import time
+    import threading
+
+    while True:
+        try:
+            config = load_scheduler_config()
+            if not config.get('enabled'):
+                time.sleep(60)
+                continue
+
+            now = datetime.now()
+            tasks = config.get('tasks', {})
+            ran_something = False
+
+            # Scrape — every N hours
+            scrape_task = tasks.get('scrape', {})
+            if scrape_task.get('enabled'):
+                interval = scrape_task.get('interval_hours', 4)
+                last = scrape_task.get('last_run')
+                due = not last or (now - datetime.fromisoformat(last)).total_seconds() > interval * 3600
+                if due and not _scrape_running:
+                    print(f"[Scheduler] Starting scrape at {now.isoformat()}")
+                    thread = threading.Thread(target=run_background_scrape, daemon=True)
+                    thread.start()
+                    tasks['scrape']['last_run'] = now.isoformat()
+                    config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Scrape started"] + config.get('log', []))[:50]
+                    ran_something = True
+
+            # Reprice — specific day of week
+            reprice_task = tasks.get('reprice', {})
+            if reprice_task.get('enabled'):
+                target_day = reprice_task.get('day', 'monday').lower()
+                target_hour = reprice_task.get('hour', 9)
+                current_day = now.strftime('%A').lower()
+                last = reprice_task.get('last_run')
+                today_str = now.strftime('%Y-%m-%d')
+                already_ran = last and last[:10] == today_str
+
+                if current_day == target_day and now.hour >= target_hour and not already_ran:
+                    print(f"[Scheduler] Running reprice at {now.isoformat()}")
+                    with app.test_request_context():
+                        result = run_reprice_engine()
+                        data = result.get_json()
+                    tasks['reprice']['last_run'] = now.isoformat()
+                    config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Reprice: {data.get('applied', 0)} items"] + config.get('log', []))[:50]
+                    add_notification('reprice', f"Auto-reprice: {data.get('applied', 0)} items marked down",
+                        f"{data.get('applied', 0)} stale items repriced, {data.get('failed', 0)} failed", severity='info')
+                    ran_something = True
+
+            # Offers — specific day of week
+            offers_task = tasks.get('offers', {})
+            if offers_task.get('enabled'):
+                target_day = offers_task.get('day', 'tuesday').lower()
+                target_hour = offers_task.get('hour', 10)
+                current_day = now.strftime('%A').lower()
+                last = offers_task.get('last_run')
+                today_str = now.strftime('%Y-%m-%d')
+                already_ran = last and last[:10] == today_str
+
+                if current_day == target_day and now.hour >= target_hour and not already_ran:
+                    print(f"[Scheduler] Sending offers at {now.isoformat()}")
+                    with app.test_request_context():
+                        result = send_watcher_offers()
+                        data = result.get_json()
+                    tasks['offers']['last_run'] = now.isoformat()
+                    config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Offers: {data.get('sent', 0)} sent"] + config.get('log', []))[:50]
+                    add_notification('offers', f"Auto-offers: {data.get('sent', 0)} sent to watchers",
+                        f"{data.get('sent', 0)} personalized offers sent, {data.get('failed', 0)} failed", severity='info')
+                    ran_something = True
+
+            # Deal alerts — every N hours (after scrape)
+            alert_task = tasks.get('deal_alerts', {})
+            if alert_task.get('enabled'):
+                interval = alert_task.get('interval_hours', 4)
+                last = alert_task.get('last_run')
+                due = not last or (now - datetime.fromisoformat(last)).total_seconds() > interval * 3600
+                if due:
+                    alerts = check_deal_alerts()
+                    tasks['deal_alerts']['last_run'] = now.isoformat()
+                    if alerts:
+                        config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Deal alerts: {alerts}"] + config.get('log', []))[:50]
+                    ran_something = True
+
+            if ran_something:
+                save_scheduler_config(config)
+
+        except Exception as e:
+            print(f"[Scheduler] Error: {e}")
+
+        time.sleep(60)
+
+
+@app.route('/api/scheduler/config', methods=['GET', 'POST'])
+def manage_scheduler():
+    if request.method == 'POST':
+        data = request.get_json()
+        config = load_scheduler_config()
+        # Merge — don't replace entirely
+        if 'enabled' in data:
+            config['enabled'] = data['enabled']
+        if 'tasks' in data:
+            for task_name, task_data in data['tasks'].items():
+                if task_name in config['tasks']:
+                    config['tasks'][task_name].update(task_data)
+        save_scheduler_config(config)
+        return jsonify({'success': True})
+    return jsonify(load_scheduler_config())
+
+
+@app.route('/api/scheduler/start', methods=['POST'])
+def start_scheduler():
+    """Start the background scheduler thread"""
+    import threading
+    config = load_scheduler_config()
+    config['enabled'] = True
+    save_scheduler_config(config)
+
+    # Check if already running
+    for t in threading.enumerate():
+        if t.name == 'dataradar-scheduler':
+            return jsonify({'status': 'already_running'})
+
+    thread = threading.Thread(target=scheduler_loop, name='dataradar-scheduler', daemon=True)
+    thread.start()
+    return jsonify({'status': 'started'})
+
+
+@app.route('/api/scheduler/stop', methods=['POST'])
+def stop_scheduler():
+    """Stop the scheduler (sets enabled=False, loop exits on next check)"""
+    config = load_scheduler_config()
+    config['enabled'] = False
+    save_scheduler_config(config)
+    return jsonify({'status': 'stopped'})
+
+
+# =============================================================================
+# In-App Notification Bell + Browser Push Notifications
+# =============================================================================
+
+@app.route('/api/notifications/subscribe', methods=['POST'])
+def subscribe_push():
+    """Store push subscription for browser notifications (Web Push API)"""
+    # For now, we use in-app polling. Full Web Push requires VAPID keys + pywebpush.
+    # This endpoint stores the subscription for future use.
+    data = request.get_json()
+    sub_file = os.path.join(DATA_DIR, 'push_subscriptions.json')
+    subs = []
+    if os.path.exists(sub_file):
+        try:
+            with open(sub_file, 'r') as f:
+                subs = json.load(f)
+        except Exception:
+            pass
+    subs.append({'subscription': data, 'created': datetime.now().isoformat()})
+    subs = subs[-10:]  # Keep last 10
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(sub_file, 'w') as f:
+        json.dump(subs, f, indent=2)
+    return jsonify({'success': True})
+
+
+@app.route('/api/notifications/poll')
+def poll_notifications():
+    """Poll for new notifications — lightweight endpoint for frequent checks"""
+    notifs = load_notifications()
+    unread = [n for n in notifs if not n.get('read')]
+    return jsonify({
+        'unread': len(unread),
+        'latest': unread[:5] if unread else [],
+        'has_alerts': any(n.get('severity') == 'high' for n in unread),
+    })
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     debug = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
+
+    # Auto-start scheduler if enabled
+    import threading
+    config = load_scheduler_config()
+    if config.get('enabled'):
+        thread = threading.Thread(target=scheduler_loop, name='dataradar-scheduler', daemon=True)
+        thread.start()
+        print("[Scheduler] Auto-started from config")
+
     app.run(debug=debug, host='0.0.0.0', port=port)
