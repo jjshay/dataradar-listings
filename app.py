@@ -2439,6 +2439,135 @@ def remove_from_watchlist():
     return jsonify({'success': True, 'count': len(items)})
 
 
+# =============================================================================
+# Saved Searches — Watch queries, auto-run, notify on new results
+# =============================================================================
+SAVED_SEARCHES_FILE = os.path.join(DATA_DIR, 'saved_searches.json')
+
+
+def load_saved_searches():
+    if os.path.exists(SAVED_SEARCHES_FILE):
+        try:
+            with open(SAVED_SEARCHES_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+
+def save_saved_searches(searches):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(SAVED_SEARCHES_FILE, 'w') as f:
+        json.dump(searches, f, indent=2)
+
+
+@app.route('/api/saved-searches', methods=['GET'])
+def get_saved_searches():
+    return jsonify(load_saved_searches())
+
+
+@app.route('/api/saved-searches/add', methods=['POST'])
+def add_saved_search():
+    """Save a search query to watch — runs automatically on scheduler"""
+    data = request.get_json()
+    query = data.get('query', '').strip()
+    if not query:
+        return jsonify({'error': 'Missing query'}), 400
+
+    searches = load_saved_searches()
+
+    # Check duplicate
+    if any(s['query'].lower() == query.lower() for s in searches):
+        return jsonify({'error': 'Already saved', 'total': len(searches)})
+
+    searches.append({
+        'id': f"ss-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        'query': query,
+        'min_price': data.get('min_price', 0),
+        'max_price': data.get('max_price', 10000),
+        'artist': data.get('artist', ''),
+        'added': datetime.now().isoformat(),
+        'active': True,
+        'last_checked': None,
+        'last_count': 0,
+        'seen_ids': [],  # Track which items we've already seen
+        'notify_new': True,
+    })
+    save_saved_searches(searches)
+    return jsonify({'success': True, 'total': len(searches)})
+
+
+@app.route('/api/saved-searches/remove', methods=['POST'])
+def remove_saved_search():
+    data = request.get_json()
+    search_id = data.get('id', '')
+    searches = load_saved_searches()
+    searches = [s for s in searches if s['id'] != search_id]
+    save_saved_searches(searches)
+    return jsonify({'success': True, 'total': len(searches)})
+
+
+@app.route('/api/saved-searches/check', methods=['POST'])
+def check_saved_searches():
+    """Run all saved searches and find new items since last check"""
+    searches = load_saved_searches()
+    total_new = 0
+    results = []
+
+    for s in searches:
+        if not s.get('active', True):
+            continue
+
+        query = s['query']
+        min_price = s.get('min_price', 0)
+        max_price = s.get('max_price', 10000)
+        artist = s.get('artist', '')
+        seen_ids = set(s.get('seen_ids', []))
+
+        # Search eBay
+        items = search_ebay(query, max_price, min_price, limit=50)
+
+        # Filter fakes + quality gate
+        filtered = []
+        for item in items:
+            fake, _ = is_likely_fake(item.get('title', ''), item.get('price', 0), artist)
+            if fake:
+                continue
+            if not passes_artist_quality_gate(item.get('title', ''), artist):
+                continue
+            filtered.append(item)
+
+        # Find new items
+        new_items = [i for i in filtered if i.get('id', '') not in seen_ids]
+
+        # Update seen IDs (keep last 500 to avoid unbounded growth)
+        all_ids = list(seen_ids | set(i.get('id', '') for i in filtered))
+        s['seen_ids'] = all_ids[-500:]
+        s['last_checked'] = datetime.now().isoformat()
+        s['last_count'] = len(filtered)
+
+        if new_items:
+            total_new += len(new_items)
+            results.append({
+                'query': query,
+                'new_count': len(new_items),
+                'total': len(filtered),
+                'new_items': [{'title': i['title'][:60], 'price': i['price'], 'url': i.get('url', ''), 'image': i.get('image', '')} for i in new_items[:5]],
+            })
+
+            # Create notification for new items
+            if s.get('notify_new', True) and new_items:
+                best = min(new_items, key=lambda x: x.get('price', 9999))
+                add_notification('saved_search',
+                    f'{len(new_items)} new: "{query}"',
+                    f'Best: ${best["price"]:.0f} {best["title"][:40]}',
+                    severity='high' if len(new_items) >= 3 else 'info',
+                    data={'query': query, 'url': best.get('url', ''), 'price': best['price']})
+
+    save_saved_searches(searches)
+    return jsonify({'checked': len(searches), 'new_items': total_new, 'results': results})
+
+
 LIVE_DEALS_FILE = os.path.join(DATA_DIR, 'live_deals_cache.json')
 _live_deals_cache = None
 _live_deals_time = None
@@ -11501,6 +11630,25 @@ def scheduler_loop():
                     tasks['deal_alerts']['last_run'] = now.isoformat()
                     if alerts:
                         config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Deal alerts: {alerts}"] + config.get('log', []))[:50]
+                    ran_something = True
+
+            # Saved searches — every N hours
+            saved_task = tasks.get('saved_searches', {'enabled': True, 'interval_hours': 4, 'last_run': None})
+            if saved_task.get('enabled', True):
+                interval = saved_task.get('interval_hours', 4)
+                last = saved_task.get('last_run')
+                due = not last or (now - datetime.fromisoformat(last)).total_seconds() > interval * 3600
+                if due:
+                    try:
+                        with app.test_request_context():
+                            result = check_saved_searches()
+                            data = result.get_json()
+                        new_count = data.get('new_items', 0)
+                        tasks.setdefault('saved_searches', {})['last_run'] = now.isoformat()
+                        if new_count:
+                            config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Saved searches: {new_count} new items"] + config.get('log', []))[:50]
+                    except Exception as e:
+                        print(f"Saved search check error: {e}")
                     ran_something = True
 
             if ran_something:

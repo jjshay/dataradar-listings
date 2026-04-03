@@ -540,6 +540,8 @@
                     </div>
                 </div>
                 <div id="scrape-progress"></div>
+                <!-- Saved Searches -->
+                <div id="saved-searches-bar" style="margin-bottom:12px;"></div>
                 <div id="deal-search-results"></div>
             </div>
 
@@ -1483,6 +1485,7 @@
                     <div style="font-size:13px;color:var(--dim);">${products.length} products found${d.artist ? ' · '+d.artist : ''}${showing < products.length ? ' · showing '+showing : ''}</div>
                     ${buys ? `<span class="pill pill-green">${buys} BUY</span>` : ''}
                     ${considers ? `<span class="pill pill-orange">${considers} CONSIDER</span>` : ''}
+                    <button class="btn-ghost" style="font-size:11px;margin-left:auto;" onclick="saveSearch('${d.query?.replace(/'/g,'') || ''}', '${d.artist || ''}')">Save This Search</button>
                 </div>
                 <div id="deal-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">
                     ${products.slice(0, showing).map((p, i) => renderDealCard(p, i)).join('')}
@@ -1538,9 +1541,9 @@
                     </div>
                 </div>
                 <div style="font-size:11px;color:var(--dim);margin-top:6px;">${p.reasons.join(' · ')}</div>
-                <div style="display:flex;justify-content:space-between;margin-top:2px;">
-                    ${p.seller ? `<div style="font-size:10px;color:var(--dim);">Seller: ${p.seller} · ${p.condition || 'N/A'} · ${p.liquidity} liq.</div>` : ''}
-                    ${p.listed_date ? `<div style="font-size:10px;color:var(--accent);">Listed: ${p.listed_date}</div>` : ''}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+                    <div style="font-size:10px;color:var(--dim);">${p.seller ? 'Seller: '+p.seller+' · ' : ''}${p.condition || ''} · ${p.liquidity} liq.${p.listed_date ? ' · '+p.listed_date : ''}</div>
+                    <button class="btn-ghost" style="font-size:9px;padding:2px 8px;" onclick="event.stopPropagation();saveToWatchlist('${p.title.replace(/'/g,'')}',${p.price},'${(p.url||'').replace(/'/g,'')}','${(p.image||'').replace(/'/g,'')}')">Save</button>
                 </div>
             </div>`;
         }
@@ -1633,6 +1636,77 @@
         }
 
         document.getElementById('deal-search-sort')?.addEventListener('change', () => { if (dealSearchData) renderDealResults(dealSearchData); });
+
+        // ==========================================
+        // Saved Searches
+        // ==========================================
+        async function loadSavedSearches() {
+            const el = document.getElementById('saved-searches-bar');
+            if (!el) return;
+            try {
+                const resp = await fetch('/api/saved-searches');
+                const searches = await resp.json();
+                if (!searches.length) { el.innerHTML = ''; return; }
+
+                el.innerHTML = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 0;">
+                    <span style="font-size:11px;color:var(--dim);">Watching:</span>
+                    ${searches.map(s => `
+                        <div class="chip ${s.active ? 'active' : ''}" style="display:flex;align-items:center;gap:4px;padding:5px 10px;">
+                            <span onclick="document.getElementById('deal-search-input').value='${s.query.replace(/'/g,'')}';searchDeals();" style="cursor:pointer;">${s.query}</span>
+                            <span style="font-size:9px;color:var(--dim);">${s.last_count||0}</span>
+                            <button onclick="event.stopPropagation();removeSavedSearch('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>
+                        </div>
+                    `).join('')}
+                    <button class="btn-ghost" style="font-size:10px;padding:4px 10px;" onclick="checkSavedSearches()">Check Now</button>
+                </div>`;
+            } catch(e) {}
+        }
+
+        async function saveSearch(query, artist) {
+            if (!query) { query = document.getElementById('deal-search-input').value.trim(); }
+            if (!query) { toast('Enter a search first'); return; }
+            const minPrice = document.getElementById('deal-min-val')?.value || 0;
+            const maxPrice = document.getElementById('deal-max-val')?.value || 10000;
+
+            const resp = await fetch('/api/saved-searches/add', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query, artist, min_price: parseFloat(minPrice), max_price: parseFloat(maxPrice)})
+            });
+            const d = await resp.json();
+            if (d.error) toast(d.error);
+            else toast('Search saved — will auto-check every 4 hours');
+            loadSavedSearches();
+        }
+
+        async function removeSavedSearch(id) {
+            await fetch('/api/saved-searches/remove', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})});
+            toast('Search removed');
+            loadSavedSearches();
+        }
+
+        async function checkSavedSearches() {
+            toast('Checking saved searches...');
+            const resp = await fetch('/api/saved-searches/check', {method: 'POST'});
+            const d = await resp.json();
+            if (d.new_items > 0) {
+                toast(d.new_items + ' new items found!');
+            } else {
+                toast('No new items since last check');
+            }
+            loadSavedSearches();
+            pollNotifications();
+        }
+
+        async function saveToWatchlist(title, price, url, image) {
+            await fetch('/api/watchlist/add', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, price, url, image, notes: 'Saved from deal search'})
+            });
+            toast('Saved to watchlist');
+        }
+
+        // Load saved searches on page init
+        loadSavedSearches();
 
         // Full background scrape with live progress
         let scrapePolling = null;
