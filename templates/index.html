@@ -104,6 +104,16 @@
         .spinner { width:24px; height:24px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
         @keyframes spin { to{transform:rotate(360deg)} }
 
+        /* Enhanced hover */
+        tbody tr:hover { background:rgba(10,132,255,0.06) !important; }
+        td[onclick], td[style*="cursor:pointer"] { position:relative; }
+        td[onclick]:hover, td[style*="cursor:pointer"]:hover { background:rgba(10,132,255,0.1) !important; border-radius:4px; }
+        .card-click:hover { background:var(--card2) !important; border-color:rgba(10,132,255,0.3) !important; }
+        .pill { cursor:default; transition: transform 0.1s; }
+        .pill:hover { transform:scale(1.1); }
+        [title] { cursor:help; }
+        [title]:hover { text-decoration-style:dotted; }
+
         /* Responsive */
         @media(max-width:600px) { .grid-3{grid-template-columns:1fr 1fr;} .trunc{max-width:120px;} }
     </style>
@@ -176,32 +186,40 @@
                 </div>
             </div>
 
-            <!-- Key ratios row -->
+            <!-- Key ratios row — EVERY card is clickable -->
             <div class="grid grid-3" style="margin-top:-8px;">
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="showTab('inventory')" title="View all listings">
                     <div style="font-size:18px;font-weight:700;" id="d-listings">--</div>
                     <div class="stat-lbl">Listings</div>
                 </div>
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="window.open('/reports/levers','_blank')" title="See ad spend analysis">
                     <div style="font-size:18px;font-weight:700;color:var(--orange);" id="d-adspend">--</div>
                     <div class="stat-lbl">Ad Spend</div>
                 </div>
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100)" title="See all sales">
                     <div style="font-size:18px;font-weight:700;" id="d-velocity">--</div>
                     <div class="stat-lbl">Items/Day</div>
                 </div>
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('deep'),100)" title="Price analysis">
                     <div style="font-size:18px;font-weight:700;" id="d-avgprice">--</div>
                     <div class="stat-lbl">Avg Sale</div>
                 </div>
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="drill('watchers',{min:1})" title="See items with watchers">
                     <div style="font-size:18px;font-weight:700;" id="d-watchers">--</div>
                     <div class="stat-lbl">Watchers</div>
                 </div>
-                <div class="card" style="text-align:center;">
+                <div class="card card-click" style="text-align:center;" onclick="showTab('promos')" title="Manage promotions">
                     <div style="font-size:18px;font-weight:700;" id="d-promoted">--</div>
                     <div class="stat-lbl">Promoted %</div>
                 </div>
+            </div>
+
+            <!-- Quick links to reports -->
+            <div class="section" style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn-ghost" onclick="window.open('/reports/levers','_blank')">🎛 Levers</button>
+                <button class="btn-ghost" onclick="window.open('/reports/what-worked','_blank')">📊 What Worked</button>
+                <button class="btn-ghost" onclick="window.open('/reports/performance','_blank')">📈 Performance</button>
+                <button class="btn-ghost" onclick="window.open('/reports/vs-market','_blank')">🏪 vs Market</button>
             </div>
 
             <!-- AI Brief -->
@@ -984,20 +1002,25 @@
                 <tbody>${items.slice(0, 200).map(i => {
                     const hasSuggestion = i.suggested_price && i.your_price && Math.abs(i.suggested_price - i.your_price) > 5;
                     const mc = (i.margin_pct||0) > 30 ? 'g' : (i.margin_pct||0) > 10 ? 'o' : 'rd';
-                    return `<tr ondblclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Double-click for detail">
-                        <td class="trunc" title="${i.name}">${i.name} <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;">📊</span></td>
-                        <td><span class="pill ${signalPill(i.recommendation)}">${i.recommendation}</span></td>
-                        <td style="color:${velColor(i.velocity)};font-size:11px;font-weight:600;">${i.velocity||'--'}</td>
-                        <td class="r b g">$${Math.round(i.suggested_price||0)}</td>
-                        <td class="r" style="color:var(--accent);">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
-                        <td class="r d">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
-                        <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;">${i.ebay_supply||0}</td>
-                        <td class="r ${(i.ad_rate||0)>8?'rd b':''}">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
-                        <td class="r ${mc}">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
-                        <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${i.seasonal_event||''}">${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
-                        <td style="font-size:11px;color:var(--dim);min-width:150px;">${i.reason||''}</td>
+                    return `<tr ondblclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Double-click: full detail with chart + comps + AI validation">
+                        <td class="trunc" title="${i.name}">
+                            ${i.name}
+                            <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;" title="Price history chart">📊</span>
+                        </td>
+                        <td onclick="event.stopPropagation();invFilter='${i.signal}';document.querySelectorAll('#inv-chips .chip').forEach(c=>c.classList.remove('active'));renderInv();" style="cursor:pointer;" title="Filter by ${i.recommendation}">
+                            <span class="pill ${signalPill(i.recommendation)}">${i.recommendation}</span>
+                        </td>
+                        <td style="color:${velColor(i.velocity)};font-size:11px;font-weight:600;cursor:help;" title="Velocity: ${i.velocity}. ${i.times_sold||0} sold, ${i.avg_days_on_market!=null?i.avg_days_on_market+'d DOM':'no DOM data'}">${i.velocity||'--'}</td>
+                        <td class="r b g" onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;" title="Click for price history. Components: ${Object.entries(i.pricing_components||{}).map(([k,v])=>k+': $'+Math.round(v.price||0)).join(', ')}">$${Math.round(i.suggested_price||0)}</td>
+                        <td class="r" style="color:var(--accent);cursor:help;" title="Last sale: $${i.last_sale||'--'} on ${i.last_sale_date||'unknown'}. ${i.price_confidence||'?'} confidence.">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
+                        <td class="r d" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}'})" style="cursor:pointer;" title="Click to see market comps">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
+                        <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;" title="${i.ebay_supply||0} competing listings — click to view">${i.ebay_supply||0}</td>
+                        <td class="r ${(i.ad_rate||0)>8?'rd b':''}" onclick="event.stopPropagation();showTab('promos')" style="cursor:pointer;" title="Ad rate: ${i.ad_rate||0}%. Click to manage promotions.">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
+                        <td class="r ${mc}" title="Revenue: $${Math.round(i.suggested_price||0)} — Cost est: $${Math.round((i.suggested_price||0)*0.4)} — Fee: $${Math.round((i.suggested_price||0)*0.13)} — Ad: $${Math.round(i.ad_cost||0)} — Profit: $${Math.round(i.net_profit||0)} (${i.margin_pct||0}%)">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
+                        <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${i.seasonal_event?'cursor:pointer;':''}" title="${i.seasonal_event ? i.seasonal_event+' (+'+i.seasonal_boost+'%). Click to see matching items.' : 'No active event'}" ${i.seasonal_event ? `onclick="event.stopPropagation();drill('event_items',{event:'${i.seasonal_event}'})"` : ''}>${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
+                        <td style="font-size:11px;color:var(--dim);min-width:150px;" title="${i.reason||''}">${i.reason||''}</td>
                         <td onclick="event.stopPropagation();">${hasSuggestion ?
-                            `<button onclick="acceptPrice('${i.id}',${i.suggested_price})" class="btn" style="background:var(--green);color:#000;padding:3px 8px;font-size:10px;">✓ $${Math.round(i.suggested_price)}</button>` : '<span class="d">—</span>'}</td>
+                            `<button onclick="acceptPrice('${i.id}',${i.suggested_price})" class="btn" style="background:var(--green);color:#000;padding:3px 8px;font-size:10px;" title="Accept AI price and update on eBay">✓ $${Math.round(i.suggested_price)}</button>` : '<span class="d">—</span>'}</td>
                     </tr>`;
                 }).join('')}</tbody></table></div>` +
                 (items.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${items.length}</div>` : '');
@@ -1212,19 +1235,19 @@
                             <tbody>${deals.slice(0,200).map(dl => {
                                 const hc = dl.hotness>=60?'pill-red':dl.hotness>=30?'pill-orange':'pill-dim';
                                 const reasons = (dl.reasons||[]).join('; ');
-                                return `<tr>
+                                return `<tr onclick="${dl.url ? `window.open('${dl.url}','_blank')` : ''}" style="cursor:pointer;" title="Click to open on eBay | ${reasons}">
                                     <td class="trunc" title="${dl.title}">${dl.title}</td>
-                                    <td style="font-size:11px;">${dl.category}</td>
-                                    <td class="r g b">$${(dl.price||0).toLocaleString()}</td>
-                                    <td class="r d">$${(dl.price_range?.low||0).toLocaleString()}</td>
-                                    <td class="r">$${(dl.median||0).toLocaleString()}</td>
-                                    <td class="r d">$${(dl.price_range?.high||0).toLocaleString()}</td>
-                                    <td class="r o b">+$${(dl.profit||0).toLocaleString()}</td>
-                                    <td class="r">${(dl.discount_pct||0).toFixed(0)}%</td>
-                                    <td><span class="pill ${hc}">${dl.hotness}</span></td>
-                                    <td style="font-size:11px;">${dl.liquidity||'--'}</td>
-                                    <td style="font-size:10px;color:var(--dim);min-width:120px;">${reasons||'--'}</td>
-                                    <td>${dl.url?`<a href="${dl.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>`:'--'}</td>
+                                    <td style="font-size:11px;" title="Filter by ${dl.category}" onclick="event.stopPropagation();renderDeals('${dl.category}')">${dl.category}</td>
+                                    <td class="r g b" title="Listed at $${dl.price}">$${(dl.price||0).toLocaleString()}</td>
+                                    <td class="r d" title="Lowest comp">$${(dl.price_range?.low||0).toLocaleString()}</td>
+                                    <td class="r" title="Market median from ${dl.comp_count||0} comps">$${(dl.median||0).toLocaleString()}</td>
+                                    <td class="r d" title="Highest comp">$${(dl.price_range?.high||0).toLocaleString()}</td>
+                                    <td class="r o b" title="Potential profit if bought at $${dl.price} and sold at median $${dl.median}">+$${(dl.profit||0).toLocaleString()}</td>
+                                    <td class="r" title="${(dl.discount_pct||0).toFixed(0)}% below market median">${(dl.discount_pct||0).toFixed(0)}%</td>
+                                    <td title="Hotness score: ${dl.hotness}/100 based on comps + discount + profit"><span class="pill ${hc}">${dl.hotness}</span></td>
+                                    <td style="font-size:11px;" title="Liquidity: ${dl.liquidity} — ${dl.comp_count||0} comparable sales">${dl.liquidity||'--'}</td>
+                                    <td style="font-size:10px;color:var(--dim);min-width:120px;" title="${reasons}">${reasons||'--'}</td>
+                                    <td onclick="event.stopPropagation();">${dl.url?`<a href="${dl.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay ↗</a>`:'--'}</td>
                                 </tr>`;
                             }).join('')}</tbody></table></div>` +
                             (deals.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${deals.length}</div>` : '');
