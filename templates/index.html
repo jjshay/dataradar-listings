@@ -114,6 +114,14 @@
         [title] { cursor:help; }
         [title]:hover { text-decoration-style:dotted; }
 
+        /* Progress bar */
+        .progress-wrap { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin:8px 0; }
+        .progress-bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; margin-bottom:6px; }
+        .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--green)); border-radius:4px; transition:width 0.3s ease; width:0%; }
+        .progress-pct { font-size:16px; font-weight:700; color:var(--green); }
+        .progress-desc { font-size:12px; color:var(--dim); margin-top:2px; }
+        .progress-detail { font-size:11px; color:var(--dim); margin-top:4px; }
+
         /* Responsive */
         @media(max-width:600px) { .grid-3{grid-template-columns:1fr 1fr;} .trunc{max-width:120px;} }
     </style>
@@ -220,6 +228,15 @@
                 <button class="btn-ghost" onclick="window.open('/reports/what-worked','_blank')">📊 What Worked</button>
                 <button class="btn-ghost" onclick="window.open('/reports/performance','_blank')">📈 Performance</button>
                 <button class="btn-ghost" onclick="window.open('/reports/vs-market','_blank')">🏪 vs Market</button>
+            </div>
+
+            <!-- AI Strategy Recommendations -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">AI Strategy</div>
+                    <button class="btn-ghost" onclick="loadAIStrategy()">Refresh</button>
+                </div>
+                <div id="d-ai-strategy"><div class="loading"><div class="spinner"></div></div></div>
             </div>
 
             <!-- AI Brief -->
@@ -339,10 +356,13 @@
                     </div>
                     <select id="inv-sort" onchange="renderInv()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;padding:8px 12px;">
                         <option value="signal">By Signal</option>
+                        <option value="action">By Next Move</option>
                         <option value="alpha">A-Z</option>
                         <option value="price_high">Price High</option>
                         <option value="price_low">Price Low</option>
                         <option value="watchers">Watchers</option>
+                        <option value="roi">ROI High</option>
+                        <option value="stale">Most Stale</option>
                     </select>
                     <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
                     <button class="btn-ghost" onclick="showCostBasis()">Set Costs</button>
@@ -541,6 +561,37 @@
             setTimeout(() => t.classList.remove('show'), 2500);
         }
 
+        // Progress bar — show in any element
+        function showProgress(el, pct, desc, detail) {
+            if (!el) return;
+            el.innerHTML = `<div class="progress-wrap">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span class="progress-pct">${Math.round(pct)}%</span>
+                    <span class="progress-desc">${desc || ''}</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div>
+                ${detail ? `<div class="progress-detail">${detail}</div>` : ''}
+            </div>`;
+        }
+
+        function showProgressDone(el, msg, detail) {
+            if (!el) return;
+            el.innerHTML = `<div class="progress-wrap" style="border-color:rgba(48,209,88,0.3);">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span class="progress-pct">Done</span>
+                    <span style="font-size:13px;color:var(--green);font-weight:600;">${msg}</span>
+                </div>
+                ${detail ? `<div class="progress-detail" style="margin-top:4px;">${detail}</div>` : ''}
+            </div>`;
+        }
+
+        function showProgressError(el, msg) {
+            if (!el) return;
+            el.innerHTML = `<div class="progress-wrap" style="border-color:rgba(255,69,58,0.3);">
+                <span style="font-size:13px;color:var(--red);font-weight:600;">${msg}</span>
+            </div>`;
+        }
+
         function downloadCSV(name, rows) {
             const csv = rows.map(r => r.map(c => { const s = String(c??'').replace(/"/g,'""'); return s.includes(',') ? `"${s}"` : s; }).join(',')).join('\n');
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = name; a.click();
@@ -634,6 +685,7 @@
                 document.getElementById('dash-time').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
 
                 // Load features
+                loadAIStrategy();
                 loadSellThisWeek();
                 loadSniper();
                 loadOutreach();
@@ -741,88 +793,87 @@
         async function generateAllFeedback() {
             if (!fbOverview) { toast('Load feedback first'); return; }
             const statusEl = document.getElementById('fb-status');
-            statusEl.innerHTML = '<span style="color:var(--accent);">Generating AI feedback... Claude writes → GPT edits</span>';
-
-            let totalGenerated = 0;
+            const buyers = fbOverview.for_buyers || [];
+            const sellers = fbOverview.for_sellers || [];
+            const total = buyers.length + sellers.length;
+            let done = 0;
 
             // Generate for buyers in batches of 20
-            const buyers = fbOverview.for_buyers || [];
             for (let i = 0; i < buyers.length; i += 20) {
                 const batch = buyers.slice(i, i + 20);
-                statusEl.innerHTML = `<span style="color:var(--accent);">Generating buyer feedback... ${i}/${buyers.length}</span>`;
+                showProgress(statusEl, (done / total) * 100, `Generating feedback ${done}/${total}`, `Buyer batch: Claude writes → GPT edits for ${batch[0]?.title?.substring(0,35)}...`);
                 try {
                     const resp = await fetch('/api/feedback/generate', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({items: batch.map(b => ({...b, role: 'seller'}))})
                     });
                     const d = await resp.json();
-                    const results = d.feedback || [];
-                    results.forEach((f, j) => {
+                    (d.feedback || []).forEach((f, j) => {
                         const input = document.getElementById('fb-b-' + (i + j));
                         if (input) input.value = f.final;
-                        totalGenerated++;
+                        done++;
                     });
-                } catch(e) { console.error('Generate buyer batch error:', e); }
+                } catch(e) { done += batch.length; }
             }
 
             // Generate for sellers in batches of 20
-            const sellers = fbOverview.for_sellers || [];
             for (let i = 0; i < sellers.length; i += 20) {
                 const batch = sellers.slice(i, i + 20);
-                statusEl.innerHTML = `<span style="color:var(--accent);">Generating seller feedback... ${i}/${sellers.length}</span>`;
+                showProgress(statusEl, (done / total) * 100, `Generating feedback ${done}/${total}`, `Seller batch: reviewing ${batch[0]?.title?.substring(0,35)}...`);
                 try {
                     const resp = await fetch('/api/feedback/generate', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({items: batch.map(s => ({...s, role: 'buyer'}))})
                     });
                     const d = await resp.json();
-                    const results = d.feedback || [];
-                    results.forEach((f, j) => {
+                    (d.feedback || []).forEach((f, j) => {
                         const input = document.getElementById('fb-s-' + (i + j));
                         if (input) input.value = f.final;
-                        totalGenerated++;
+                        done++;
                     });
-                } catch(e) { console.error('Generate seller batch error:', e); }
+                } catch(e) { done += batch.length; }
             }
 
-            statusEl.innerHTML = `<span class="g b">${totalGenerated} feedback generated — review and submit</span>`;
-            toast(totalGenerated + ' feedback ready — review then submit');
+            showProgressDone(statusEl, `${done} feedback generated`, 'Review the text in each field, then click Submit All');
+            toast(done + ' feedback ready');
         }
 
         async function submitAllFeedback() {
             if (!fbOverview) { toast('Load feedback first'); return; }
+            const statusEl = document.getElementById('fb-status');
 
             const feedbacks = [];
-
-            // Buyer feedback (you sold → leave for buyer)
             (fbOverview.for_buyers || []).forEach((item, i) => {
                 const input = document.getElementById('fb-b-' + i);
-                if (input?.value) {
-                    feedbacks.push({item_id: item.item_id, target_user: item.buyer, comment: input.value, transaction_id: item.transaction_id});
-                }
+                if (input?.value) feedbacks.push({item_id: item.item_id, target_user: item.buyer, comment: input.value, transaction_id: item.transaction_id, title: item.title});
             });
-
-            // Seller feedback (you bought → leave for seller)
             (fbOverview.for_sellers || []).forEach((item, i) => {
                 const input = document.getElementById('fb-s-' + i);
-                if (input?.value) {
-                    feedbacks.push({item_id: item.item_id, target_user: item.seller, comment: input.value, transaction_id: item.transaction_id});
-                }
+                if (input?.value) feedbacks.push({item_id: item.item_id, target_user: item.seller, comment: input.value, transaction_id: item.transaction_id, title: item.title});
             });
 
             if (!feedbacks.length) { toast('No feedback to submit — generate first'); return; }
 
-            toast(`Submitting ${feedbacks.length} feedback to eBay...`);
-            try {
-                const resp = await fetch('/api/feedback/submit', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({feedbacks})
-                });
-                const d = await resp.json();
-                const statusEl = document.getElementById('fb-status');
-                statusEl.innerHTML = `<span class="g b">${d.submitted} submitted</span>${d.failed ? ` · <span class="rd">${d.failed} failed</span>` : ''}`;
-                toast(`${d.submitted} feedback posted to eBay`);
-            } catch(e) { toast('Submit failed'); }
+            let submitted = 0, failed = 0, errors = [];
+            for (let i = 0; i < feedbacks.length; i++) {
+                const fb = feedbacks[i];
+                const pct = ((i + 1) / feedbacks.length) * 100;
+                showProgress(statusEl, pct, `Submitting feedback ${i+1}/${feedbacks.length}`, `Posting for ${fb.target_user} — "${fb.title?.substring(0,40)}..."`);
+
+                try {
+                    const resp = await fetch('/api/feedback/submit', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({feedbacks: [fb]})
+                    });
+                    const d = await resp.json();
+                    if (d.submitted) submitted++;
+                    else { failed++; errors.push(fb.target_user + ': ' + (d.errors?.[0] || 'failed')); }
+                } catch(e) { failed++; errors.push(fb.target_user + ': network error'); }
+            }
+
+            showProgressDone(statusEl, `${submitted} submitted · ${failed} failed`,
+                errors.length ? errors.slice(0,3).join(' | ') : `All ${submitted} feedback posted to eBay`);
+            toast(`${submitted} feedback posted`);
         }
 
         // Features 1-6
@@ -950,16 +1001,54 @@
             } catch(e) {}
         }
 
-        async function applySpeedHigh() {
-            toast('Applying Speed High to all listings...');
-            document.getElementById('speed-status').textContent = 'Creating campaigns...';
+        async function loadAIStrategy() {
+            const el = document.getElementById('d-ai-strategy');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:11px;color:var(--dim);margin-top:6px;">Analyzing inventory, sales, scoring, capital data...</div></div>';
+
             try {
+                const resp = await fetch('/api/ai/strategy');
+                const d = await resp.json();
+                const recs = d.recommendations || [];
+                const summary = d.data_summary || {};
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;font-size:11px;">
+                        <span class="pill pill-blue">${summary.total_items||0} items</span>
+                        <span class="pill pill-green">$${(summary.revenue_60d||0).toLocaleString()} rev/60d</span>
+                        <span class="pill pill-dim">${summary.velocity||0}/day</span>
+                        <span class="pill pill-orange">$${(summary.capital_locked||0).toLocaleString()} locked</span>
+                        <span class="pill pill-dim">${summary.turnover||0}x turn</span>
+                        ${summary.actions?.PROMOTE ? `<span class="pill pill-blue">${summary.actions.PROMOTE} promote</span>` : ''}
+                        ${summary.actions?.DISCOUNT ? `<span class="pill pill-orange">${summary.actions.DISCOUNT} discount</span>` : ''}
+                        ${summary.actions?.RELIST ? `<span class="pill pill-red">${summary.actions.RELIST} relist</span>` : ''}
+                    </div>
+                    ${recs.map((r, i) => {
+                        const priority = r.includes('[1]') ? 'var(--red)' : r.includes('[2]') ? 'var(--orange)' : 'var(--accent)';
+                        return `<div class="card" style="margin-bottom:6px;border-left:3px solid ${priority};font-size:13px;line-height:1.5;">
+                            ${r.replace(/\*\*/g, '').replace(/\[1\]/g, '<span style="color:var(--red);font-weight:700;">P1</span>').replace(/\[2\]/g, '<span style="color:var(--orange);font-weight:700;">P2</span>').replace(/\[3\]/g, '<span style="color:var(--accent);font-weight:700;">P3</span>')}
+                        </div>`;
+                    }).join('')}
+                `;
+            } catch(e) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;">AI strategy unavailable — check API key</div>';
+            }
+        }
+
+        async function applySpeedHigh() {
+            const el = document.getElementById('speed-status');
+            showProgress(el, 10, 'Applying Speed High...', 'Creating campaigns and setting ad rates for all listings');
+            try {
+                showProgress(el, 30, 'Sending to eBay...', 'Grouping listings by category, creating campaigns');
                 const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
                 const d = await resp.json();
-                document.getElementById('speed-status').innerHTML = `<span style="color:var(--green);font-weight:600;">${d.applied} listings updated across ${d.campaigns} campaigns</span>`;
+                if (d.error) {
+                    showProgressError(el, 'Failed: ' + d.error);
+                } else {
+                    showProgressDone(el, `${d.applied} listings promoted`, `${d.campaigns} campaigns created · ${d.failed||0} failed`);
+                }
                 toast(d.applied + ' listings promoted!');
             } catch(e) {
-                document.getElementById('speed-status').innerHTML = '<span style="color:var(--red);">Failed</span>';
+                showProgressError(el, 'Failed — check eBay connection');
             }
         }
 
@@ -1258,11 +1347,15 @@
             if (query) items = items.filter(i => i.name.toLowerCase().includes(query));
 
             const order = {'SELL NOW':0,'GOOD TO SELL':1,'SET PRICE':2,'HOLD':3,'WAIT':4,'RESEARCH':5};
+            const actionOrder = {'PROMOTE':0,'DISCOUNT':1,'RELIST':2,'HOLD':3};
             if (sort === 'signal') items.sort((a,b) => (order[a.recommendation]||5) - (order[b.recommendation]||5));
+            else if (sort === 'action') items.sort((a,b) => (actionOrder[a.action]??3) - (actionOrder[b.action]??3) || (b.action_score||0) - (a.action_score||0));
             else if (sort === 'alpha') items.sort((a,b) => a.name.localeCompare(b.name));
             else if (sort === 'price_high') items.sort((a,b) => (b.suggested_price||0) - (a.suggested_price||0));
             else if (sort === 'price_low') items.sort((a,b) => (a.suggested_price||0) - (b.suggested_price||0));
             else if (sort === 'watchers') items.sort((a,b) => (b.watchers||0) - (a.watchers||0));
+            else if (sort === 'roi') items.sort((a,b) => (b.roi_est||0) - (a.roi_est||0));
+            else if (sort === 'stale') items.sort((a,b) => (b.days_listed||0) - (a.days_listed||0));
 
             document.getElementById('inv-count').textContent = `${items.length} items`;
             document.getElementById('inv-sub').textContent = `${invData?.total||0} listings · $${Math.round((invData?.total_value||0)/1000)}k value`;
@@ -1272,11 +1365,24 @@
 
             const velColor = v => v==='Blazing'?'var(--gold)':v==='Fast'?'var(--green)':v==='Moderate'?'var(--accent)':v==='Slow'?'var(--dim)':'var(--red)';
 
-            el.innerHTML = `<div class="table-wrap"><table>
+            // Action summary cards
+            const acts = invData?.action_summary || {};
+            const cap = invData?.capital_efficiency || {};
+            const actBar = `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--accent);"><div style="font-size:18px;font-weight:700;color:var(--accent);">${acts.PROMOTE||0}</div><div class="stat-lbl">Promote</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);"><div style="font-size:18px;font-weight:700;color:var(--orange);">${acts.DISCOUNT||0}</div><div class="stat-lbl">Discount</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);"><div style="font-size:18px;font-weight:700;color:var(--red);">${acts.RELIST||0}</div><div class="stat-lbl">Relist</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:18px;font-weight:700;color:var(--green);">${acts.HOLD||0}</div><div class="stat-lbl">Hold</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">$${Math.round(cap.total_locked||0).toLocaleString()}</div><div class="stat-lbl">Capital</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.inventory_turnover||0}x</div><div class="stat-lbl">Turns/Yr</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.avg_days_listed||0}d</div><div class="stat-lbl">Avg Age</div></div>
+            </div>`;
+
+            el.innerHTML = actBar + `<div class="table-wrap"><table>
                 <thead><tr>
-                    <th>Item</th><th>Signal</th><th>Velocity</th><th class="r">Smart $</th><th class="r">Last Sale</th>
+                    <th>Item</th><th>Signal</th><th>Next Move</th><th>Velocity</th><th class="r">Smart $</th><th class="r">Last Sale</th>
                     <th class="r">Median</th><th class="r">Supply</th><th class="r">Ad%</th>
-                    <th class="r">Margin</th><th>Season</th><th>Reason</th><th>Action</th>
+                    <th class="r">Margin</th><th>Season</th><th>Why</th><th>Go</th>
                 </tr></thead>
                 <tbody>${items.slice(0, 200).map(i => {
                     const hasSuggestion = i.suggested_price && i.your_price && Math.abs(i.suggested_price - i.your_price) > 5;
@@ -1289,6 +1395,9 @@
                         <td onclick="event.stopPropagation();invFilter='${i.signal}';document.querySelectorAll('#inv-chips .chip').forEach(c=>c.classList.remove('active'));renderInv();" style="cursor:pointer;" title="Filter by ${i.recommendation}">
                             <span class="pill ${signalPill(i.recommendation)}">${i.recommendation}</span>
                         </td>
+                        <td title="${i.action_reason||''} (score: ${i.action_score||0})">
+                            <span class="pill ${i.action==='PROMOTE'?'pill-blue':i.action==='DISCOUNT'?'pill-orange':i.action==='RELIST'?'pill-red':'pill-green'}">${i.action||'--'}</span>
+                        </td>
                         <td style="color:${velColor(i.velocity)};font-size:11px;font-weight:600;cursor:help;" title="Velocity: ${i.velocity}. ${i.times_sold||0} sold, ${i.avg_days_on_market!=null?i.avg_days_on_market+'d DOM':'no DOM data'}">${i.velocity||'--'}</td>
                         <td class="r b g" onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;" title="Click for price history. Components: ${Object.entries(i.pricing_components||{}).map(([k,v])=>k+': $'+Math.round(v.price||0)).join(', ')}">$${Math.round(i.suggested_price||0)}</td>
                         <td class="r" style="color:var(--accent);cursor:help;" title="Last sale: $${i.last_sale||'--'} on ${i.last_sale_date||'unknown'}. ${i.price_confidence||'?'} confidence.">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
@@ -1297,7 +1406,7 @@
                         <td class="r ${(i.ad_rate||0)>8?'rd b':''}" onclick="event.stopPropagation();showTab('promos')" style="cursor:pointer;" title="Ad rate: ${i.ad_rate||0}%. Click to manage promotions.">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
                         <td class="r ${mc}" title="Revenue: $${Math.round(i.suggested_price||0)} — Cost est: $${Math.round((i.suggested_price||0)*0.4)} — Fee: $${Math.round((i.suggested_price||0)*0.13)} — Ad: $${Math.round(i.ad_cost||0)} — Profit: $${Math.round(i.net_profit||0)} (${i.margin_pct||0}%)">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
                         <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${i.seasonal_event?'cursor:pointer;':''}" title="${i.seasonal_event ? i.seasonal_event+' (+'+i.seasonal_boost+'%). Click to see matching items.' : 'No active event'}" ${i.seasonal_event ? `onclick="event.stopPropagation();drill('event_items',{event:'${i.seasonal_event}'})"` : ''}>${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
-                        <td style="font-size:11px;color:var(--dim);min-width:150px;" title="${i.reason||''}">${i.reason||''}</td>
+                        <td style="font-size:11px;color:var(--dim);min-width:150px;" title="${i.reason||''}">${i.action_reason||i.reason||''}</td>
                         <td onclick="event.stopPropagation();">${hasSuggestion ?
                             `<button onclick="acceptPrice('${i.id}',${i.suggested_price})" class="btn" style="background:var(--green);color:#000;padding:3px 8px;font-size:10px;" title="Accept AI price and update on eBay">✓ $${Math.round(i.suggested_price)}</button>` : '<span class="d">—</span>'}</td>
                     </tr>`;
@@ -1306,10 +1415,26 @@
         }
 
         async function acceptPrice(id, price) {
-            toast('Updating price...');
-            await fetch('/api/pricing/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({changes:[{listing_id:id,new_price:price}]})});
-            toast('Price updated to $' + Math.round(price));
-            invData = null; loadInv();
+            // Show inline progress on the button
+            const btn = event?.target;
+            if (btn) { btn.disabled = true; btn.textContent = '...'; }
+            toast('Updating price to $' + Math.round(price) + '...');
+
+            try {
+                const resp = await fetch('/api/pricing/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({changes:[{listing_id:id,new_price:price}]})});
+                const d = await resp.json();
+                if (d.applied) {
+                    toast('Price updated to $' + Math.round(price));
+                    if (btn) { btn.textContent = '✓'; btn.style.background = 'var(--green)'; }
+                } else {
+                    toast('Price update failed');
+                    if (btn) { btn.textContent = '✗'; btn.style.background = 'var(--red)'; }
+                }
+            } catch(e) {
+                toast('Price update failed — network error');
+                if (btn) { btn.textContent = '✗'; btn.style.background = 'var(--red)'; }
+            }
+            setTimeout(() => { invData = null; loadInv(); }, 1500);
         }
 
         function exportInv() {
@@ -1461,13 +1586,24 @@
                 const sel = document.getElementById('cs-'+c.replace(/[^a-zA-Z]/g,''));
                 if (sel) strats[c] = sel.value;
             });
-            toast('Saving and applying...');
-            await fetch('/api/promotions/category-strategy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(strats)});
-            const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
-            const d = await resp.json();
             const statusEl = document.getElementById('cat-strat-status');
-            if (statusEl) statusEl.innerHTML = `<span class="g b">${d.applied} listings, ${d.campaigns} campaigns</span>`;
-            toast(d.applied + ' updated');
+            showProgress(statusEl, 20, 'Saving strategies...', 'Updating category settings');
+
+            await fetch('/api/promotions/category-strategy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(strats)});
+            showProgress(statusEl, 50, 'Applying to eBay...', 'Creating campaigns per category with new ad rates');
+
+            try {
+                const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
+                const d = await resp.json();
+                if (d.error) {
+                    showProgressError(statusEl, 'Failed: ' + d.error);
+                } else {
+                    showProgressDone(statusEl, `${d.applied} listings · ${d.campaigns} campaigns`, `${d.failed||0} failed · Strategies saved and applied to eBay`);
+                }
+                toast(d.applied + ' updated');
+            } catch(e) {
+                showProgressError(statusEl, 'Failed — check eBay connection');
+            }
         }
 
         async function applyStrat(level) {

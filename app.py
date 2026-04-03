@@ -1656,6 +1656,44 @@ def attribute_match_score(item_attrs, comp_attrs):
     return score
 
 
+# Artist-specific quality gates — items must have these attributes to be valid comps/deals
+ARTIST_REQUIRED_ATTRS = {
+    'Shepard Fairey': {
+        'require_any': ['signed', 'hand signed', 'hand-signed', 'autograph', 's/n', 'numbered', '/50', '/100', '/150', '/200', '/250', '/300', '/350', '/400', '/450', '/500'],
+        'reject': ['unsigned', 'not signed', 'poster only', 'offset print', 'reproduction'],
+    },
+    'Banksy': {
+        'require_any': ['signed', 'numbered', 'authenticated', 'pow', 'gdp', 'walled off', 'dismaland'],
+        'reject': ['unsigned', 'not signed', 'poster'],
+    },
+    'KAWS': {
+        'require_any': ['authentic', 'medicom', 'original', 'sealed', 'open edition', 'companion', 'bff', 'together', 'gone', 'holiday', 'signed'],
+        'reject': ['knockoff', 'fake', 'custom', 'bootleg'],
+    },
+}
+
+
+def passes_artist_quality_gate(title, artist):
+    """Check if an item passes the artist-specific quality gate"""
+    gate = ARTIST_REQUIRED_ATTRS.get(artist)
+    if not gate:
+        return True  # No gate for this artist
+
+    t = title.lower()
+
+    # Check rejects first
+    for reject in gate.get('reject', []):
+        if reject in t:
+            return False
+
+    # Check requires
+    requires = gate.get('require_any', [])
+    if requires:
+        return any(req in t for req in requires)
+
+    return True
+
+
 FAKE_INDICATORS = [
     'no certificate', 'no coa', 'reproduction', 'replica', 'tribute',
     'fan art', 'fanart', 'inspired by', 'in the style of', 'after ',
@@ -2432,10 +2470,13 @@ def get_live_deals():
             for r in results:
                 r['category'] = category
                 r['search_query'] = query
-                # Filter fakes
+                # Filter fakes + artist quality gate
                 fake, reason = is_likely_fake(r.get('title', ''), r.get('price', 0), category)
-                if not fake:
-                    all_deals.append(r)
+                if fake:
+                    continue
+                if not passes_artist_quality_gate(r.get('title', ''), category):
+                    continue
+                all_deals.append(r)
         except Exception as e:
             print(f"Search error for '{query}': {e}")
 
@@ -2692,12 +2733,15 @@ def deal_product_search():
     # Search eBay for products matching query — pull lots of results
     products = search_ebay(query, max_price, min_price, limit=200)
 
-    # Filter fakes
+    # Filter fakes + artist quality gate (e.g., SF must be signed/numbered)
     filtered = []
     for p in products:
         fake, reason = is_likely_fake(p.get('title', ''), p.get('price', 0), artist)
-        if not fake:
-            filtered.append(p)
+        if fake:
+            continue
+        if not passes_artist_quality_gate(p.get('title', ''), artist):
+            continue
+        filtered.append(p)
 
     # Deduplicate by title similarity
     seen = set()
@@ -3622,6 +3666,100 @@ def get_full_inventory_analytics():
                     seasonal_event = sug.get('event', '')
                     break
 
+        # === ACTION SCORING ENGINE ===
+        # Score each action: PROMOTE, DISCOUNT, RELIST, HOLD
+        promote_score = 0
+        discount_score = 0
+        relist_score = 0
+        hold_score = 0
+
+        # Calculate days listed from eBay start_time
+        start_time = listing.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.fromisoformat(start_time.replace('Z', '+00:00').replace('.000', ''))
+                days_listed = (datetime.now(st.tzinfo) - st).days
+            except Exception:
+                try:
+                    st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                    days_listed = (datetime.now() - st).days
+                except Exception:
+                    pass
+
+        # PROMOTE: high impressions but low conversion + margin cushion
+        if impressions > 50 and conversion_rate < 1.0 and margin_pct > 25:
+            promote_score += 40
+        if impressions > 100 and times_sold == 0:
+            promote_score += 20
+        if ad_rate == 0 and impressions > 30:
+            promote_score += 15  # not promoted yet but getting views
+        if seasonal_boost > 0:
+            promote_score += 15  # seasonal event active
+
+        # DISCOUNT: stale + good traffic but no sales + price above market
+        if days_listed > 21 and times_sold == 0:
+            discount_score += 25
+        if days_listed > 45:
+            discount_score += 20
+        if market_median > 0 and suggested > market_median * 1.08:
+            discount_score += 20  # priced above market
+        if impressions > 30 and conversion_rate < 0.5:
+            discount_score += 15  # views but no conversion
+        if margin_pct > 35:
+            discount_score += 10  # margin cushion exists
+
+        # RELIST: very low visibility, stale
+        if impressions < 15 and days_listed > 30:
+            relist_score += 35
+        if impressions < 5 and days_listed > 14:
+            relist_score += 25
+        if ad_rate > 0 and impressions < 20 and days_listed > 21:
+            relist_score += 20  # paying for ads, getting nothing
+
+        # HOLD: good signals, competitive price, watchers growing
+        listing_watchers = listing.get('watchers', 0) or 0
+        if listing_watchers > 0:
+            hold_score += 25
+        if market_median > 0 and abs(suggested - market_median) / market_median < 0.05:
+            hold_score += 20  # priced right at market
+        if velocity in ('Blazing', 'Fast'):
+            hold_score += 25
+        if times_sold > 0 and avg_days_on_market and avg_days_on_market < 14:
+            hold_score += 15
+        if margin_pct > 40:
+            hold_score += 10
+
+        # Pick the action
+        scores = {'PROMOTE': promote_score, 'DISCOUNT': discount_score, 'RELIST': relist_score, 'HOLD': hold_score}
+        action = max(scores, key=scores.get)
+        action_score = scores[action]
+        if action_score < 15:
+            action = 'HOLD'  # default to hold if no strong signal
+
+        # Action reason
+        action_reasons = []
+        if action == 'PROMOTE':
+            if impressions > 50 and conversion_rate < 1.0: action_reasons.append(f'{impressions} impressions but {conversion_rate}% conv')
+            if ad_rate == 0: action_reasons.append('Not promoted yet')
+            if seasonal_boost > 0: action_reasons.append(f'Seasonal: {seasonal_event}')
+        elif action == 'DISCOUNT':
+            if days_listed > 21: action_reasons.append(f'{days_listed}d stale')
+            if market_median > 0 and suggested > market_median * 1.08: action_reasons.append(f'${int(suggested-market_median)} over market')
+            if margin_pct > 35: action_reasons.append(f'{margin_pct:.0f}% margin room')
+        elif action == 'RELIST':
+            if impressions < 15: action_reasons.append(f'Only {impressions} impressions')
+            if days_listed > 30: action_reasons.append(f'{days_listed}d with no traction')
+        elif action == 'HOLD':
+            if listing_watchers > 0: action_reasons.append(f'{listing_watchers} watchers')
+            if velocity in ('Blazing', 'Fast'): action_reasons.append(f'{velocity} velocity')
+
+        # Capital efficiency
+        capital_locked = cost_basis if cost_basis > 0 else suggested * 0.4
+        roi_est = (net_profit / capital_locked * 100) if capital_locked > 0 else 0
+        days_inventory = days_listed or 1
+        annualized_roi = (roi_est / days_inventory * 365) if days_inventory > 0 else 0
+
         enhanced.append({
             'id': item['id'],
             'name': item['name'],
@@ -3675,6 +3813,18 @@ def get_full_inventory_analytics():
             'price_adj_reason': pricing['adjustment_reason'],
             'old_suggested': pricing['old_suggested'],
             'pricing_components': pricing['components'],
+            # Action scoring
+            'action': action,
+            'action_score': action_score,
+            'action_reason': ' · '.join(action_reasons) if action_reasons else '',
+            'scores': scores,
+            # Capital efficiency
+            'capital_locked': round(capital_locked, 2),
+            'roi_est': round(roi_est, 1),
+            'annualized_roi': round(annualized_roi, 1),
+            'days_listed': days_listed,
+            'watchers': listing_watchers,
+            'your_price': listing.get('price', 0),
         })
 
     # Sort by signal priority
@@ -3685,6 +3835,17 @@ def get_full_inventory_analytics():
     total_value = sum(i['suggested_price'] or 0 for i in enhanced)
     total_ad_cost = sum(i['ad_cost'] for i in enhanced)
     total_net = sum(i['net_profit'] for i in enhanced)
+    total_capital = sum(i['capital_locked'] for i in enhanced)
+
+    # Action distribution
+    action_counts = {}
+    for i in enhanced:
+        a = i['action']
+        action_counts[a] = action_counts.get(a, 0) + 1
+
+    # Capital efficiency
+    avg_roi = round(sum(i['roi_est'] for i in enhanced) / max(len(enhanced), 1), 1)
+    avg_days = round(sum(i['days_listed'] for i in enhanced) / max(len(enhanced), 1))
 
     return jsonify({
         'items': enhanced,
@@ -3692,11 +3853,19 @@ def get_full_inventory_analytics():
         'total_value': round(total_value, 2),
         'total_ad_cost': round(total_ad_cost, 2),
         'total_net_profit': round(total_net, 2),
+        'total_capital_locked': round(total_capital, 2),
         'velocity_summary': {
-            'fast': len([i for i in enhanced if i['velocity'] == 'Fast']),
-            'medium': len([i for i in enhanced if i['velocity'] == 'Medium']),
+            'fast': len([i for i in enhanced if i['velocity'] in ('Blazing', 'Fast')]),
+            'medium': len([i for i in enhanced if i['velocity'] in ('Moderate', 'Medium')]),
             'slow': len([i for i in enhanced if i['velocity'] == 'Slow']),
             'stale': len([i for i in enhanced if i['velocity'] == 'Stale']),
+        },
+        'action_summary': action_counts,
+        'capital_efficiency': {
+            'total_locked': round(total_capital),
+            'avg_roi_pct': avg_roi,
+            'avg_days_listed': avg_days,
+            'inventory_turnover': round(365 / max(avg_days, 1), 1),
         },
         'margin_warnings': len([i for i in enhanced if i['ad_eats_margin']]),
         'organic_performers': len([i for i in enhanced if i['promo_status'] == 'organic']),
@@ -5545,6 +5714,165 @@ def get_executive_dashboard():
     })
 
 
+@app.route('/api/ai/strategy')
+def ai_strategy_recommendations():
+    """AI-powered strategic recommendations from all inventory, sales, scoring, and capital data"""
+    # Gather all data
+    listings = ebay.get_all_listings()
+    sold = [s for s in ebay.get_sold_items(days_back=60) if s['price'] >= 25]
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+
+    # Get full analytics (uses cache if recent)
+    try:
+        with app.test_request_context():
+            inv_resp = get_full_inventory_analytics()
+            inv_data = inv_resp.get_json()
+    except Exception:
+        inv_data = {'items': [], 'action_summary': {}, 'capital_efficiency': {}}
+
+    items = inv_data.get('items', [])
+    acts = inv_data.get('action_summary', {})
+    cap = inv_data.get('capital_efficiency', {})
+
+    # Build data summary for AI
+    total = len(items)
+    total_value = sum(i.get('suggested_price', 0) or 0 for i in items)
+    total_revenue_60d = sum(s['price'] for s in sold)
+    avg_sale = round(total_revenue_60d / max(len(sold), 1))
+    velocity = round(len(sold) / 60, 2)
+
+    # Category breakdown
+    cat_stats = {}
+    for i in items:
+        c = i.get('artist', 'Other')
+        if c not in cat_stats:
+            cat_stats[c] = {'count': 0, 'value': 0, 'promote': 0, 'discount': 0, 'relist': 0, 'hold': 0, 'avg_margin': []}
+        cat_stats[c]['count'] += 1
+        cat_stats[c]['value'] += i.get('suggested_price', 0) or 0
+        cat_stats[c][i.get('action', 'hold').lower()] = cat_stats[c].get(i.get('action', 'hold').lower(), 0) + 1
+        if i.get('margin_pct'):
+            cat_stats[c]['avg_margin'].append(i['margin_pct'])
+
+    cat_summary = []
+    for c, s in sorted(cat_stats.items(), key=lambda x: -x[1]['count']):
+        avg_m = round(sum(s['avg_margin']) / max(len(s['avg_margin']), 1), 1) if s['avg_margin'] else 0
+        cat_summary.append(f"  {c}: {s['count']} items, ${round(s['value'])} value, {avg_m}% margin, {s['promote']}P/{s['discount']}D/{s['relist']}R/{s['hold']}H")
+
+    # Top discount candidates
+    discount_items = sorted([i for i in items if i.get('action') == 'DISCOUNT'], key=lambda x: -(x.get('action_score', 0)))[:5]
+    discount_text = '\n'.join([f"  ${i['suggested_price']:.0f} {i['name'][:45]} — {i.get('action_reason','')}" for i in discount_items])
+
+    # Top promote candidates
+    promote_items = sorted([i for i in items if i.get('action') == 'PROMOTE'], key=lambda x: -(x.get('action_score', 0)))[:5]
+    promote_text = '\n'.join([f"  ${i['suggested_price']:.0f} {i['name'][:45]} — {i.get('action_reason','')}" for i in promote_items])
+
+    # Stale items
+    stale = sorted([i for i in items if (i.get('days_listed', 0) or 0) > 30], key=lambda x: -(x.get('days_listed', 0) or 0))[:5]
+    stale_text = '\n'.join([f"  {i.get('days_listed',0)}d ${i['suggested_price']:.0f} {i['name'][:45]}" for i in stale])
+
+    # Top performers (recent sold)
+    top_sold = sorted(sold, key=lambda x: -x['price'])[:5]
+    sold_text = '\n'.join([f"  ${s['price']:.0f} {s.get('title','')[:45]} ({s.get('days_on_market','?')}d DOM)" for s in top_sold])
+
+    # Margin warnings
+    margin_warn = [i for i in items if i.get('ad_eats_margin')]
+    margin_text = f"{len(margin_warn)} items where ad cost exceeds 50% of gross profit"
+
+    prompt = f"""You are a data-driven eBay selling strategist analyzing a real art/collectibles store. Give specific, actionable recommendations based on this data.
+
+STORE SNAPSHOT:
+- {total} active listings, ${round(total_value)} total inventory value
+- {len(sold)} sold in 60 days, ${round(total_revenue_60d)} revenue, {velocity} items/day
+- Average sale: ${avg_sale}
+- Capital locked: ${round(cap.get('total_locked', 0))}
+- Inventory turnover: {cap.get('inventory_turnover', 0)}x/year
+- Avg days listed: {cap.get('avg_days_listed', 0)}
+
+ACTION SCORING:
+- PROMOTE: {acts.get('PROMOTE', 0)} items (need ads to convert)
+- DISCOUNT: {acts.get('DISCOUNT', 0)} items (overpriced vs market)
+- RELIST: {acts.get('RELIST', 0)} items (no visibility)
+- HOLD: {acts.get('HOLD', 0)} items (performing well)
+
+CATEGORIES:
+{chr(10).join(cat_summary)}
+
+DISCOUNT CANDIDATES:
+{discount_text or '  None flagged'}
+
+PROMOTE CANDIDATES:
+{promote_text or '  None flagged'}
+
+STALE ITEMS (30+ days):
+{stale_text or '  None'}
+
+RECENT TOP SALES:
+{sold_text or '  None in 60 days'}
+
+MARGIN WARNINGS:
+{margin_text}
+
+Give me exactly 7 specific recommendations. For each:
+1. One-line action (what to do right now)
+2. Expected impact ($ or %)
+3. Priority (1-3, 1=do today)
+
+Format each as: **[PRIORITY] ACTION** — IMPACT
+
+Be specific — use actual item names, dollar amounts, percentages. No generic advice."""
+
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    recommendations = []
+
+    if claude_key:
+        try:
+            resp = requests.post('https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 800, 'messages': [{'role': 'user', 'content': prompt}]},
+                timeout=30)
+            if resp.status_code == 200:
+                text = resp.json().get('content', [{}])[0].get('text', '')
+                # Parse into structured recs
+                for line in text.split('\n'):
+                    line = line.strip()
+                    if line and (line.startswith('**') or line.startswith('1.') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.') or line.startswith('5.') or line.startswith('6.') or line.startswith('7.')):
+                        recommendations.append(line)
+                if not recommendations:
+                    recommendations = [l.strip() for l in text.split('\n') if l.strip() and len(l.strip()) > 20]
+        except Exception as e:
+            print(f"AI strategy error: {e}")
+
+    if not recommendations:
+        # Fallback: rule-based recommendations
+        if acts.get('DISCOUNT', 0) > 0:
+            recommendations.append(f"**[1] Discount {acts['DISCOUNT']} overpriced items** — Align with market to unlock ${acts['DISCOUNT'] * avg_sale * 0.2:.0f}+ in stale capital")
+        if acts.get('PROMOTE', 0) > 0:
+            recommendations.append(f"**[1] Promote {acts['PROMOTE']} high-impression items** — Convert existing traffic into sales")
+        if acts.get('RELIST', 0) > 0:
+            recommendations.append(f"**[2] Relist {acts['RELIST']} zero-visibility items** — Fresh listing = fresh search placement")
+        if len(margin_warn) > 0:
+            recommendations.append(f"**[2] Fix {len(margin_warn)} items where ads eat >50% profit** — Lower ad rate or raise price")
+        if velocity < 1:
+            recommendations.append(f"**[1] Velocity at {velocity}/day is low** — Apply Speed High promo strategy across all categories")
+        recommendations.append(f"**[3] Capital: ${round(cap.get('total_locked', 0))} locked at {cap.get('inventory_turnover', 0)}x turnover** — Target 4x+ by moving stale items")
+        if len(stale) > 0:
+            recommendations.append(f"**[2] {len(stale)} items listed 30+ days** — Discount 10-15% or relist with new photos/titles")
+
+    return jsonify({
+        'recommendations': recommendations[:7],
+        'data_summary': {
+            'total_items': total,
+            'total_value': round(total_value),
+            'revenue_60d': round(total_revenue_60d),
+            'velocity': velocity,
+            'capital_locked': round(cap.get('total_locked', 0)),
+            'turnover': cap.get('inventory_turnover', 0),
+            'actions': acts,
+        },
+    })
+
+
 @app.route('/api/competitor-map/<listing_id>')
 def get_competitor_map(listing_id):
     """Visual price position map — where you sit vs competitors"""
@@ -6021,18 +6349,19 @@ def get_smart_comps():
     if not unique:
         return jsonify({'comps': [], 'queries': queries, 'validated': 0})
 
-    # Step 2.5: PRE-FILTER — require at least 1 meaningful word from item title in each comp
-    # This catches "Fragile Peace" matching "Peace Goddess", stickers matching prints, etc.
+    # Step 2.5: PRE-FILTER — word overlap + artist quality gate + wrong type rejection
     title_word_set = set(w.lower() for w in words if len(w) > 2)
     pre_filtered = []
     pre_removed = []
     for r in unique:
-        comp_words = set(w.lower() for w in re.findall(r'\w+', r.get('title', '')) if len(w) > 2)
+        comp_title = r.get('title', '')
+        comp_words = set(w.lower() for w in re.findall(r'\w+', comp_title) if len(w) > 2)
         overlap = title_word_set & comp_words
-        # Also check: if item is a print, comp shouldn't be a sticker/shirt/book
-        comp_title_lower = r.get('title', '').lower()
+        comp_title_lower = comp_title.lower()
         is_wrong_type = any(x in comp_title_lower for x in ['sticker', 'pin', 't-shirt', 'tshirt', 'tee ', 'book', 'magazine', 'postcard', 'magnet', 'keychain', 'patch', 'button'])
-        if len(overlap) >= 1 and not is_wrong_type:
+        # Artist quality gate — e.g., Shepard Fairey must be signed/numbered
+        passes_gate = passes_artist_quality_gate(comp_title, artist)
+        if len(overlap) >= 1 and not is_wrong_type and passes_gate:
             pre_filtered.append(r)
         else:
             pre_removed.append(r)
@@ -6082,7 +6411,24 @@ If NONE are valid, respond: {{"valid": [], "reason": "none match"}}"""
     validated = [pre_filtered[i] for i in sorted(valid_indices) if i < len(pre_filtered)]
     removed = pre_removed + [pre_filtered[i] for i in range(len(pre_filtered)) if i not in valid_indices]
 
+    # IQR outlier removal — remove top and bottom outliers
     v_prices = [c['price'] for c in validated if c.get('price', 0) > 0]
+    outlier_removed = []
+    if len(v_prices) >= 4:
+        sp = sorted(v_prices)
+        q1, q3 = sp[len(sp)//4], sp[3*len(sp)//4]
+        iqr = q3 - q1
+        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        new_validated = []
+        for c in validated:
+            cp = c.get('price', 0)
+            if cp > 0 and lo <= cp <= hi:
+                new_validated.append(c)
+            else:
+                outlier_removed.append(c)
+        validated = new_validated
+        v_prices = [c['price'] for c in validated if c.get('price', 0) > 0]
+
     stats = {}
     if v_prices:
         sp = sorted(v_prices)
@@ -6091,6 +6437,7 @@ If NONE are valid, respond: {{"valid": [], "reason": "none match"}}"""
     return jsonify({
         'comps': [{'title': c.get('title', '')[:60], 'price': c['price'], 'url': c.get('url', ''), 'condition': c.get('condition', '')} for c in validated],
         'removed': [{'title': r.get('title', '')[:40], 'price': r['price']} for r in removed],
+        'outliers_removed': [{'title': o.get('title', '')[:40], 'price': o['price']} for o in outlier_removed] if outlier_removed else [],
         'stats': stats,
         'queries': queries,
         'min_price': min_price,
@@ -8078,9 +8425,18 @@ def generate_feedback():
         role = item.get('role', 'seller')  # seller leaving for buyer, or buyer leaving for seller
 
         if role == 'seller':
-            prompt = f"Write a short, warm eBay feedback comment (max 80 chars) as a SELLER thanking a buyer. Item: {title}. Be genuine, not generic. Vary the wording."
+            prompt = f"""Write a warm, PERSONAL eBay feedback comment (max 80 chars) as a SELLER thanking a buyer for purchasing this specific item: "{title}".
+
+Be specific about the item — reference it by name. Make it feel like a real person wrote it, not a template.
+Examples of the tone I want:
+- "Thanks so much for buying the Peace Goddess! Hope you love it as much as we do"
+- "So glad this Basquiat found a great home. Enjoy it!"
+- "Appreciate you grabbing the signed print — it's a beauty. Enjoy!"
+
+Do NOT use generic phrases like "Great buyer!" or "A++ transaction". Reference the actual item.
+Return ONLY the feedback text, no quotes."""
         else:
-            prompt = f"Write a short eBay feedback comment (max 80 chars) as a BUYER thanking a seller. Item: {title}. Be genuine."
+            prompt = f"Write a short, genuine eBay feedback comment (max 80 chars) as a BUYER thanking the seller for this item: {title}. Be specific about the item. No generic phrases."
 
         # Step 1: Claude writes the draft
         draft = ''
@@ -8088,7 +8444,7 @@ def generate_feedback():
             try:
                 resp = requests.post('https://api.anthropic.com/v1/messages',
                     headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                    json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 50, 'messages': [{'role': 'user', 'content': prompt}]},
+                    json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 60, 'messages': [{'role': 'user', 'content': prompt}]},
                     timeout=10)
                 if resp.status_code == 200:
                     draft = resp.json().get('content', [{}])[0].get('text', '').strip().strip('"')
@@ -8096,7 +8452,10 @@ def generate_feedback():
                 pass
 
         if not draft:
-            draft = f"Great buyer! Fast payment for {title[:30]}. Thank you!"
+            # Personal fallback that references the item
+            short_title = re.sub(r'\b(signed|numbered|limited|edition|print|screen|obey|giant|art|framed)\b', '', title, flags=re.IGNORECASE).strip()
+            short_title = re.sub(r'\s+', ' ', short_title).strip()[:30]
+            draft = f"Thanks for the {short_title}! Hope you love it"
 
         # Step 2: GPT edits/polishes
         final = draft
