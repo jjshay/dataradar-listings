@@ -339,6 +339,32 @@
                 <div id="fb-status" style="margin-top:8px;font-size:12px;"></div>
             </div>
 
+            <!-- Auto-Offer to Watchers -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Auto-Offers to Watchers</div>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn-ghost" onclick="previewOffers()">Preview</button>
+                        <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="sendOffers()">Send All Offers</button>
+                    </div>
+                </div>
+                <div id="offer-status"></div>
+                <div id="offer-preview"></div>
+            </div>
+
+            <!-- Auto-Reprice Engine -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Auto-Reprice Stale Items</div>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn-ghost" onclick="previewReprice()">Preview</button>
+                        <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="runReprice()">Run Reprice</button>
+                    </div>
+                </div>
+                <div id="reprice-status"></div>
+                <div id="reprice-preview"></div>
+            </div>
+
             <!-- Automation -->
             <div class="section">
                 <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
@@ -1093,6 +1119,112 @@
             } catch(e) {
                 el.innerHTML = '<div style="color:var(--dim);font-size:12px;">AI strategy unavailable — check API key</div>';
             }
+        }
+
+        // ==========================================
+        // Auto-Offer to Watchers
+        // ==========================================
+        async function previewOffers() {
+            const el = document.getElementById('offer-preview');
+            const status = document.getElementById('offer-status');
+            showProgress(status, 30, 'Generating AI offer messages...', 'Finding eligible items with watchers');
+
+            try {
+                const resp = await fetch('/api/watcher-offers/preview');
+                const d = await resp.json();
+                const candidates = d.candidates || [];
+
+                if (!candidates.length) {
+                    status.innerHTML = '';
+                    el.innerHTML = '<div style="font-size:12px;color:var(--dim);">No items eligible — need watchers + 14+ days listed</div>';
+                    return;
+                }
+
+                showProgressDone(status, `${candidates.length} offers ready`, 'Review messages below, then click Send All');
+
+                el.innerHTML = candidates.map((c, i) => `
+                    <div class="card" style="margin-bottom:6px;border-left:3px solid var(--green);">
+                        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+                            <div style="flex:1;">
+                                <div style="font-size:13px;font-weight:500;">${c.title}</div>
+                                <div style="font-size:11px;color:var(--dim);">${c.category} · ${c.watchers}w · ${c.days_listed}d listed</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:11px;color:var(--dim);text-decoration:line-through;">$${c.price}</div>
+                                <div style="font-size:16px;font-weight:700;color:var(--green);">$${c.offer_price}</div>
+                                <div style="font-size:10px;color:var(--orange);">${c.discount_pct}% off</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:6px;background:var(--bg);border-radius:8px;padding:8px;font-size:12px;color:var(--text);font-style:italic;">"${c.message}"</div>
+                    </div>
+                `).join('');
+            } catch(e) { showProgressError(status, 'Failed to load preview'); }
+        }
+
+        async function sendOffers() {
+            const status = document.getElementById('offer-status');
+            showProgress(status, 10, 'Sending offers to watchers...', 'Using eBay Negotiation API');
+
+            try {
+                const resp = await fetch('/api/watcher-offers/send', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})});
+                const d = await resp.json();
+                if (d.error) {
+                    showProgressError(status, d.error);
+                } else {
+                    showProgressDone(status, `${d.sent} offers sent`, `${d.failed} failed${d.errors?.length ? ' · ' + d.errors[0] : ''}`);
+                }
+                toast(d.sent + ' offers sent to watchers');
+            } catch(e) { showProgressError(status, 'Failed to send offers'); }
+        }
+
+        // ==========================================
+        // Auto-Reprice Engine
+        // ==========================================
+        async function previewReprice() {
+            const el = document.getElementById('reprice-preview');
+            const status = document.getElementById('reprice-status');
+            showProgress(status, 30, 'Calculating price changes...', 'Checking stale items against floor prices');
+
+            try {
+                const resp = await fetch('/api/reprice/preview');
+                const d = await resp.json();
+                const changes = d.changes || [];
+
+                if (!changes.length) {
+                    status.innerHTML = '';
+                    el.innerHTML = '<div style="font-size:12px;color:var(--dim);">No items need repricing — nothing stale enough</div>';
+                    return;
+                }
+
+                const totalSaved = changes.reduce((s, c) => s + (c.current_price - c.new_price), 0);
+                showProgressDone(status, `${changes.length} items to reprice`, `Total markdown: $${Math.round(totalSaved)} · Threshold: ${d.threshold}d`);
+
+                el.innerHTML = `<div class="table-wrap"><table>
+                    <thead><tr><th>Item</th><th>Cat</th><th class="r">Current</th><th class="r">New</th><th class="r">Floor</th><th class="r">Days</th><th class="r">Total Off</th></tr></thead>
+                    <tbody>${changes.map(c => `<tr onclick="drillItem('${c.id}','${c.title.replace(/'/g,'')}','${c.category}',${c.new_price})" style="cursor:pointer;" title="Click for detail">
+                        <td class="trunc">${c.title}</td>
+                        <td style="font-size:11px;">${c.category}</td>
+                        <td class="r">$${c.current_price}</td>
+                        <td class="r g b">$${c.new_price}</td>
+                        <td class="r d">$${c.floor}</td>
+                        <td class="r rd b">${c.days_listed}d</td>
+                        <td class="r o">${c.total_markdown_pct}%</td>
+                    </tr>`).join('')}</tbody>
+                </table></div>`;
+            } catch(e) { showProgressError(status, 'Failed to load preview'); }
+        }
+
+        async function runReprice() {
+            const status = document.getElementById('reprice-status');
+            showProgress(status, 20, 'Running auto-reprice...', 'Applying markdowns to stale items with floor protection');
+
+            try {
+                const resp = await fetch('/api/reprice/run', {method: 'POST'});
+                const d = await resp.json();
+                showProgressDone(status, `${d.applied} items repriced`, `${d.failed} failed · ${d.log?.length ? d.log[0] : 'Done'}`);
+                toast(d.applied + ' items repriced');
+                invData = null; // Force inventory refresh
+            } catch(e) { showProgressError(status, 'Reprice failed'); }
         }
 
         async function applySpeedHigh() {
@@ -2084,14 +2216,18 @@
             modal.classList.add('show');
 
             try {
-                const [compResp, chartResp, valResp] = await Promise.all([
+                const [compResp, chartResp, valResp, soldResp] = await Promise.all([
                     fetch(`/api/drill/competing?title=${encodeURIComponent(name)}&id=${id}`),
                     fetch(`/api/listing/chart/${id}`),
-                    fetch(`/api/comps/smart?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
+                    fetch(`/api/comps/smart?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`),
+                    fetch(`/api/comps/sold?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
                 ]);
                 const compData = await compResp.json();
                 const chartData = await chartResp.json();
                 const valData = await valResp.json();
+                const soldData = await soldResp.json();
+                const soldComps = soldData.sold_comps || [];
+                const soldStats = soldData.stats || {};
 
                 const vs = valData.stats || {};
                 const comps = compData.items || [];
@@ -2152,6 +2288,23 @@
                             <td class="d" style="font-size:10px;">${h.source||''}</td>
                         </tr>`).join('')}</tbody>
                     </table></div>` : '<div style="color:var(--dim);font-size:12px;">No WorthPoint historical data found</div>'}
+
+                    <!-- Section 3: eBay Sold Comps (actual sold prices) -->
+                    ${soldComps.length ? `
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--green);">eBay Sold Prices (${soldComps.length} actual sales)</span>
+                        ${soldStats.median ? `<span>Median: $${Math.round(soldStats.median)} · Avg: $${Math.round(soldStats.avg||0)}</span>` : ''}
+                    </div>
+                    <div class="table-wrap" style="margin-bottom:12px;"><table>
+                        <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th><th></th></tr></thead>
+                        <tbody>${soldComps.slice(0,15).map(c => `<tr class="comp-row" data-comp-title="${(c.title||'').replace(/"/g,'')}" data-comp-price="${c.price||0}" data-item-title="${name.replace(/"/g,'')}" data-artist="${artist}">
+                            <td class="trunc">${c.title||''}</td>
+                            <td class="r g b">$${Math.round(c.price).toLocaleString()}</td>
+                            <td class="d" style="font-size:11px;">${c.sold_date||'--'}</td>
+                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;" onclick="event.stopPropagation()">eBay</a>` : '--'}</td>
+                            <td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp('${(c.title||'').replace(/'/g,'')}',${c.price||0},'${name.replace(/'/g,'')}','${artist}',this.closest('tr'))" title="Remove — AI learns">✕</button></td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : ''}
 
                     ${valData.removed?.length ? `<div style="margin-top:12px;font-size:11px;color:var(--dim);">Filtered out: ${valData.removed.map(r=>'$'+r.price+' '+r.title).join(', ')}</div>` : ''}
                 `;

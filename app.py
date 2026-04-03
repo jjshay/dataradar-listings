@@ -132,7 +132,7 @@ class EbayAPI:
             data={
                 'grant_type': 'refresh_token',
                 'refresh_token': self.config['refresh_token'],
-                'scope': 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.marketing'
+                'scope': 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.marketing https://api.ebay.com/oauth/api_scope/sell.negotiation'
             }
         )
 
@@ -4029,6 +4029,7 @@ EBAY_OAUTH_SCOPES = ' '.join([
     'https://api.ebay.com/oauth/api_scope/sell.account.readonly',
     'https://api.ebay.com/oauth/api_scope/sell.analytics.readonly',
     'https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly',
+    'https://api.ebay.com/oauth/api_scope/sell.negotiation',
 ])
 
 
@@ -10793,6 +10794,561 @@ def manage_cost_basis():
         return jsonify({'success': True})
 
     return jsonify(load_cost_basis())
+
+
+# =============================================================================
+# Consolidated detect_cat — single source of truth for category detection
+# =============================================================================
+
+def detect_category(title):
+    """Detect artist/category from listing title — single source of truth"""
+    t = title.lower()
+    if 'shepard fairey' in t or 'obey' in t: return 'Shepard Fairey'
+    elif 'death nyc' in t: return 'Death NYC'
+    elif 'banksy' in t or 'd*face' in t: return 'Banksy'
+    elif 'kaws' in t: return 'KAWS'
+    elif 'bearbrick' in t or 'be@rbrick' in t: return 'Bearbrick'
+    elif 'brainwash' in t or 'mbw' in t: return 'Mr. Brainwash'
+    elif 'apollo' in t or 'nasa' in t or 'astronaut' in t or 'aldrin' in t or 'armstrong' in t: return 'Space/NASA'
+    elif 'pickguard' in t: return 'Pickguard'
+    elif ('vinyl' in t or 'record' in t or 'album' in t or 'guitar' in t) and 'signed' in t: return 'Signed Music'
+    return 'Other'
+
+
+# =============================================================================
+# Feature: Sold Comps — Market completed/sold listing prices via Finding API
+# =============================================================================
+SOLD_COMPS_CACHE_FILE = os.path.join(DATA_DIR, 'sold_comps_cache.json')
+
+
+def search_sold_comps(query, min_price=0, max_price=9999, days_back=90):
+    """Search eBay Finding API for completed+sold items — actual sold prices, not asking"""
+    client_id = ENV.get('EBAY_CLIENT_ID', '')
+    if not client_id:
+        return []
+
+    params = {
+        'OPERATION-NAME': 'findCompletedItems',
+        'SERVICE-VERSION': '1.0.0',
+        'SECURITY-APPNAME': client_id,
+        'RESPONSE-DATA-FORMAT': 'JSON',
+        'REST-PAYLOAD': '',
+        'keywords': query,
+        'itemFilter(0).name': 'SoldItemsOnly',
+        'itemFilter(0).value(0)': 'true',
+        'itemFilter(1).name': 'MinPrice',
+        'itemFilter(1).value(0)': str(min_price),
+        'itemFilter(2).name': 'MaxPrice',
+        'itemFilter(2).value(0)': str(max_price),
+        'paginationInput.entriesPerPage': '100',
+        'sortOrder': 'EndTimeSoonest',
+    }
+
+    try:
+        resp = requests.get('https://svcs.ebay.com/services/search/FindingService/v1', params=params, timeout=15)
+        if resp.status_code != 200:
+            return []
+
+        data = resp.json()
+        results = data.get('findCompletedItemsResponse', [{}])[0]
+        items = results.get('searchResult', [{}])[0].get('item', [])
+
+        comps = []
+        for item in items:
+            price = float(item.get('sellingStatus', [{}])[0].get('currentPrice', [{}])[0].get('__value__', 0))
+            sold_date = item.get('listingInfo', [{}])[0].get('endTime', [''])[0][:10]
+            title = item.get('title', [''])[0] if isinstance(item.get('title'), list) else item.get('title', '')
+            url = item.get('viewItemURL', [''])[0] if isinstance(item.get('viewItemURL'), list) else item.get('viewItemURL', '')
+            condition = item.get('condition', [{}])[0].get('conditionDisplayName', [''])[0] if item.get('condition') else ''
+
+            if price > 0:
+                comps.append({
+                    'title': title[:80],
+                    'price': price,
+                    'sold_date': sold_date,
+                    'url': url,
+                    'condition': condition,
+                    'source': 'eBay Sold',
+                })
+
+        return comps
+
+    except Exception as e:
+        print(f"Finding API error: {e}")
+        return []
+
+
+@app.route('/api/comps/sold')
+def get_sold_comps():
+    """Get actual sold prices from eBay completed listings"""
+    title = request.args.get('title', '')
+    artist = request.args.get('artist', '')
+    price = float(request.args.get('price', 0))
+
+    if not title:
+        return jsonify({'error': 'Missing title'}), 400
+
+    # Build search query — artist + key title words
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'screen', 'edition', 'limited', 'art', 'original', 'artist', 'proof', 'framed',
+             'obey', 'giant', 'authentic', 'vinyl', 'figure', 'open'}
+    words = [w for w in re.findall(r'\w+', title) if w.lower() not in noise and len(w) > 2]
+
+    min_price_floor = FAKE_PRICE_THRESHOLDS.get(artist, 15)
+    max_price_ceil = max(price * 4, 500)
+
+    # Run 2 queries for better coverage
+    all_comps = []
+    q1 = f"{artist} {' '.join(words[:3])}" if artist else ' '.join(words[:4])
+    q2 = f"{artist} {' '.join(words[:2])}" if artist and len(words) >= 2 else ''
+
+    for q in [q1, q2]:
+        if q.strip():
+            results = search_sold_comps(q, min_price_floor, max_price_ceil)
+            all_comps.extend(results)
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for c in all_comps:
+        key = c['title'][:30].lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+
+    # Quality gate + rejection filter
+    rejections_data = load_comp_rejections()
+    filtered = []
+    for c in unique:
+        if not passes_artist_quality_gate(c['title'], artist):
+            continue
+        is_rej, _ = comp_matches_learned_rejection(c['title'], rejections_data)
+        if is_rej:
+            continue
+        filtered.append(c)
+
+    # IQR outlier removal
+    prices = [c['price'] for c in filtered if c['price'] > 0]
+    if len(prices) >= 4:
+        sp = sorted(prices)
+        q1_val, q3_val = sp[len(sp)//4], sp[3*len(sp)//4]
+        iqr = q3_val - q1_val
+        lo, hi = q1_val - 1.5 * iqr, q3_val + 1.5 * iqr
+        filtered = [c for c in filtered if lo <= c['price'] <= hi]
+        prices = [c['price'] for c in filtered]
+
+    stats = {}
+    if prices:
+        sp = sorted(prices)
+        stats = {'count': len(sp), 'min': sp[0], 'max': sp[-1], 'median': sp[len(sp)//2], 'avg': round(sum(sp)/len(sp))}
+
+    return jsonify({
+        'sold_comps': filtered[:20],
+        'stats': stats,
+        'queries': [q1, q2],
+        'total': len(filtered),
+    })
+
+
+# =============================================================================
+# Feature: Auto-Reprice Engine — Weekly stale item markdown with floor
+# =============================================================================
+REPRICE_CONFIG_FILE = os.path.join(DATA_DIR, 'reprice_config.json')
+
+
+def load_reprice_config():
+    if os.path.exists(REPRICE_CONFIG_FILE):
+        try:
+            with open(REPRICE_CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        'enabled': False,
+        'stale_threshold_days': 21,
+        'category_rules': {
+            'Shepard Fairey': {'markdown_pct': 5, 'max_total_pct': 25},
+            'KAWS': {'markdown_pct': 5, 'max_total_pct': 20},
+            'Death NYC': {'markdown_pct': 8, 'max_total_pct': 30},
+            'Banksy': {'markdown_pct': 3, 'max_total_pct': 15},
+            'Bearbrick': {'markdown_pct': 5, 'max_total_pct': 25},
+            'Mr. Brainwash': {'markdown_pct': 7, 'max_total_pct': 30},
+            'Space/NASA': {'markdown_pct': 7, 'max_total_pct': 30},
+            'Signed Music': {'markdown_pct': 5, 'max_total_pct': 25},
+            'Other': {'markdown_pct': 10, 'max_total_pct': 35},
+        },
+        'original_prices': {},
+        'history': [],
+    }
+
+
+def save_reprice_config(config):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(REPRICE_CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+@app.route('/api/reprice/config', methods=['GET', 'POST'])
+def manage_reprice_config():
+    if request.method == 'POST':
+        data = request.get_json()
+        config = load_reprice_config()
+        config.update(data)
+        save_reprice_config(config)
+        return jsonify({'success': True})
+    return jsonify(load_reprice_config())
+
+
+@app.route('/api/reprice/preview')
+def reprice_preview():
+    """Dry run — show what would change without applying"""
+    config = load_reprice_config()
+    listings = ebay.get_all_listings()
+    sold_data = fetch_and_cache_sold()
+    sold_items = sold_data.get('items', [])
+
+    # Build sold price lookup
+    sold_by_title = {}
+    for s in sold_items:
+        key = (s.get('title', '') or '').lower()[:40]
+        if key not in sold_by_title or s['price'] > sold_by_title[key]:
+            sold_by_title[key] = s['price']
+
+    threshold = config.get('stale_threshold_days', 21)
+    changes = []
+
+    for listing in listings:
+        # Calculate age
+        start_time = listing.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                days_listed = (datetime.now() - st).days
+            except Exception:
+                pass
+
+        if days_listed < threshold:
+            continue
+
+        cat = detect_category(listing['title'])
+        rule = config['category_rules'].get(cat, config['category_rules'].get('Other', {'markdown_pct': 10, 'max_total_pct': 35}))
+
+        current = listing['price']
+        original = config.get('original_prices', {}).get(listing['id'], current)
+
+        # Floor: never below last sale price
+        title_key = listing['title'].lower()[:40]
+        floor = sold_by_title.get(title_key, current * 0.5)
+
+        # Calculate markdown
+        markdown = current * (1 - rule['markdown_pct'] / 100)
+        max_markdown = original * (1 - rule['max_total_pct'] / 100)
+        new_price = round(max(markdown, max_markdown, floor), 2)
+
+        if new_price < current:
+            pct_off = round((1 - new_price / original) * 100, 1) if original else 0
+            changes.append({
+                'id': listing['id'],
+                'title': listing['title'][:60],
+                'category': cat,
+                'current_price': current,
+                'new_price': new_price,
+                'floor': round(floor, 2),
+                'original': original,
+                'days_listed': days_listed,
+                'total_markdown_pct': pct_off,
+                'this_markdown_pct': rule['markdown_pct'],
+                'url': listing.get('url', ''),
+            })
+
+    changes.sort(key=lambda x: -x['days_listed'])
+    return jsonify({'changes': changes, 'total': len(changes), 'threshold': threshold})
+
+
+@app.route('/api/reprice/run', methods=['POST'])
+def run_reprice_engine():
+    """Execute auto-reprice on stale items"""
+    config = load_reprice_config()
+    listings = ebay.get_all_listings()
+    sold_data = fetch_and_cache_sold()
+    sold_items = sold_data.get('items', [])
+
+    sold_by_title = {}
+    for s in sold_items:
+        key = (s.get('title', '') or '').lower()[:40]
+        if key not in sold_by_title or s['price'] > sold_by_title[key]:
+            sold_by_title[key] = s['price']
+
+    threshold = config.get('stale_threshold_days', 21)
+    applied = 0
+    failed = 0
+    log = []
+
+    for listing in listings:
+        start_time = listing.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                days_listed = (datetime.now() - st).days
+            except Exception:
+                pass
+
+        if days_listed < threshold:
+            continue
+
+        cat = detect_category(listing['title'])
+        rule = config['category_rules'].get(cat, config['category_rules'].get('Other', {'markdown_pct': 10, 'max_total_pct': 35}))
+
+        current = listing['price']
+        original = config.get('original_prices', {}).get(listing['id'], current)
+
+        title_key = listing['title'].lower()[:40]
+        floor = sold_by_title.get(title_key, current * 0.5)
+
+        markdown = current * (1 - rule['markdown_pct'] / 100)
+        max_markdown = original * (1 - rule['max_total_pct'] / 100)
+        new_price = round(max(markdown, max_markdown, floor), 2)
+
+        if new_price < current:
+            if ebay.update_price(listing['id'], new_price):
+                applied += 1
+                if listing['id'] not in config.get('original_prices', {}):
+                    config.setdefault('original_prices', {})[listing['id']] = current
+                log.append(f"${current:.0f} → ${new_price:.0f} ({cat}) {listing['title'][:40]}")
+            else:
+                failed += 1
+
+    config['history'] = (config.get('history', []) + log)[-100:]
+    config['last_run'] = datetime.now().isoformat()
+    save_reprice_config(config)
+
+    return jsonify({'applied': applied, 'failed': failed, 'log': log[:20]})
+
+
+# =============================================================================
+# Feature: Auto-Offer to Watchers — Negotiation API with AI messages
+# =============================================================================
+WATCHER_OFFERS_FILE = os.path.join(DATA_DIR, 'watcher_offers_config.json')
+
+
+def load_watcher_offers_config():
+    if os.path.exists(WATCHER_OFFERS_FILE):
+        try:
+            with open(WATCHER_OFFERS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        'enabled': False,
+        'category_discounts': {
+            'Shepard Fairey': {'min_days': 14, 'discount_pct': 10, 'max_discount_pct': 20},
+            'KAWS': {'min_days': 14, 'discount_pct': 12, 'max_discount_pct': 25},
+            'Death NYC': {'min_days': 14, 'discount_pct': 15, 'max_discount_pct': 25},
+            'Banksy': {'min_days': 21, 'discount_pct': 8, 'max_discount_pct': 15},
+            'Bearbrick': {'min_days': 14, 'discount_pct': 10, 'max_discount_pct': 20},
+            'Mr. Brainwash': {'min_days': 14, 'discount_pct': 12, 'max_discount_pct': 20},
+            'Space/NASA': {'min_days': 14, 'discount_pct': 12, 'max_discount_pct': 20},
+            'Signed Music': {'min_days': 14, 'discount_pct': 10, 'max_discount_pct': 20},
+            'Other': {'min_days': 21, 'discount_pct': 15, 'max_discount_pct': 30},
+        },
+        'offer_duration_days': 2,
+        'allow_counter': True,
+        'cooldown_days': 7,
+        'sent_offers': {},
+    }
+
+
+def save_watcher_offers_config(config):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(WATCHER_OFFERS_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+def generate_offer_message(title, category, discount_pct, price, offer_price):
+    """Generate a unique, personal offer message using Claude"""
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+
+    prompt = f"""Write a 1-2 sentence personalized eBay offer message for a buyer watching this item. Be conversational, mention the artwork/item specifically, create gentle urgency. No generic messages.
+
+Item: {title}
+Category: {category}
+Original price: ${price:.0f}
+Offer price: ${offer_price:.0f} ({discount_pct}% off)
+
+Examples of the tone:
+- "Hey! I noticed you're watching the Peace Goddess print. I'd love for it to find a great home — here's {discount_pct}% off, just for you."
+- "This {category} piece has been getting a lot of attention. Wanted to offer you first dibs at a special price before it's gone."
+- "Thanks for checking out the {title[:20]}! Sending you an exclusive offer — this one won't last long."
+
+Return ONLY the message text, no quotes, under 500 characters."""
+
+    if claude_key:
+        try:
+            resp = requests.post('https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 80, 'messages': [{'role': 'user', 'content': prompt}]},
+                timeout=10)
+            if resp.status_code == 200:
+                msg = resp.json().get('content', [{}])[0].get('text', '').strip().strip('"')
+                if msg and len(msg) < 500:
+                    return msg
+        except Exception:
+            pass
+
+    # Fallback — still personal
+    short_title = re.sub(r'\b(signed|numbered|limited|edition|print|screen|obey|giant|art|framed)\b', '', title, flags=re.IGNORECASE).strip()
+    short_title = re.sub(r'\s+', ' ', short_title).strip()[:30]
+    return f"Hi! I noticed you're watching the {short_title}. Here's an exclusive {discount_pct}% off just for you — this piece won't last long!"
+
+
+@app.route('/api/watcher-offers/config', methods=['GET', 'POST'])
+def manage_watcher_offers():
+    if request.method == 'POST':
+        data = request.get_json()
+        config = load_watcher_offers_config()
+        config.update(data)
+        save_watcher_offers_config(config)
+        return jsonify({'success': True})
+    return jsonify(load_watcher_offers_config())
+
+
+@app.route('/api/watcher-offers/preview')
+def preview_watcher_offers():
+    """Show which items would get offers — dry run with AI messages"""
+    config = load_watcher_offers_config()
+    listings = ebay.get_all_listings()
+    now = datetime.now()
+    sent = config.get('sent_offers', {})
+    cooldown = config.get('cooldown_days', 7)
+
+    candidates = []
+    for listing in listings:
+        if listing.get('watchers', 0) < 1:
+            continue
+
+        # Calculate age
+        start_time = listing.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                days_listed = (now - st).days
+            except Exception:
+                pass
+
+        cat = detect_category(listing['title'])
+        cat_config = config['category_discounts'].get(cat, config['category_discounts'].get('Other', {'min_days': 21, 'discount_pct': 15, 'max_discount_pct': 30}))
+
+        if days_listed < cat_config['min_days']:
+            continue
+
+        # Check cooldown
+        last_sent = sent.get(listing['id'], '')
+        if last_sent:
+            try:
+                last_dt = datetime.fromisoformat(last_sent)
+                if (now - last_dt).days < cooldown:
+                    continue
+            except Exception:
+                pass
+
+        # Tiered discount: more stale = higher discount
+        base_discount = cat_config['discount_pct']
+        max_discount = cat_config['max_discount_pct']
+        if days_listed > 45:
+            discount = max_discount
+        elif days_listed > 30:
+            discount = min(base_discount + 5, max_discount)
+        else:
+            discount = base_discount
+
+        offer_price = round(listing['price'] * (1 - discount / 100), 2)
+
+        # Generate AI message
+        message = generate_offer_message(listing['title'], cat, discount, listing['price'], offer_price)
+
+        candidates.append({
+            'id': listing['id'],
+            'title': listing['title'][:60],
+            'category': cat,
+            'price': listing['price'],
+            'offer_price': offer_price,
+            'discount_pct': discount,
+            'watchers': listing.get('watchers', 0),
+            'days_listed': days_listed,
+            'message': message,
+            'url': listing.get('url', ''),
+        })
+
+    candidates.sort(key=lambda x: (-x['watchers'], -x['days_listed']))
+    return jsonify({'candidates': candidates, 'total': len(candidates)})
+
+
+@app.route('/api/watcher-offers/send', methods=['POST'])
+def send_watcher_offers():
+    """Send offers to watchers via eBay Negotiation API"""
+    data = request.get_json()
+    offers = data.get('offers', [])  # [{id, offer_price, message}]
+
+    if not offers:
+        # Auto-generate from preview
+        with app.test_request_context():
+            preview_resp = preview_watcher_offers()
+            preview_data = preview_resp.get_json()
+            offers = preview_data.get('candidates', [])
+
+    token = ebay.get_access_token()
+    if not token:
+        return jsonify({'error': 'eBay auth failed'}), 401
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+    }
+
+    config = load_watcher_offers_config()
+    sent = 0
+    failed = 0
+    errors = []
+
+    for offer in offers:
+        item_id = offer.get('id', '')
+        offer_price = offer.get('offer_price', 0)
+        message = offer.get('message', '')
+
+        if not item_id or not offer_price:
+            failed += 1
+            continue
+
+        body = {
+            'offeredItems': [{'listingId': f'v1|{item_id}|0'}],
+            'allowCounterOffer': config.get('allow_counter', True),
+            'message': message[:500] if message else '',
+            'offerDuration': {'unit': 'DAY', 'value': config.get('offer_duration_days', 2)},
+            'offeredPrice': {'currency': 'USD', 'value': str(offer_price)},
+        }
+
+        try:
+            resp = requests.post(
+                'https://api.ebay.com/sell/negotiation/v1/send_offer_to_interested_buyers',
+                headers=headers, json=body, timeout=15)
+            if resp.status_code in (200, 201):
+                sent += 1
+                config.setdefault('sent_offers', {})[item_id] = datetime.now().isoformat()
+            else:
+                failed += 1
+                err_text = resp.text[:100]
+                errors.append(f'{item_id}: {err_text}')
+        except Exception as e:
+            failed += 1
+            errors.append(f'{item_id}: {str(e)[:50]}')
+
+    save_watcher_offers_config(config)
+    return jsonify({'sent': sent, 'failed': failed, 'errors': errors[:10]})
 
 
 # =============================================================================
