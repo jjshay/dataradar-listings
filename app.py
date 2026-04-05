@@ -10490,6 +10490,8 @@ def set_category_strategy():
 @app.route('/api/promotions/apply-category-strategies', methods=['POST'])
 def apply_category_strategies():
     """Apply per-category strategies to all listings and push to eBay"""
+    import sys; print("[Promo] apply_category_strategies CALLED", file=sys.stderr, flush=True)
+    sys.stderr.flush()
     cat_strats = {}
     if os.path.exists(CATEGORY_STRATEGY_FILE):
         try:
@@ -10500,6 +10502,8 @@ def apply_category_strategies():
 
     listings = ebay.get_all_listings()
     headers = get_marketing_headers()
+    import sys
+    print(f"[Promo] {len(listings)} listings, headers={'YES' if headers else 'NO'}", file=sys.stderr, flush=True)
     if not headers:
         return jsonify({'error': 'eBay auth failed'}), 401
 
@@ -10534,23 +10538,46 @@ def apply_category_strategies():
     applied = 0
     failed = 0
     campaigns = 0
+    # Try to reuse existing campaigns at the same rate before creating new ones
+    existing_campaigns = fetch_ad_campaigns()
+    rate_to_campaign = {}
+    for ec in existing_campaigns:
+        if ec.get('campaignStatus') == 'RUNNING':
+            fund = ec.get('fundingStrategy', {})
+            bid = fund.get('bidPercentage', '')
+            if bid:
+                rate_to_campaign[bid] = ec.get('campaignId', '')
+
+    import sys
+    print(f"[Promo] {len(groups)} groups, {sum(len(g['listings']) for g in groups.values())} listings, {len(rate_to_campaign)} existing campaigns", file=sys.stderr, flush=True)
 
     for key, group in groups.items():
+        print(f"[Promo] Group '{key}': {len(group['listings'])} listings at {group['rate']}%", file=sys.stderr, flush=True)
         try:
-            campaign_body = {
-                'campaignName': f'DR {group["level"]} {group["rate"]}% {datetime.now().strftime("%m/%d")}',
-                'marketplaceId': 'EBAY_US',
-                'startDate': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-                'fundingStrategy': {
-                    'fundingModel': 'COST_PER_SALE',
-                    'bidPercentage': str(group['rate']),
-                }
-            }
+            # Try reusing an existing campaign at this rate
+            existing_cid = rate_to_campaign.get(str(group['rate']))
+            cid = None
 
-            resp = requests.post('https://api.ebay.com/sell/marketing/v1/ad_campaign', headers=headers, json=campaign_body)
-            if resp.status_code in (200, 201):
-                cid = resp.headers.get('Location', '').split('/')[-1]
+            if existing_cid:
+                cid = existing_cid
                 campaigns += 1
+            else:
+                # Create new campaign
+                campaign_body = {
+                    'campaignName': f'DR {group["level"]} {group["rate"]}% {datetime.now().strftime("%m/%d %H:%M")}',
+                    'marketplaceId': 'EBAY_US',
+                    'startDate': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                    'fundingStrategy': {
+                        'fundingModel': 'COST_PER_SALE',
+                        'bidPercentage': str(group['rate']),
+                    }
+                }
+                resp = requests.post('https://api.ebay.com/sell/marketing/v1/ad_campaign', headers=headers, json=campaign_body)
+                if resp.status_code in (200, 201):
+                    cid = resp.headers.get('Location', '').split('/')[-1]
+                    campaigns += 1
+
+            if cid:
                 for lid in group['listings']:
                     try:
                         r = requests.post(f'https://api.ebay.com/sell/marketing/v1/ad_campaign/{cid}/ad',
@@ -10563,7 +10590,8 @@ def apply_category_strategies():
                         failed += 1
             else:
                 failed += len(group['listings'])
-        except Exception:
+        except Exception as e:
+            print(f"[Promo] Error: {e}", file=sys.stderr, flush=True)
             failed += len(group['listings'])
 
     global _promotions_cache

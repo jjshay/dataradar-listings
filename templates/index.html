@@ -2295,7 +2295,10 @@
 
                 // Costs table
                 const items = promoData?.products || [];
-                document.getElementById('ptab-costs').innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} products · ${items.filter(i=>(i.ad_rate||0)>0).length} promoted</div><div class="table-wrap"><table>
+                document.getElementById('ptab-costs').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div style="font-size:12px;color:var(--dim);">${items.length} products · ${items.filter(i=>(i.ad_rate||0)>0).length} promoted</div>
+                    <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="applySpeedHigh()">Apply Strategy to eBay</button>
+                </div><div class="table-wrap"><table>
                     <thead><tr><th>Product</th><th>Type</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost</th><th>Status</th></tr></thead>
                     <tbody>${items.slice(0,150).map(i => {
                         const tc = (i.funding_model||'') === 'Dynamic' ? 'var(--accent)' : (i.funding_model||'') === 'Standard' ? 'var(--green)' : 'var(--dim)';
