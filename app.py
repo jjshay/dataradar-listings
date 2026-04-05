@@ -9150,18 +9150,32 @@ def generate_feedback():
         role = item.get('role', 'seller')  # seller leaving for buyer, or buyer leaving for seller
 
         if role == 'seller':
-            prompt = f"""Write a warm, PERSONAL eBay feedback comment (max 80 chars) as a SELLER thanking a buyer for purchasing this specific item: "{title}".
+            prompt = f"""Write a warm, PERSONAL eBay feedback comment (max 80 chars) as a SELLER thanking a buyer for purchasing: "{title}".
 
-Be specific about the item — reference it by name. Make it feel like a real person wrote it, not a template.
-Examples of the tone I want:
-- "Thanks so much for buying the Peace Goddess! Hope you love it as much as we do"
-- "So glad this Basquiat found a great home. Enjoy it!"
-- "Appreciate you grabbing the signed print — it's a beauty. Enjoy!"
+TONE: Like a friend, not a corporation. We're art lovers too. Be enthusiastic and specific.
 
-Do NOT use generic phrases like "Great buyer!" or "A++ transaction". Reference the actual item.
-Return ONLY the feedback text, no quotes."""
+MUST include ONE of these personal touches (vary each time):
+- Ask them to share a photo of it hanging/displayed
+- Say you're fans of this artist too
+- Tell them to check back for more deals
+- Say you hope it brings them joy
+- Mention it found a great home
+
+EXAMPLES (vary the style — never repeat):
+- "Thanks for the Peace Goddess! We're huge SF fans too. Send us a pic when it's up!"
+- "So happy this Basquiat found a home! Check back — more coming soon"
+- "Love that you grabbed this one! Hope it looks amazing on your wall"
+- "Thanks! We're fans of this piece too. Snap a photo when you hang it!"
+- "Stoked you got this! More signed prints dropping soon — stay tuned"
+
+NEVER: "Great buyer", "A++", "Fast payment", "Recommended". Those are boring.
+Reference the ACTUAL item. Be real. Be warm. Return ONLY the text, no quotes."""
         else:
-            prompt = f"Write a short, genuine eBay feedback comment (max 80 chars) as a BUYER thanking the seller for this item: {title}. Be specific about the item. No generic phrases."
+            prompt = f"""Write a genuine eBay feedback comment (max 80 chars) as a BUYER thanking the seller for: "{title}".
+
+Be specific about the item. Mention quality, packaging, or speed if relevant.
+Examples: "Incredible packaging on the signed print — arrived perfect. Thank you!"
+NEVER: "Great seller", "A++", generic phrases. Return ONLY the text, no quotes."""
 
         # Step 1: Claude writes the draft
         draft = ''
@@ -9177,10 +9191,25 @@ Return ONLY the feedback text, no quotes."""
                 pass
 
         if not draft:
-            # Personal fallback that references the item
+            # Personal fallback with variety
+            import random
             short_title = re.sub(r'\b(signed|numbered|limited|edition|print|screen|obey|giant|art|framed)\b', '', title, flags=re.IGNORECASE).strip()
-            short_title = re.sub(r'\s+', ' ', short_title).strip()[:30]
-            draft = f"Thanks for the {short_title}! Hope you love it"
+            short_title = re.sub(r'\s+', ' ', short_title).strip()[:25]
+            if role == 'seller':
+                fallbacks = [
+                    f"Thanks so much for the {short_title}! Send us a pic when it's up!",
+                    f"Love that you grabbed the {short_title}! Check back for more deals",
+                    f"So happy this {short_title} found a great home! We're fans too",
+                    f"Stoked you got the {short_title}! Hope it brings you joy",
+                    f"Thanks! The {short_title} is a beauty. More coming soon — stay tuned",
+                ]
+            else:
+                fallbacks = [
+                    f"The {short_title} arrived perfect — great packaging. Thank you!",
+                    f"Love the {short_title}! Exactly as described. Will buy again",
+                    f"Amazing {short_title} — fast shipping and well packed. Thanks!",
+                ]
+            draft = random.choice(fallbacks)
 
         # Step 2: GPT edits/polishes
         final = draft
