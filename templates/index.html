@@ -54,7 +54,7 @@
         tbody tr { cursor:pointer; transition:background 0.1s; }
         tbody tr:hover td { background:rgba(255,255,255,0.03); }
         .r { text-align:right; font-variant-numeric:tabular-nums; }
-        .trunc { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .trunc { max-width:350px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .g { color:var(--green); } .o { color:var(--orange); } .rd { color:var(--red); } .d { color:var(--dim); } .b { font-weight:700; }
         .pill { font-size:9px; font-weight:700; padding:3px 10px; border-radius:20px; display:inline-block; white-space:nowrap; }
         .pill-green { background:rgba(48,209,88,0.15); color:var(--green); }
@@ -145,7 +145,7 @@
         @media(pointer:coarse) { .comp-row { touch-action:pan-y; } }
 
         /* Responsive */
-        @media(max-width:600px) { .grid-3{grid-template-columns:1fr 1fr;} .trunc{max-width:120px;} }
+        @media(max-width:600px) { .grid-3{grid-template-columns:1fr 1fr;} .trunc{max-width:180px;} }
     </style>
 </head>
 <body>
