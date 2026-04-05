@@ -2286,24 +2286,25 @@
 
                 // Costs table
                 const items = promoData?.products || [];
-                document.getElementById('ptab-costs').innerHTML = `<div class="table-wrap"><table>
+                document.getElementById('ptab-costs').innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} products · ${items.filter(i=>i.ad_rate>0).length} promoted</div><div class="table-wrap"><table>
                     <thead><tr><th>Product</th><th>Type</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost</th><th>Status</th></tr></thead>
                     <tbody>${items.slice(0,150).map(i => {
-                        const tc = i.funding_model === 'Dynamic' ? 'var(--accent)' : i.funding_model === 'Standard' ? 'var(--green)' : 'var(--dim)';
-                        return `<tr style="${i.promo_status==='none'?'opacity:0.4;':''}" onclick="drillPromoItem('${i.title.replace(/'/g,'')}', ${i.price}, ${i.ad_rate||0}, ${i.total_cost||0}, '${i.promo_status}')" title="Click for item detail + market comps">
-                            <td class="trunc">${i.title}</td><td style="color:${tc};font-size:11px;font-weight:600;">${i.ad_type}</td>
-                            <td class="r">$${i.price.toFixed(0)}</td><td class="r ${i.ad_rate>8?'rd b':''}">${i.ad_rate?i.ad_rate+'%':'--'}</td>
-                            <td class="r ${i.total_cost>0?'o b':'d'}">$${i.total_cost.toFixed(2)}</td>
-                            <td style="font-size:10px;color:${i.promo_status==='overspending'?'var(--red)':i.promo_status==='none'?'var(--dim)':'var(--green)'};">${i.promo_status.toUpperCase()}</td>
+                        const tc = (i.funding_model||'') === 'Dynamic' ? 'var(--accent)' : (i.funding_model||'') === 'Standard' ? 'var(--green)' : 'var(--dim)';
+                        const status = i.promo_status || 'none';
+                        return `<tr style="${status==='none'?'opacity:0.4;':''}" onclick="drillPromoItem('${(i.title||'').replace(/'/g,'')}', ${i.price||0}, ${i.ad_rate||0}, ${i.total_cost||0}, '${status}')" title="Click for item detail + market comps">
+                            <td class="trunc">${i.title||''}</td><td style="color:${tc};font-size:11px;font-weight:600;">${i.ad_type||'--'}</td>
+                            <td class="r">$${(i.price||0).toFixed(0)}</td><td class="r ${(i.ad_rate||0)>8?'rd b':''}">${i.ad_rate?i.ad_rate+'%':'--'}</td>
+                            <td class="r ${(i.total_cost||0)>0?'o b':'d'}">$${(i.total_cost||0).toFixed(2)}</td>
+                            <td style="font-size:10px;color:${status==='overspending'?'var(--red)':status==='none'?'var(--dim)':'var(--green)'};">${status.toUpperCase()}</td>
                         </tr>`;
                     }).join('')}</tbody></table></div>`;
 
                 // Sales history
                 document.getElementById('ptab-history').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px;">
-                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.total_sold}</div><div class="stat-lbl">Sold</div></div>
-                    <div class="card" style="text-align:center;"><div class="stat-val">$${Math.round(histData.total_revenue).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
-                    <div class="card" style="text-align:center;"><div class="stat-val">${histData.promoted_sold}</div><div class="stat-lbl">Promoted</div></div>
-                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.organic_sold}</div><div class="stat-lbl">Organic</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.total_sold||0}</div><div class="stat-lbl">Sold</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val">$${Math.round(histData.total_revenue||0).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val">${histData.promoted_sold||0}</div><div class="stat-lbl">Promoted</div></div>
+                    <div class="card" style="text-align:center;"><div class="stat-val g">${histData.organic_sold||0}</div><div class="stat-lbl">Organic</div></div>
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Item</th><th class="r">Sold $</th><th>Listed</th><th>Sold</th><th class="r">Days</th><th>Type</th><th class="r">Ad%</th></tr></thead>
@@ -2315,7 +2316,10 @@
                         <td class="r">${i.ad_rate?i.ad_rate+'%':'--'}</td>
                     </tr>`).join('')}</tbody></table></div>`;
 
-            } catch(e) { console.error('Promos error:', e); }
+            } catch(e) {
+                console.error('Promos error:', e);
+                document.getElementById('ptab-costs').innerHTML = `<div style="color:var(--red);padding:20px;">Error loading promotions: ${e.message}</div>`;
+            }
         }
 
         function showPTab(tab) {
