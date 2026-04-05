@@ -355,28 +355,18 @@
                 <div id="d-listing-quality" style="font-size:12px;color:var(--dim);">Click Scan to score all listings</div>
             </div>
 
-            <!-- Feedback Dashboard -->
+            <!-- Feedback Dashboard — Rebuilt -->
             <div class="section">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">📝 Feedback</div>
-                    <button class="btn-ghost" onclick="loadFeedbackDash()">Load</button>
+                    <div class="section-title" style="margin-bottom:0;">Feedback</div>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="loadFeedback()">Load</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="generateFB()">AI Generate All</button>
+                        <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="submitFB()">Submit to eBay</button>
+                    </div>
                 </div>
-
-                <div id="fb-stats" style="display:flex;gap:8px;margin-bottom:12px;font-size:12px;color:var(--dim);"></div>
-
-                <div class="chips" id="fb-chips" style="margin-bottom:8px;">
-                    <button class="chip active" onclick="showFbTab('buyers');document.querySelectorAll('#fb-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">For Buyers (you sold)</button>
-                    <button class="chip" onclick="showFbTab('sellers');document.querySelectorAll('#fb-chips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">For Sellers (you bought)</button>
-                </div>
-
-                <div id="fb-buyers" style="font-size:12px;color:var(--dim);">Click "Load" to see pending feedback</div>
-                <div id="fb-sellers" style="display:none;font-size:12px;color:var(--dim);">Click "Load" to see pending feedback</div>
-
-                <div style="display:flex;gap:8px;margin-top:10px;">
-                    <button class="btn btn-primary" style="padding:8px 16px;font-size:12px;" onclick="generateAllFeedback()">Generate AI Feedback</button>
-                    <button class="btn btn-green" style="padding:8px 16px;font-size:12px;" onclick="submitAllFeedback()">Submit All to eBay</button>
-                </div>
-                <div id="fb-status" style="margin-top:8px;font-size:12px;"></div>
+                <div id="fb-progress"></div>
+                <div id="fb-content" style="font-size:12px;color:var(--dim);">Click Load to pull pending feedback from eBay</div>
             </div>
 
             <!-- Auto-Offer to Watchers -->
@@ -902,140 +892,157 @@
             toast(`${d.updated} items updated`);
         }
 
-        // Feedback Dashboard
-        let fbOverview = null;
-        let fbGenerated = {buyers: [], sellers: []};
+        // ==========================================
+        // Feedback — Rebuilt
+        // ==========================================
+        let fbData = null;
+        let fbTab = 'buyers';
 
-        async function loadFeedbackDash() {
-            const statsEl = document.getElementById('fb-stats');
-            statsEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+        async function loadFeedback() {
+            const el = document.getElementById('fb-content');
+            const progress = document.getElementById('fb-progress');
+            showProgress(progress, 30, 'Loading from eBay...', 'Pulling sold + purchased items for feedback');
 
             try {
                 const resp = await fetch('/api/feedback/overview');
-                fbOverview = await resp.json();
-
-                statsEl.innerHTML = `
-                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val">${fbOverview.total}</div><div class="stat-lbl">Total Pending</div></div>
-                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val g">${fbOverview.total_buyer_feedback}</div><div class="stat-lbl">For Buyers (you sold)</div></div>
-                    <div class="card" style="flex:1;text-align:center;"><div class="stat-val" style="color:var(--accent);">${fbOverview.total_seller_feedback}</div><div class="stat-lbl">For Sellers (you bought)</div></div>
-                `;
-
-                // Render buyer list
-                renderFbList('buyers', fbOverview.for_buyers || []);
-                renderFbList('sellers', fbOverview.for_sellers || []);
-
-            } catch(e) { statsEl.innerHTML = '<div class="d">Failed to load</div>'; }
+                fbData = await resp.json();
+                if (fbData.error) { showProgressError(progress, fbData.error); return; }
+                showProgressDone(progress, `${fbData.total} pending`, `${fbData.total_buyer_feedback} buyers · ${fbData.total_seller_feedback} sellers`);
+                renderFeedback();
+            } catch(e) { showProgressError(progress, 'Failed to load — check eBay connection'); }
         }
 
-        function renderFbList(type, items) {
-            const el = document.getElementById('fb-' + type);
-            if (!items.length) { el.innerHTML = '<div class="d" style="font-size:12px;">None pending</div>'; return; }
+        function renderFeedback() {
+            if (!fbData) return;
+            const el = document.getElementById('fb-content');
+            const buyers = fbData.for_buyers || [];
+            const sellers = fbData.for_sellers || [];
+            const items = fbTab === 'buyers' ? buyers : sellers;
 
-            el.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} ${type === 'buyers' ? 'buyers to thank' : 'sellers to review'}</div>` +
-                items.map((item, i) => {
-                    const name = type === 'buyers' ? item.buyer : item.seller;
-                    const prefix = type === 'buyers' ? 'fb-b' : 'fb-s';
-                    return `<div class="card" style="margin-bottom:4px;display:flex;align-items:center;gap:10px;">
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-size:12px;font-weight:500;" title="${item.title}">${item.title}</div>
-                            <div style="font-size:10px;color:var(--dim);">$${item.price} · ${name}</div>
+            el.innerHTML = `
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <div class="card" style="flex:1;text-align:center;cursor:pointer;${fbTab==='buyers'?'border-color:var(--green);':'opacity:0.5;'}" onclick="fbTab='buyers';renderFeedback();">
+                        <div style="font-size:22px;font-weight:700;color:var(--green);">${buyers.length}</div>
+                        <div class="stat-lbl">For Buyers (you sold)</div>
+                    </div>
+                    <div class="card" style="flex:1;text-align:center;cursor:pointer;${fbTab==='sellers'?'border-color:var(--accent);':'opacity:0.5;'}" onclick="fbTab='sellers';renderFeedback();">
+                        <div style="font-size:22px;font-weight:700;color:var(--accent);">${sellers.length}</div>
+                        <div class="stat-lbl">For Sellers (you bought)</div>
+                    </div>
+                </div>
+                ${items.length ? items.map((item, i) => {
+                    const name = fbTab === 'buyers' ? item.buyer : item.seller;
+                    const prefix = fbTab === 'buyers' ? 'fb-b' : 'fb-s';
+                    return `<div class="card" style="margin-bottom:6px;border-left:3px solid ${fbTab==='buyers'?'var(--green)':'var(--accent)'};">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.title}</div>
+                                <div style="font-size:11px;color:var(--dim);">$${item.price} · ${name}</div>
+                            </div>
                         </div>
-                        <input type="text" id="${prefix}-${i}" value="" placeholder="AI will fill this..." maxlength="80" style="flex:2;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font-size:12px;">
+                        <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
+                            <input type="text" id="${prefix}-${i}" value="" placeholder="AI will generate..." maxlength="80" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 10px;font-size:12px;">
+                            <button class="btn-ghost" style="font-size:10px;padding:4px 8px;flex-shrink:0;" onclick="generateOneFB('${prefix}-${i}','${item.title.replace(/'/g,'')}','${fbTab==='buyers'?'seller':'buyer'}')">AI</button>
+                        </div>
                     </div>`;
-                }).join('');
+                }).join('') : '<div style="text-align:center;padding:20px;color:var(--dim);">No pending feedback</div>'}
+            `;
         }
 
-        function showFbTab(tab) {
-            document.getElementById('fb-buyers').style.display = tab === 'buyers' ? 'block' : 'none';
-            document.getElementById('fb-sellers').style.display = tab === 'sellers' ? 'block' : 'none';
+        async function generateOneFB(inputId, title, role) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            input.value = 'Generating...';
+            try {
+                const resp = await fetch('/api/feedback/generate', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({items: [{title, role, price: 0}]})
+                });
+                const d = await resp.json();
+                if (d.feedback?.[0]?.final) input.value = d.feedback[0].final;
+                else input.value = '';
+            } catch(e) { input.value = ''; }
         }
 
-        async function generateAllFeedback() {
-            if (!fbOverview) { toast('Load feedback first'); return; }
-            const statusEl = document.getElementById('fb-status');
-            const buyers = fbOverview.for_buyers || [];
-            const sellers = fbOverview.for_sellers || [];
+        async function generateFB() {
+            if (!fbData) { toast('Load feedback first'); return; }
+            const progress = document.getElementById('fb-progress');
+            const buyers = fbData.for_buyers || [];
+            const sellers = fbData.for_sellers || [];
             const total = buyers.length + sellers.length;
             let done = 0;
 
-            // Generate for buyers in batches of 20
+            // Generate for buyers in batches
             for (let i = 0; i < buyers.length; i += 20) {
                 const batch = buyers.slice(i, i + 20);
-                showProgress(statusEl, (done / total) * 100, `Generating feedback ${done}/${total}`, `Buyer batch: Claude writes → GPT edits for ${batch[0]?.title?.substring(0,35)}...`);
+                showProgress(progress, (done/total)*100, `Generating ${done}/${total}`, `Buyer feedback: Claude → GPT for "${batch[0]?.title?.substring(0,30)}..."`);
                 try {
-                    const resp = await fetch('/api/feedback/generate', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({items: batch.map(b => ({...b, role: 'seller'}))})
-                    });
+                    const resp = await fetch('/api/feedback/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({items: batch.map(b => ({...b, role:'seller'}))})});
                     const d = await resp.json();
-                    (d.feedback || []).forEach((f, j) => {
-                        const input = document.getElementById('fb-b-' + (i + j));
+                    (d.feedback||[]).forEach((f,j) => {
+                        const input = document.getElementById('fb-b-'+(i+j));
                         if (input) input.value = f.final;
                         done++;
                     });
                 } catch(e) { done += batch.length; }
             }
 
-            // Generate for sellers in batches of 20
+            // Generate for sellers
             for (let i = 0; i < sellers.length; i += 20) {
                 const batch = sellers.slice(i, i + 20);
-                showProgress(statusEl, (done / total) * 100, `Generating feedback ${done}/${total}`, `Seller batch: reviewing ${batch[0]?.title?.substring(0,35)}...`);
+                showProgress(progress, (done/total)*100, `Generating ${done}/${total}`, `Seller feedback: "${batch[0]?.title?.substring(0,30)}..."`);
                 try {
-                    const resp = await fetch('/api/feedback/generate', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({items: batch.map(s => ({...s, role: 'buyer'}))})
-                    });
+                    const resp = await fetch('/api/feedback/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({items: batch.map(s => ({...s, role:'buyer'}))})});
                     const d = await resp.json();
-                    (d.feedback || []).forEach((f, j) => {
-                        const input = document.getElementById('fb-s-' + (i + j));
+                    (d.feedback||[]).forEach((f,j) => {
+                        const input = document.getElementById('fb-s-'+(i+j));
                         if (input) input.value = f.final;
                         done++;
                     });
                 } catch(e) { done += batch.length; }
             }
 
-            showProgressDone(statusEl, `${done} feedback generated`, 'Review the text in each field, then click Submit All');
-            toast(done + ' feedback ready');
+            showProgressDone(progress, `${done} generated`, 'Review each message, edit if needed, then Submit');
         }
 
-        async function submitAllFeedback() {
-            if (!fbOverview) { toast('Load feedback first'); return; }
-            const statusEl = document.getElementById('fb-status');
-
+        async function submitFB() {
+            if (!fbData) { toast('Load feedback first'); return; }
+            const progress = document.getElementById('fb-progress');
             const feedbacks = [];
-            (fbOverview.for_buyers || []).forEach((item, i) => {
-                const input = document.getElementById('fb-b-' + i);
+
+            (fbData.for_buyers||[]).forEach((item, i) => {
+                const input = document.getElementById('fb-b-'+i);
                 if (input?.value) feedbacks.push({item_id: item.item_id, target_user: item.buyer, comment: input.value, transaction_id: item.transaction_id, title: item.title});
             });
-            (fbOverview.for_sellers || []).forEach((item, i) => {
-                const input = document.getElementById('fb-s-' + i);
+            (fbData.for_sellers||[]).forEach((item, i) => {
+                const input = document.getElementById('fb-s-'+i);
                 if (input?.value) feedbacks.push({item_id: item.item_id, target_user: item.seller, comment: input.value, transaction_id: item.transaction_id, title: item.title});
             });
 
-            if (!feedbacks.length) { toast('No feedback to submit — generate first'); return; }
+            if (!feedbacks.length) { toast('Generate feedback first'); return; }
 
             let submitted = 0, failed = 0, errors = [];
             for (let i = 0; i < feedbacks.length; i++) {
                 const fb = feedbacks[i];
-                const pct = ((i + 1) / feedbacks.length) * 100;
-                showProgress(statusEl, pct, `Submitting feedback ${i+1}/${feedbacks.length}`, `Posting for ${fb.target_user} — "${fb.title?.substring(0,40)}..."`);
-
+                showProgress(progress, ((i+1)/feedbacks.length)*100, `Submitting ${i+1}/${feedbacks.length}`, `Posting for ${fb.target_user} — "${fb.title?.substring(0,35)}"`);
                 try {
-                    const resp = await fetch('/api/feedback/submit', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({feedbacks: [fb]})
-                    });
+                    const resp = await fetch('/api/feedback/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({feedbacks:[fb]})});
                     const d = await resp.json();
-                    if (d.submitted) submitted++;
-                    else { failed++; errors.push(fb.target_user + ': ' + (d.errors?.[0] || 'failed')); }
-                } catch(e) { failed++; errors.push(fb.target_user + ': network error'); }
+                    if (d.submitted) submitted++; else { failed++; errors.push(fb.target_user+': '+(d.errors?.[0]||'failed')); }
+                } catch(e) { failed++; }
             }
 
-            showProgressDone(statusEl, `${submitted} submitted · ${failed} failed`,
-                errors.length ? errors.slice(0,3).join(' | ') : `All ${submitted} feedback posted to eBay`);
+            showProgressDone(progress, `${submitted} submitted · ${failed} failed`, errors.length ? errors.slice(0,3).join(' | ') : 'All posted to eBay');
             toast(`${submitted} feedback posted`);
         }
 
+        // Remove old functions that reference removed elements
+        function loadFeedbackDash() { loadFeedback(); }
+        function showFbTab() {}
+        function submitAllFeedback() { submitFB(); }
+        function generateAllFeedback() { generateFB(); }
         // Features 1-6
         async function loadSellThisWeek() {
             const el = document.getElementById('d-sellweek');
