@@ -742,6 +742,9 @@
             });
         }
 
+        // Escape string for use in onclick attributes — strips quotes and backslashes
+        function esc(s) { return (s||'').replace(/['"\\]/g, ''); }
+
         function downloadCSV(name, rows) {
             const csv = rows.map(r => r.map(c => { const s = String(c??'').replace(/"/g,'""'); return s.includes(',') ? `"${s}"` : s; }).join(',')).join('\n');
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = name; a.click();
@@ -1233,7 +1236,7 @@
                     </div>
                     <div class="table-wrap"><table>
                         <thead><tr><th>Item</th><th class="r">Watch</th><th>Trend</th><th class="r">Daily</th><th class="r">7d</th><th class="r">Price</th></tr></thead>
-                        <tbody>${items.slice(0, 20).map(i => `<tr onclick="drillItem('${i.id}','${i.title.replace(/'/g,'')}','${i.category}',${i.price})" style="cursor:pointer;" title="Click for detail · ${i.history?.length || 0} days tracked">
+                        <tbody>${items.slice(0, 20).map(i => `<tr onclick="drillItem('${i.id}','${esc(i.title)}','${i.category}',${i.price})" style="cursor:pointer;" title="Click for detail · ${i.history?.length || 0} days tracked">
                             <td class="trunc">${i.title}</td>
                             <td class="r b" style="font-size:16px;">${i.watchers}</td>
                             <td style="color:${trendColor(i.trend)};font-weight:600;font-size:12px;">${trendIcon(i.trend)} ${i.trend}</td>
@@ -1445,7 +1448,7 @@
 
                 el.innerHTML = `<div class="table-wrap"><table>
                     <thead><tr><th>Item</th><th>Cat</th><th class="r">Current</th><th class="r">New</th><th class="r">Floor</th><th class="r">Days</th><th class="r">Total Off</th></tr></thead>
-                    <tbody>${changes.map(c => `<tr onclick="drillItem('${c.id}','${c.title.replace(/'/g,'')}','${c.category}',${c.new_price})" style="cursor:pointer;" title="Click for detail">
+                    <tbody>${changes.map(c => `<tr onclick="drillItem('${c.id}','${esc(c.title)}','${c.category}',${c.new_price})" style="cursor:pointer;" title="Click for detail">
                         <td class="trunc">${c.title}</td>
                         <td style="font-size:11px;">${c.category}</td>
                         <td class="r">$${c.current_price}</td>
@@ -1761,7 +1764,7 @@
                     <div class="like-pass-btns" onclick="event.stopPropagation();">
                         <button class="btn-like" onclick="likeDeal(${idx},'deal-card-${idx}')">Like</button>
                         <button class="btn-pass" onclick="passDeal(${idx},'deal-card-${idx}')">Pass</button>
-                        <button class="btn-ghost" style="font-size:9px;padding:2px 8px;" onclick="saveToWatchlist('${p.title.replace(/'/g,'')}',${p.price},'${(p.url||'').replace(/'/g,'')}','${(p.image||'').replace(/'/g,'')}')">Save</button>
+                        <button class="btn-ghost" style="font-size:9px;padding:2px 8px;" onclick="saveToWatchlist('${esc(p.title)}',${p.price},'${(p.url||'').replace(/'/g,'')}','${(p.image||'').replace(/'/g,'')}')">Save</button>
                     </div>
                 </div>
             </div>`;
@@ -1848,7 +1851,7 @@
 
                 <div style="display:flex;gap:8px;">
                     ${p.url ? `<a href="${p.url}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;">View on eBay</a>` : ''}
-                    <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="runSearch();document.getElementById('search-input').value='${p.title.replace(/'/g,'').substring(0,40)}';showTab('dash');setTimeout(runSearch,100);">Deep Analysis</button>
+                    <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="runSearch();document.getElementById('search-input').value='${esc(p.title).substring(0,40)}';showTab('dash');setTimeout(runSearch,100);">Deep Analysis</button>
                 </div>
             `;
             modal.classList.add('show');
@@ -2136,7 +2139,7 @@
                 <tbody>${items.slice(0, 200).map(i => {
                     const hasSuggestion = i.suggested_price && i.your_price && Math.abs(i.suggested_price - i.your_price) > 5;
                     const mc = (i.margin_pct||0) > 30 ? 'g' : (i.margin_pct||0) > 10 ? 'o' : 'rd';
-                    return `<tr onclick="drillItem('${i.id}','${i.name.replace(/'/g,'')}','${i.artist}',${i.suggested_price||0})" title="Click for full detail: chart + comps + AI validation">
+                    return `<tr onclick="drillItem('${i.id}','${esc(i.name)}','${i.artist}',${i.suggested_price||0})" title="Click for full detail: chart + comps + AI validation">
                         <td class="trunc" title="${i.name}">
                             ${i.name}
                             <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;" title="Price history chart">📊</span>
@@ -2150,8 +2153,8 @@
                         <td style="color:${velColor(i.velocity)};font-size:11px;font-weight:600;cursor:help;" title="Velocity: ${i.velocity}. ${i.times_sold||0} sold, ${i.avg_days_on_market!=null?i.avg_days_on_market+'d DOM':'no DOM data'}">${i.velocity||'--'}</td>
                         <td class="r b g" onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;" title="Click for price history. Components: ${Object.entries(i.pricing_components||{}).map(([k,v])=>k+': $'+Math.round(v.price||0)).join(', ')}">$${Math.round(i.suggested_price||0)}</td>
                         <td class="r" style="color:var(--accent);cursor:help;" title="Last sale: $${i.last_sale||'--'} on ${i.last_sale_date||'unknown'}. ${i.price_confidence||'?'} confidence.">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
-                        <td class="r d" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}'})" style="cursor:pointer;" title="Click to see market comps">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
-                        <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${i.name.replace(/'/g,'')}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;" title="${i.ebay_supply||0} competing listings — click to view">${i.ebay_supply||0}</td>
+                        <td class="r d" onclick="event.stopPropagation();drill('competing',{title:'${esc(i.name)}'})" style="cursor:pointer;" title="Click to see market comps">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
+                        <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${esc(i.name)}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;" title="${i.ebay_supply||0} competing listings — click to view">${i.ebay_supply||0}</td>
                         <td class="r ${(i.ad_rate||0)>8?'rd b':''}" onclick="event.stopPropagation();showTab('promos')" style="cursor:pointer;" title="Ad rate: ${i.ad_rate||0}%. Click to manage promotions.">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
                         <td class="r ${mc}" title="Revenue: $${Math.round(i.suggested_price||0)} — Cost est: $${Math.round((i.suggested_price||0)*0.4)} — Fee: $${Math.round((i.suggested_price||0)*0.13)} — Ad: $${Math.round(i.ad_cost||0)} — Profit: $${Math.round(i.net_profit||0)} (${i.margin_pct||0}%)">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
                         <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${i.seasonal_event?'cursor:pointer;':''}" title="${i.seasonal_event ? i.seasonal_event+' (+'+i.seasonal_boost+'%). Click to see matching items.' : 'No active event'}" ${i.seasonal_event ? `onclick="event.stopPropagation();drill('event_items',{event:'${i.seasonal_event}'})"` : ''}>${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
@@ -2288,12 +2291,12 @@
 
                 // Costs table
                 const items = promoData?.products || [];
-                document.getElementById('ptab-costs').innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} products · ${items.filter(i=>i.ad_rate>0).length} promoted</div><div class="table-wrap"><table>
+                document.getElementById('ptab-costs').innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:6px;">${items.length} products · ${items.filter(i=>(i.ad_rate||0)>0).length} promoted</div><div class="table-wrap"><table>
                     <thead><tr><th>Product</th><th>Type</th><th class="r">Price</th><th class="r">Rate</th><th class="r">Cost</th><th>Status</th></tr></thead>
                     <tbody>${items.slice(0,150).map(i => {
                         const tc = (i.funding_model||'') === 'Dynamic' ? 'var(--accent)' : (i.funding_model||'') === 'Standard' ? 'var(--green)' : 'var(--dim)';
                         const status = i.promo_status || 'none';
-                        return `<tr style="${status==='none'?'opacity:0.4;':''}" onclick="drillPromoItem('${(i.title||'').replace(/'/g,'')}', ${i.price||0}, ${i.ad_rate||0}, ${i.total_cost||0}, '${status}')" title="Click for item detail + market comps">
+                        return `<tr style="${status==='none'?'opacity:0.4;':''}" onclick="drillPromoItem('${esc(i.title)}', ${i.price||0}, ${i.ad_rate||0}, ${i.total_cost||0}, '${status}')" title="Click for detail">
                             <td class="trunc">${i.title||''}</td><td style="color:${tc};font-size:11px;font-weight:600;">${i.ad_type||'--'}</td>
                             <td class="r">$${(i.price||0).toFixed(0)}</td><td class="r ${(i.ad_rate||0)>8?'rd b':''}">${i.ad_rate?i.ad_rate+'%':'--'}</td>
                             <td class="r ${(i.total_cost||0)>0?'o b':'d'}">$${(i.total_cost||0).toFixed(2)}</td>
@@ -2310,7 +2313,7 @@
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Item</th><th class="r">Sold $</th><th>Listed</th><th>Sold</th><th class="r">Days</th><th>Type</th><th class="r">Ad%</th></tr></thead>
-                    <tbody>${(histData.items||[]).map(i => `<tr onclick="drillSoldItem('${i.title.replace(/'/g,'')}', ${i.price}, '${i.sold}', ${i.days_to_sell||0}, ${i.ad_rate||0}, 0, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
+                    <tbody>${(histData.items||[]).map(i => `<tr onclick="drillSoldItem('${esc(i.title)}', ${i.price}, '${i.sold}', ${i.days_to_sell||0}, ${i.ad_rate||0}, 0, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
                         <td class="trunc">${i.title}</td><td class="r g b">$${i.price.toFixed(0)}</td>
                         <td class="d" style="font-size:11px;">${i.listed}</td><td class="d" style="font-size:11px;">${i.sold}</td>
                         <td class="r b">${i.days_to_sell!=null?i.days_to_sell+'d':'--'}</td>
@@ -2517,7 +2520,7 @@
                             <tbody>${deals.slice(0,showing).map(dl => {
                                 const hc = dl.hotness>=60?'pill-red':dl.hotness>=30?'pill-orange':'pill-dim';
                                 const reasons = (dl.reasons||[]).join('; ');
-                                return `<tr onclick="drillDealItem('${dl.title.replace(/'/g,'')}', ${dl.price||0}, '${dl.category}', ${dl.median||0}, ${dl.comp_count||0}, '${dl.url||''}')" style="cursor:pointer;" title="Click for full deal analysis | ${reasons}">
+                                return `<tr onclick="drillDealItem('${esc(dl.title)}', ${dl.price||0}, '${dl.category}', ${dl.median||0}, ${dl.comp_count||0}, '${dl.url||''}')" style="cursor:pointer;" title="Click for full deal analysis | ${reasons}">
                                     <td class="trunc" title="${dl.title}">${dl.title}</td>
                                     <td style="font-size:11px;" title="Filter by ${dl.category}" onclick="event.stopPropagation();renderDeals('${dl.category}')">${dl.category}</td>
                                     <td class="r g b" title="Listed at $${dl.price}">$${(dl.price||0).toLocaleString()}</td>
@@ -2676,7 +2679,7 @@
                             </tr></thead>
                             <tbody>${items.map(i => {
                                 const domColor = i.days_to_sell != null ? (i.days_to_sell <= 7 ? 'g' : i.days_to_sell > 21 ? 'rd' : '') : 'd';
-                                return `<tr onclick="drillSoldItem('${i.title.replace(/'/g,'')}', ${i.price}, '${i.sold}', ${i.days_to_sell||0}, ${i.ad_rate||0}, ${i.ad_cost||0}, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
+                                return `<tr onclick="drillSoldItem('${esc(i.title)}', ${i.price||0}, '${i.sold||''}', ${i.days_to_sell||0}, ${i.ad_rate||0}, ${i.ad_cost||0}, '${i.promoted?'Promoted':'Organic'}')" title="Click for comps + market data">
                                     <td class="trunc">${i.title}</td>
                                     <td class="r g b">$${i.price.toFixed(0)}</td>
                                     <td class="d" style="font-size:11px;">${i.listed}</td>
