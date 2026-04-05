@@ -2203,6 +2203,7 @@
 
         async function loadPromos() {
             if (promosLoaded) return;
+            document.getElementById('ptab-costs').innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:11px;color:var(--dim);margin-top:6px;">Loading promotions data...</div></div>';
             try {
                 const [dResp, hResp, aResp, sResp] = await Promise.all([
                     fetch('/api/promotions/detail'),
@@ -2210,6 +2211,9 @@
                     fetch('/api/analytics/ad-performance'),
                     fetch('/api/promotions/strategy')
                 ]);
+                if (!dResp.ok || !hResp.ok || !aResp.ok || !sResp.ok) {
+                    throw new Error('API returned ' + [dResp.status, hResp.status, aResp.status, sResp.status].join('/'));
+                }
                 promoData = await dResp.json();
                 const histData = await hResp.json();
                 const adPerf = await aResp.json();
@@ -2323,7 +2327,13 @@
 
             } catch(e) {
                 console.error('Promos error:', e);
-                document.getElementById('ptab-costs').innerHTML = `<div style="color:var(--red);padding:20px;">Error loading promotions: ${e.message}</div>`;
+                promosLoaded = false;
+                document.getElementById('ptab-costs').innerHTML = `<div style="color:var(--red);padding:20px;">
+                    <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Promotions Error</div>
+                    <div style="font-size:13px;margin-bottom:12px;">${e.message || 'Unknown error'}</div>
+                    <div style="font-size:11px;color:var(--dim);margin-bottom:12px;">${e.stack ? e.stack.split('\\n').slice(0,3).join('<br>') : ''}</div>
+                    <button class="btn btn-primary" style="padding:8px 16px;font-size:12px;" onclick="promosLoaded=false;loadPromos();">Retry</button>
+                </div>`;
             }
         }
 
