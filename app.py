@@ -9289,16 +9289,20 @@ def submit_feedback():
 
         try:
             resp = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml)
-            if 'Success' in resp.text:
+            if 'Success' in resp.text and 'Failure' not in resp.text:
                 submitted += 1
             else:
                 failed += 1
                 import re as _re
                 err = _re.findall(r'<LongMessage>(.*?)</LongMessage>', resp.text)
-                errors.append(f'{item_id}: {err[0][:60] if err else "unknown"}')
+                err_msg = err[0][:80] if err else 'unknown'
+                # Common errors
+                if 'already' in err_msg.lower() or 'was not left' in err_msg.lower():
+                    err_msg = 'Already left feedback for this transaction'
+                errors.append(f'{target_user}: {err_msg}')
         except Exception as e:
             failed += 1
-            errors.append(f'{item_id}: {str(e)[:40]}')
+            errors.append(f'{target_user}: {str(e)[:40]}')
 
     return jsonify({'submitted': submitted, 'failed': failed, 'errors': errors[:5]})
 
@@ -11490,6 +11494,146 @@ def manage_reprice_config():
         save_reprice_config(config)
         return jsonify({'success': True})
     return jsonify(load_reprice_config())
+
+
+@app.route('/api/reprice/full')
+def reprice_full_view():
+    """Full repricing view — ALL listings with current price, market data, comps, floor, status"""
+    config = load_reprice_config()
+    listings = ebay.get_all_listings()
+    sold_data = fetch_and_cache_sold()
+    sold_items = sold_data.get('items', [])
+    enriched = load_personal_inventory()
+    promo_data = fetch_all_promotions()
+    per_listing = promo_data.get('per_listing', {})
+
+    # Build lookups
+    sold_by_title = {}
+    sold_history = {}
+    for s in sold_items:
+        key = (s.get('title', '') or '').lower()[:40]
+        if key not in sold_by_title or s['price'] > sold_by_title[key]:
+            sold_by_title[key] = s['price']
+        if key not in sold_history:
+            sold_history[key] = []
+        sold_history[key].append(s)
+
+    market_by_title = {}
+    for item in enriched:
+        md = item.get('market_data', {})
+        if md:
+            key = item['name'].lower()[:40]
+            market_by_title[key] = md
+
+    threshold = config.get('stale_threshold_days', 21)
+    items = []
+
+    for listing in listings:
+        start_time = listing.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                days_listed = (datetime.now() - st).days
+            except Exception:
+                pass
+
+        cat = detect_category(listing['title'])
+        rule = config['category_rules'].get(cat, config['category_rules'].get('Other', {'markdown_pct': 10, 'max_total_pct': 35}))
+        current = listing['price']
+        original = config.get('original_prices', {}).get(listing['id'], current)
+        title_key = listing['title'].lower()[:40]
+        floor = sold_by_title.get(title_key, current * 0.5)
+
+        # Market data
+        md = market_by_title.get(title_key, {})
+        market_min = md.get('min', 0)
+        market_max = md.get('max', 0)
+        market_median = md.get('median', 0)
+        market_avg = md.get('avg', 0)
+        comp_count = md.get('count', 0)
+
+        # Sold history for this item
+        my_sales = sold_history.get(title_key, [])
+        last_sale = my_sales[0]['price'] if my_sales else 0
+        last_sale_date = my_sales[0].get('end_time', '')[:10] if my_sales else ''
+        times_sold = len(my_sales)
+
+        # Promo info
+        promo = per_listing.get(listing['id'], {})
+        ad_rate = promo.get('ad_rate', 0)
+
+        # Calculate proposed markdown
+        markdown = current * (1 - rule['markdown_pct'] / 100)
+        max_markdown = original * (1 - rule['max_total_pct'] / 100)
+        proposed = round(max(markdown, max_markdown, floor), 2)
+        would_change = proposed < current and days_listed >= threshold
+
+        # Status
+        if days_listed >= threshold and would_change:
+            status = 'MARKDOWN'
+        elif days_listed >= threshold:
+            status = 'AT FLOOR'
+        elif market_median > 0 and current > market_median * 1.2:
+            status = 'OVERPRICED'
+        elif market_median > 0 and current < market_median * 0.8:
+            status = 'UNDERPRICED'
+        else:
+            status = 'OK'
+
+        items.append({
+            'id': listing['id'],
+            'title': listing['title'][:60],
+            'category': cat,
+            'current_price': current,
+            'original_price': original,
+            'proposed_price': proposed if would_change else current,
+            'floor': round(floor, 2),
+            'days_listed': days_listed,
+            'status': status,
+            'would_change': would_change,
+            'markdown_pct': rule['markdown_pct'],
+            'max_total_pct': rule['max_total_pct'],
+            'total_off_pct': round((1 - proposed / original) * 100, 1) if original and would_change else 0,
+            # Market data
+            'market_min': market_min,
+            'market_max': market_max,
+            'market_median': market_median,
+            'market_avg': market_avg,
+            'comp_count': comp_count,
+            # Sales history
+            'last_sale': last_sale,
+            'last_sale_date': last_sale_date,
+            'times_sold': times_sold,
+            # Promo
+            'ad_rate': ad_rate,
+            'watchers': listing.get('watchers', 0),
+            'url': listing.get('url', ''),
+        })
+
+    items.sort(key=lambda x: (-x['days_listed'], -x['current_price']))
+
+    # Summary
+    markdown_items = [i for i in items if i['status'] == 'MARKDOWN']
+    overpriced = [i for i in items if i['status'] == 'OVERPRICED']
+    at_floor = [i for i in items if i['status'] == 'AT FLOOR']
+
+    return jsonify({
+        'items': items,
+        'total': len(items),
+        'config': {
+            'threshold': threshold,
+            'category_rules': config.get('category_rules', {}),
+        },
+        'summary': {
+            'markdown': len(markdown_items),
+            'overpriced': len(overpriced),
+            'at_floor': len(at_floor),
+            'ok': len([i for i in items if i['status'] == 'OK']),
+            'underpriced': len([i for i in items if i['status'] == 'UNDERPRICED']),
+            'potential_savings': round(sum(i['current_price'] - i['proposed_price'] for i in markdown_items)),
+        },
+    })
 
 
 @app.route('/api/reprice/preview')

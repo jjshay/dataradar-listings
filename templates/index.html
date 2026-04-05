@@ -487,6 +487,7 @@
             <div class="section">
                 <div class="chips">
                     <button class="chip active" data-ptab="costs" onclick="showPTab('costs')">By Product</button>
+                    <button class="chip" data-ptab="repricing" onclick="showPTab('repricing')">Repricing</button>
                     <button class="chip" data-ptab="category" onclick="showPTab('category')">By Category</button>
                     <button class="chip" data-ptab="analytics" onclick="showPTab('analytics')">Analytics</button>
                     <button class="chip" data-ptab="history" onclick="showPTab('history')">Sales History</button>
@@ -494,6 +495,7 @@
             </div>
 
             <div class="section" id="ptab-costs"><div class="loading"><div class="spinner"></div></div></div>
+            <div class="section" id="ptab-repricing" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="ptab-category" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="ptab-analytics" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="ptab-history" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
@@ -2325,9 +2327,110 @@
         function showPTab(tab) {
             document.querySelectorAll('[data-ptab]').forEach(c => c.classList.remove('active'));
             document.querySelector(`[data-ptab="${tab}"]`).classList.add('active');
-            ['costs','category','analytics','history'].forEach(t => {
+            ['costs','repricing','category','analytics','history'].forEach(t => {
                 document.getElementById('ptab-'+t).style.display = t===tab ? 'block' : 'none';
             });
+            if (tab === 'repricing' && !window._repricingLoaded) loadRepricingTab();
+        }
+
+        // ==========================================
+        // Repricing Tab
+        // ==========================================
+        async function loadRepricingTab() {
+            const el = document.getElementById('ptab-repricing');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/reprice/full');
+                const d = await resp.json();
+                window._repricingLoaded = true;
+                window._repriceData = d;
+
+                const items = d.items || [];
+                const s = d.summary || {};
+                const config = d.config || {};
+
+                const statusColor = st => st === 'MARKDOWN' ? 'var(--red)' : st === 'OVERPRICED' ? 'var(--orange)' : st === 'UNDERPRICED' ? 'var(--green)' : st === 'AT FLOOR' ? 'var(--purple)' : 'var(--dim)';
+                const statusPill = st => st === 'MARKDOWN' ? 'pill-red' : st === 'OVERPRICED' ? 'pill-orange' : st === 'UNDERPRICED' ? 'pill-green' : st === 'AT FLOOR' ? 'pill-blue' : 'pill-dim';
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);"><div style="font-size:20px;font-weight:700;color:var(--red);">${s.markdown||0}</div><div class="stat-lbl">Markdown</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);"><div style="font-size:20px;font-weight:700;color:var(--orange);">${s.overpriced||0}</div><div class="stat-lbl">Overpriced</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--purple);"><div style="font-size:20px;font-weight:700;">${s.at_floor||0}</div><div class="stat-lbl">At Floor</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:20px;font-weight:700;color:var(--green);">${s.underpriced||0}</div><div class="stat-lbl">Under</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:20px;font-weight:700;">${s.ok||0}</div><div class="stat-lbl">OK</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:20px;font-weight:700;color:var(--red);">$${s.potential_savings||0}</div><div class="stat-lbl">Savings</div></div>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div style="font-size:12px;color:var(--dim);">${items.length} listings · Stale threshold: ${config.threshold||21}d</div>
+                        <div style="display:flex;gap:6px;">
+                            <select id="reprice-filter" onchange="filterRepricingTab()" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:4px 8px;font-size:11px;">
+                                <option value="all">All</option>
+                                <option value="MARKDOWN">Markdown Only</option>
+                                <option value="OVERPRICED">Overpriced</option>
+                                <option value="UNDERPRICED">Underpriced</option>
+                                <option value="AT FLOOR">At Floor</option>
+                                <option value="OK">OK</option>
+                            </select>
+                            <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="runReprice()">Apply Markdowns</button>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap" id="reprice-table"><table>
+                        <thead><tr>
+                            <th>Item</th><th>Status</th><th class="r">Current</th><th class="r">Proposed</th>
+                            <th class="r">Floor</th><th class="r">Median</th><th class="r">Min</th><th class="r">Max</th>
+                            <th class="r">Comps</th><th class="r">Sold</th><th class="r">Days</th><th class="r">Ad%</th>
+                        </tr></thead>
+                        <tbody>${items.map(i => `<tr onclick="drillItem('${i.id}','${(i.title||'').replace(/'/g,'')}','${i.category}',${i.current_price})" style="cursor:pointer;" title="Click for full detail with competitors + historical">
+                            <td class="trunc">${i.title}</td>
+                            <td><span class="pill ${statusPill(i.status)}">${i.status}</span></td>
+                            <td class="r b">$${i.current_price}</td>
+                            <td class="r ${i.would_change?'g b':'d'}">${i.would_change?'$'+i.proposed_price:'—'}</td>
+                            <td class="r d">$${i.floor}</td>
+                            <td class="r" style="color:var(--accent);">${i.market_median?'$'+Math.round(i.market_median):'—'}</td>
+                            <td class="r d">${i.market_min?'$'+Math.round(i.market_min):'—'}</td>
+                            <td class="r d">${i.market_max?'$'+Math.round(i.market_max):'—'}</td>
+                            <td class="r">${i.comp_count||'—'}</td>
+                            <td class="r ${i.times_sold?'g':''}">${i.times_sold||'—'}</td>
+                            <td class="r ${i.days_listed>21?'rd b':''}">${i.days_listed}d</td>
+                            <td class="r">${i.ad_rate?i.ad_rate+'%':'—'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+
+                    <div style="margin-top:12px;font-size:11px;color:var(--dim);">
+                        <b>Rules:</b> ${Object.entries(config.category_rules||{}).map(([cat,r]) => `${cat}: ${r.markdown_pct}%/round, max ${r.max_total_pct}%`).join(' · ')}
+                    </div>
+                `;
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);padding:20px;">Failed: ${e.message}</div>`; }
+        }
+
+        function filterRepricingTab() {
+            if (!window._repriceData) return;
+            const filter = document.getElementById('reprice-filter')?.value || 'all';
+            const items = window._repriceData.items || [];
+            const filtered = filter === 'all' ? items : items.filter(i => i.status === filter);
+
+            const statusPill = st => st === 'MARKDOWN' ? 'pill-red' : st === 'OVERPRICED' ? 'pill-orange' : st === 'UNDERPRICED' ? 'pill-green' : st === 'AT FLOOR' ? 'pill-blue' : 'pill-dim';
+            const tbody = document.querySelector('#reprice-table tbody');
+            if (tbody) {
+                tbody.innerHTML = filtered.map(i => `<tr onclick="drillItem('${i.id}','${(i.title||'').replace(/'/g,'')}','${i.category}',${i.current_price})" style="cursor:pointer;">
+                    <td class="trunc">${i.title}</td>
+                    <td><span class="pill ${statusPill(i.status)}">${i.status}</span></td>
+                    <td class="r b">$${i.current_price}</td>
+                    <td class="r ${i.would_change?'g b':'d'}">${i.would_change?'$'+i.proposed_price:'—'}</td>
+                    <td class="r d">$${i.floor}</td>
+                    <td class="r" style="color:var(--accent);">${i.market_median?'$'+Math.round(i.market_median):'—'}</td>
+                    <td class="r d">${i.market_min?'$'+Math.round(i.market_min):'—'}</td>
+                    <td class="r d">${i.market_max?'$'+Math.round(i.market_max):'—'}</td>
+                    <td class="r">${i.comp_count||'—'}</td>
+                    <td class="r ${i.times_sold?'g':''}">${i.times_sold||'—'}</td>
+                    <td class="r ${i.days_listed>21?'rd b':''}">${i.days_listed}d</td>
+                    <td class="r">${i.ad_rate?i.ad_rate+'%':'—'}</td>
+                </tr>`).join('');
+            }
         }
 
         async function applyCatStrats() {
