@@ -6261,11 +6261,37 @@ def get_executive_dashboard():
     if len([l for l in listings if l.get('watchers', 0) >= 3]) > 0:
         hot_count = len([l for l in listings if l.get('watchers', 0) >= 3])
         top_actions.append(f'{hot_count} items have 3+ watchers — these are hot, ensure they sell')
-    upcoming_events = [r for r in rules if 0 < (datetime.strptime(f"{now.year}-{r['start_date']}", '%Y-%m-%d') - now).days <= 14]
+    upcoming_events = []
+    for r in rules:
+        try:
+            ed = datetime.strptime(f"{now.year}-{r['start_date']}", '%Y-%m-%d')
+            if ed < now: ed = datetime.strptime(f"{now.year + 1}-{r['start_date']}", '%Y-%m-%d')
+            delta = (ed - now).days
+            if 0 < delta <= 14:
+                upcoming_events.append(r)
+        except Exception:
+            pass
     if upcoming_events:
         top_actions.append(f'{len(upcoming_events)} events in next 14 days — boost matching items NOW')
     if not top_actions:
         top_actions.append('All systems go — monitor watchers and keep promoting')
+
+    # Today's Brief
+    brief = []
+    total_rev = round(sum(s['price'] for s in sold))
+    brief.append(f'{len(sold)} items sold for ${total_rev:,} in 60 days — {round(sold_per_day, 1)}/day velocity')
+    if forecast_30d_rev > 0:
+        brief.append(f'30-day forecast: {forecast_30d_items} items, ${forecast_30d_rev:,} revenue at current pace')
+    if with_watchers > 0:
+        brief.append(f'{with_watchers} listings have watchers — {round(with_watchers/total*100)}% of inventory generating interest')
+    if promoted < total * 0.5:
+        brief.append(f'Only {round(promoted/total*100)}% promoted — significant room to increase visibility')
+    elif promoted > 0:
+        brief.append(f'{promoted}/{total} items promoted ({round(promoted/total*100)}% coverage)')
+    for evt in upcoming_events[:2]:
+        brief.append(f'Upcoming: {evt["name"]} — boost {", ".join(evt.get("keywords", [])[:3])} items')
+    if not brief:
+        brief.append('All systems running. Monitor watchers and keep promoting.')
 
     return jsonify({
         'health_score': health_score,
@@ -6282,6 +6308,7 @@ def get_executive_dashboard():
             'velocity': round(sold_per_day, 2),
             'avg_price': round(avg_price),
         },
+        'brief': brief,
         'quick_wins': quick_wins[:8],
         'top_actions': top_actions,
         'stats': {
