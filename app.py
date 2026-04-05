@@ -132,7 +132,7 @@ class EbayAPI:
             data={
                 'grant_type': 'refresh_token',
                 'refresh_token': self.config['refresh_token'],
-                'scope': 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.marketing https://api.ebay.com/oauth/api_scope/sell.negotiation'
+                'scope': 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.marketing'
             }
         )
 
