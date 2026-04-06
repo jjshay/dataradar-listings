@@ -400,34 +400,40 @@ class EbayAPI:
         return traffic
 
     def update_price(self, item_id, new_price):
-        """Update listing price on eBay"""
+        """Update listing price on eBay — tries ReviseFixedPriceItem first, then ReviseItem"""
         token = self.get_access_token()
         if not token:
             return False
 
-        headers = {
-            'X-EBAY-API-SITEID': '0',
-            'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-            'X-EBAY-API-CALL-NAME': 'ReviseItem',
-            'X-EBAY-API-IAF-TOKEN': token,
-            'Content-Type': 'text/xml'
-        }
+        # Try ReviseFixedPriceItem first (works with business policies)
+        for call_name in ['ReviseFixedPriceItem', 'ReviseItem']:
+            headers = {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': call_name,
+                'X-EBAY-API-IAF-TOKEN': token,
+                'Content-Type': 'text/xml'
+            }
 
-        xml_request = f'''<?xml version="1.0" encoding="utf-8"?>
-        <ReviseItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-            <Item>
-                <ItemID>{item_id}</ItemID>
-                <StartPrice>{new_price:.2f}</StartPrice>
-            </Item>
-        </ReviseItemRequest>'''
+            tag = call_name + 'Request'
+            xml_request = f'''<?xml version="1.0" encoding="utf-8"?>
+            <{tag} xmlns="urn:ebay:apis:eBLBaseComponents">
+                <Item>
+                    <ItemID>{item_id}</ItemID>
+                    <StartPrice>{new_price:.2f}</StartPrice>
+                </Item>
+            </{tag}>'''
 
-        response = requests.post(
-            'https://api.ebay.com/ws/api.dll',
-            headers=headers,
-            data=xml_request
-        )
+            response = requests.post(
+                'https://api.ebay.com/ws/api.dll',
+                headers=headers,
+                data=xml_request
+            )
 
-        return 'Success' in response.text
+            if ('Success' in response.text or 'Warning' in response.text) and 'Failure' not in response.text:
+                return True
+
+        return False
 
 
 # Initialize eBay Trading API

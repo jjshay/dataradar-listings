@@ -510,20 +510,33 @@ def score_comp(target, comp, config):
 # =============================================================================
 
 def compute_pricing(comps):
-    """Compute pricing from accepted comps with recency weighting and ±25% band."""
+    """Compute pricing from accepted comps with IQR trim + recency weighting + ±25% band."""
     if not comps:
         return {'estimated': None, 'low': None, 'high': None, 'median': None,
                 'avg': None, 'weighted_median': None, 'outliers_removed': 0}
 
-    prices = [c['price'] for c in comps if c.get('price', 0) > 0]
+    prices = sorted([c['price'] for c in comps if c.get('price', 0) > 0])
     if not prices:
         return {'estimated': None, 'low': None, 'high': None, 'median': None,
                 'avg': None, 'weighted_median': None, 'outliers_removed': 0}
 
-    # Step 1: Preliminary center (raw median)
+    # Step 0: IQR trim — remove bottom 25% and top 25% of prices
+    if len(prices) >= 4:
+        q1_idx = len(prices) // 4
+        q3_idx = 3 * len(prices) // 4
+        iqr_lo = prices[q1_idx]
+        iqr_hi = prices[q3_idx]
+        comps = [c for c in comps if c.get('price', 0) >= iqr_lo and c['price'] <= iqr_hi]
+        prices = sorted([c['price'] for c in comps if c.get('price', 0) > 0])
+
+    if not prices:
+        return {'estimated': None, 'low': None, 'high': None, 'median': None,
+                'avg': None, 'weighted_median': None, 'outliers_removed': 0}
+
+    # Step 1: Preliminary center (raw median of IQR-trimmed data)
     center = statistics.median(prices)
 
-    # Step 2: ±25% band cleanup
+    # Step 2: ±25% band cleanup on top of IQR
     lo = center * (1 - PRICE_BAND_PCT)
     hi = center * (1 + PRICE_BAND_PCT)
     in_band = [c for c in comps if c.get('price', 0) > 0 and lo <= c['price'] <= hi]
