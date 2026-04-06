@@ -1686,22 +1686,41 @@ def load_kaws_data():
 _historical_prices_loaded = None
 
 
-def load_historical_prices():
-    """Load Shepard Fairey historical price data, cached by mtime"""
-    global _historical_prices, _historical_prices_loaded
+_historical_clean = None
+_historical_clean_loaded = None
 
+
+def load_historical_clean():
+    """Load cleaned historical data — optimized, indexed, quality-filtered"""
+    global _historical_clean, _historical_clean_loaded
+    path = os.path.join(DATA_DIR, 'historical_clean.json')
+    if not os.path.exists(path):
+        # Fallback to raw if clean doesn't exist
+        return load_historical_prices_raw()
+
+    mtime = os.path.getmtime(path)
+    if _historical_clean is not None and _historical_clean_loaded == mtime:
+        return _historical_clean
+
+    with open(path, 'r') as f:
+        _historical_clean = json.load(f)
+    _historical_clean_loaded = mtime
+    print(f"[Data] Loaded {len(_historical_clean)} clean historical records")
+    return _historical_clean
+
+
+def load_historical_prices_raw():
+    """Fallback — load raw SF data"""
     path = ensure_data_file('shepard_fairey_data.json')
     if not os.path.exists(path):
         return []
-
-    mtime = os.path.getmtime(path)
-    if _historical_prices is not None and _historical_prices_loaded == mtime:
-        return _historical_prices
-
     with open(path, 'r') as f:
-        _historical_prices = json.load(f)
-    _historical_prices_loaded = mtime
-    return _historical_prices
+        return json.load(f)
+
+
+def load_historical_prices():
+    """Load historical price data — uses clean data if available"""
+    return load_historical_clean()
 
 
 _worthpoint_data = None
@@ -1895,8 +1914,7 @@ def is_likely_fake(title, price, category=''):
 
 
 def lookup_historical_prices(title, artist='', limit=50):
-    """Strict matching — requires artist match + title word overlap"""
-    # Extract meaningful title words (remove artist name, common words)
+    """Fast lookup using cleaned historical data — pre-filtered, pre-indexed."""
     noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
              'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
              'obey', 'giant', 'screen', 'edition', 'limited', 'art', 'original', 'artist',
@@ -1909,142 +1927,53 @@ def lookup_historical_prices(title, artist='', limit=50):
     if len(title_words) < 1:
         return []
 
+    data = load_historical_clean()
     results = []
-    item_attrs = extract_item_attributes(title)
 
-    def match_record(name, rec_artist=''):
-        """Check if a record matches — artist must match, then title words"""
-        # Artist gate: if we know the artist, the comp MUST be same artist
+    for rec in data:
+        # Artist gate
         if artist:
-            name_lower = name.lower()
-            artist_lower = artist.lower()
-            # Check if comp is from the same artist
-            artist_in_name = False
-            if 'fairey' in artist_lower and ('fairey' in name_lower or 'obey' in name_lower):
-                artist_in_name = True
-            elif 'death nyc' in artist_lower and 'death nyc' in name_lower:
-                artist_in_name = True
-            elif 'kaws' in artist_lower and 'kaws' in name_lower:
-                artist_in_name = True
-            elif 'banksy' in artist_lower and 'banksy' in name_lower:
-                artist_in_name = True
-            elif 'brainwash' in artist_lower and 'brainwash' in name_lower:
-                artist_in_name = True
-            elif artist_lower.split()[-1] in name_lower:
-                artist_in_name = True
+            rec_artist = rec.get('artist', '')
+            if artist.lower() not in rec_artist.lower() and rec_artist.lower() not in artist.lower():
+                # Check aliases
+                if not ('fairey' in artist.lower() and ('fairey' in rec_artist.lower() or 'obey' in rec.get('name', '').lower())):
+                    continue
 
-            if not artist_in_name:
-                return 0  # Wrong artist — reject
+        # Use pre-computed title_words from clean data for fast matching
+        rec_words = set(rec.get('title_words', []))
+        if not rec_words:
+            rec_words = set(w for w in re.findall(r'\w+', rec.get('name', '').lower()) if w not in noise and len(w) > 2)
 
-        rec_words = set(w for w in re.findall(r'\w+', name.lower()) if w not in noise and len(w) > 2)
         overlap = len(title_words & rec_words)
+        # Clean data is already quality-filtered, so 1 word overlap is enough
+        if overlap < 1:
+            continue
 
-        # Need at least 2 meaningful word overlaps to be a real comp
-        # Single word matches like "records" or "artist" are too generic
-        if overlap >= 2:
-            return overlap
-        return 0
+        results.append({
+            'name': rec.get('name', ''),
+            'price': rec.get('price', 0),
+            'date': rec.get('date', ''),
+            'source': rec.get('source', 'WorthPoint'),
+            'url': rec.get('url', ''),
+            'signed': rec.get('signed', False),
+            'medium': rec.get('medium', ''),
+            '_overlap': overlap,
+        })
 
-    # Search main historical prices (Shepard Fairey)
-    if not artist or 'fairey' in artist.lower() or 'shepard' in artist.lower():
-        historical = load_historical_prices()
-        for rec in historical:
-            name = rec.get('name', '')
-            score = match_record(name, rec.get('artist', ''))
-            if score > 0:
-                comp_attrs = extract_item_attributes(name)
-                attr_score = attribute_match_score(item_attrs, comp_attrs)
-                results.append({
-                    'name': name,
-                    'price': rec.get('price'),
-                    'date': rec.get('date', ''),
-                    'source': rec.get('source', 'eBay'),
-                    'url': rec.get('url', ''),
-                    'signed': rec.get('signed'),
-                    'medium': rec.get('medium', ''),
-                    '_score': score + attr_score,
-                    '_attr_match': attr_score >= 0,
-                })
+    # Sort by overlap then date
+    results.sort(key=lambda x: (-x['_overlap'], x.get('date', '') or ''), reverse=False)
+    results.sort(key=lambda x: -x['_overlap'])
 
-        # Also search WorthPoint data
-        wp_data = load_worthpoint_data()
-        for rec in wp_data:
-            wp_title = rec.get('title', '')
-            score = match_record(wp_title)
-            if score > 0:
-                comp_attrs = extract_item_attributes(wp_title)
-                attr_score = attribute_match_score(item_attrs, comp_attrs)
-                results.append({
-                    'name': wp_title,
-                    'price': rec.get('price'),
-                    'date': rec.get('date_imported', ''),
-                    'source': 'WorthPoint',
-                    'url': rec.get('url', ''),
-                    '_score': score + attr_score,
-                    '_attr_match': attr_score >= 0,
-                })
-
-    # Search KAWS historical data (44k+ items)
-    if not artist or 'kaws' in artist.lower() or 'kaws' in title.lower():
-        kaws_data = load_kaws_data()
-        for rec in kaws_data:
-            name = rec.get('name', '')
-            score = match_record(name)
-            if score > 0:
-                comp_attrs = extract_item_attributes(name)
-                attr_score = attribute_match_score(item_attrs, comp_attrs)
-                results.append({
-                    'name': name,
-                    'price': rec.get('price'),
-                    'date': rec.get('date', ''),
-                    'source': rec.get('source', 'WorthPoint'),
-                    'url': rec.get('url', ''),
-                    'medium': rec.get('medium', ''),
-                    '_score': score + attr_score,
-                    '_attr_match': attr_score >= 0,
-                })
-
-    # Search artist summaries for non-SF artists
-    if artist and 'fairey' not in artist.lower():
-        summaries = load_artist_summaries()
-        for artist_key, artworks in summaries.items():
-            if artist.lower() not in artist_key.lower():
-                continue
-            for name, stats in artworks.items():
-                score = match_record(name)
-                if score > 0:
-                    comp_attrs = extract_item_attributes(name)
-                    attr_score = attribute_match_score(item_attrs, comp_attrs)
-                    for sale in stats.get('recent_sales', []):
-                        results.append({
-                            'name': name,
-                            'price': sale.get('price'),
-                            'date': sale.get('date', ''),
-                            'source': sale.get('source', 'WorthPoint'),
-                            '_score': score + attr_score,
-                            '_attr_match': attr_score >= 0,
-                        })
-
-    # Filter: prioritize attribute-matched comps, remove bad matches
-    good_results = [r for r in results if r.get('_attr_match', True)]
-    if len(good_results) >= 3:
-        results = good_results  # Enough good matches, drop bad ones
-
-    # Sort by score desc, then date desc
-    results.sort(key=lambda x: x['_score'], reverse=True)
-
-    # Remove internal fields and deduplicate
+    # Deduplicate
     seen = set()
     deduped = []
     for r in results:
-        r.pop('_score', None)
-        r.pop('_attr_match', None)
-        key = (r.get('name', ''), r.get('price'), r.get('date', ''))
+        r.pop('_overlap', None)
+        key = r.get('name', '')[:40] + str(r.get('price', 0))
         if key not in seen:
             seen.add(key)
             deduped.append(r)
 
-    # Sort final by date desc
     deduped.sort(key=lambda x: x.get('date', '') or '', reverse=True)
     return deduped[:limit]
 
