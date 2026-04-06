@@ -445,14 +445,15 @@
             <!-- Strategy buttons -->
             <div class="section">
                 <div class="section-title">Set Strategy</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    <button class="btn" style="background:var(--green);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('profit')">Max Profit</button>
-                    <button class="btn" style="background:var(--accent);color:#fff;padding:10px 16px;font-size:13px;" onclick="applyStrat('steady')">Few/Week</button>
-                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_low')">Speed Low</button>
-                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_medium')">Speed Med</button>
-                    <button class="btn" style="background:var(--red);color:#fff;padding:10px 16px;font-size:13px;" onclick="applyStrat('speed_high')">Speed High</button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                    <button class="btn" style="background:var(--green);color:#000;padding:10px 16px;font-size:13px;" onclick="previewStrat('profit')">Max Profit</button>
+                    <button class="btn" style="background:var(--accent);color:#fff;padding:10px 16px;font-size:13px;" onclick="previewStrat('steady')">Few/Week</button>
+                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="previewStrat('speed_low')">Speed Low</button>
+                    <button class="btn" style="background:var(--orange);color:#000;padding:10px 16px;font-size:13px;" onclick="previewStrat('speed_medium')">Speed Med</button>
+                    <button class="btn" style="background:var(--red);color:#fff;padding:10px 16px;font-size:13px;" onclick="previewStrat('speed_high')">Speed High</button>
                 </div>
-                <div id="strat-status" style="font-size:12px;color:var(--dim);"></div>
+                <div id="strat-preview"></div>
+                <div id="strat-status" style="font-size:12px;"></div>
             </div>
 
             <!-- Sub-tabs -->
@@ -2621,13 +2622,124 @@
             }
         }
 
-        async function applyStrat(level) {
-            toast('Applying ' + level + ' strategy...');
-            const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
-            const d = await resp.json();
-            document.getElementById('strat-status').innerHTML = `<span style="color:var(--green);">${d.applied} listings, ${d.campaigns} campaigns</span>`;
-            toast(d.applied + ' updated');
+        let selectedStrat = null;
+
+        async function previewStrat(level) {
+            selectedStrat = level;
+            const el = document.getElementById('strat-preview');
+            const status = document.getElementById('strat-status');
+            showProgress(status, 30, 'Loading strategy preview...', `Analyzing ${level} strategy for all categories`);
+
+            try {
+                const resp = await fetch('/api/promotions/strategy');
+                const d = await resp.json();
+                const presets = d.presets || {};
+                const preset = presets[level] || {};
+                const ebayRates = d.ebay_suggested || {};
+                const catRates = preset.category_rates || {};
+                const defaultRate = preset.default_rate || 5;
+
+                // Build preview of what would change
+                const cats = Object.keys(ebayRates);
+                const changes = cats.map(cat => {
+                    const current = ebayRates[cat] || 0;
+                    const newRate = catRates[cat] || defaultRate;
+                    return {cat, current, newRate, diff: newRate - current};
+                });
+
+                const descriptions = {
+                    'profit': 'Lowest ad rates — maximize profit margin. Best for high-demand items.',
+                    'steady': 'Moderate rates — sell a few per week. Balanced approach.',
+                    'speed_low': 'Slightly above eBay suggested — gentle push for more visibility.',
+                    'speed_medium': 'Aggressive rates — push hard for sales velocity.',
+                    'speed_high': 'Maximum rates — spend big to move inventory fast. Use when sales are slow.',
+                };
+
+                showProgressDone(status, `${level.toUpperCase()} strategy`, descriptions[level] || '');
+
+                el.innerHTML = `
+                    <div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent);">
+                        <div style="font-size:14px;font-weight:700;margin-bottom:6px;">${preset.name || level}</div>
+                        <div style="font-size:12px;color:var(--dim);margin-bottom:10px;">${descriptions[level] || ''}</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Category</th><th class="r">Current Rate</th><th class="r">New Rate</th><th class="r">Change</th></tr></thead>
+                            <tbody>${changes.map(c => `<tr>
+                                <td class="b">${c.cat}</td>
+                                <td class="r">${c.current}%</td>
+                                <td class="r g b">${c.newRate}%</td>
+                                <td class="r ${c.diff > 0 ? 'rd' : c.diff < 0 ? 'g' : 'd'}">${c.diff > 0 ? '+' : ''}${c.diff}%</td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>
+                        <div style="display:flex;gap:8px;margin-top:12px;">
+                            <button class="btn btn-green" style="flex:1;padding:12px;font-size:14px;font-weight:700;justify-content:center;" onclick="executeStrat('${level}')">Apply ${level.toUpperCase()} to eBay</button>
+                            <button class="btn-ghost" style="padding:12px 20px;" onclick="document.getElementById('strat-preview').innerHTML='';document.getElementById('strat-status').innerHTML='';">Cancel</button>
+                        </div>
+                    </div>
+
+                    <div id="strat-ai" style="margin-top:8px;"><div class="loading"><div class="spinner"></div><div style="font-size:10px;color:var(--dim);margin-top:4px;">AI reviewing this strategy...</div></div></div>
+                `;
+
+                // AI review async
+                loadStratAI(level, changes, descriptions[level]);
+
+            } catch(e) { showProgressError(status, 'Failed to load strategy'); }
         }
+
+        async function loadStratAI(level, changes, description) {
+            const el = document.getElementById('strat-ai');
+            if (!el) return;
+            const claude_prompt = changes.map(c => `${c.cat}: ${c.current}% → ${c.newRate}%`).join(', ');
+            try {
+                const resp = await fetch('/api/ai/price', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: `Strategy: ${level}`,
+                        artist: '',
+                        price: 0,
+                        context: 'sell',
+                        comp_data: {comps: [{title: `Ad rate changes: ${claude_prompt}`, price: 0, source: description}], pricing: {}, stats: {}}
+                    })
+                });
+                const d = await resp.json();
+                const reasoning = d.claude?.reasoning || d.gpt?.reasoning || '';
+                if (reasoning) {
+                    el.innerHTML = `<div style="background:rgba(10,132,255,0.06);border-radius:8px;padding:10px;font-size:12px;border-left:3px solid var(--accent);">
+                        <b>AI Review:</b> ${reasoning}
+                    </div>`;
+                } else {
+                    el.innerHTML = '';
+                }
+            } catch(e) { el.innerHTML = ''; }
+        }
+
+        async function executeStrat(level) {
+            const status = document.getElementById('strat-status');
+            showProgress(status, 20, `Applying ${level}...`, 'Saving strategy and pushing to eBay campaigns');
+
+            try {
+                // Save all categories with this strategy
+                const cats = ['Shepard Fairey','Death NYC','KAWS','Banksy','Bearbrick','Mr. Brainwash','Space/NASA','Signed Music','Pickguard','Other'];
+                const strats = {};
+                cats.forEach(c => strats[c] = level);
+                await fetch('/api/promotions/category-strategy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(strats)});
+
+                showProgress(status, 60, 'Pushing to eBay...', 'Creating/updating campaigns with new rates');
+                const resp = await fetch('/api/promotions/apply-category-strategies', {method:'POST'});
+                const d = await resp.json();
+
+                if (d.error) {
+                    showProgressError(status, d.error);
+                } else {
+                    showProgressDone(status, `${d.applied} listings updated`, `${d.campaigns} campaigns · ${d.failed||0} failed · Strategy: ${level.toUpperCase()}`);
+                    document.getElementById('strat-preview').innerHTML = '';
+                    promosLoaded = false;  // Force refresh
+                }
+                toast(`${d.applied} listings set to ${level}`);
+            } catch(e) { showProgressError(status, 'Failed: ' + e.message); }
+        }
+
+        // Keep old function as alias
+        async function applyStrat(level) { await previewStrat(level); }
 
         // ==========================================
         // Reports
