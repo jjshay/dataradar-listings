@@ -11579,48 +11579,87 @@ def get_comps_v2():
     if not title:
         return jsonify({'error': 'Missing title'}), 400
 
-    # Gather candidates from all sources
+    # =========================================================
+    # Multi-query candidate gathering + canonical clustering
+    # =========================================================
     candidates = []
+    seen_titles = set()
 
-    # 1. WorthPoint / historical database — pull lots, let engine filter
-    historical = lookup_historical_prices(title, artist, 100)
-    for h in historical:
-        candidates.append({
-            'title': h.get('name', ''),
-            'price': h.get('price', 0),
-            'date': h.get('date', ''),
-            'source': h.get('source', 'WorthPoint'),
-            'sold_date': h.get('date', ''),
-        })
+    def add_candidate(rec, source):
+        t = rec.get('title', rec.get('name', ''))
+        key = t[:40].lower()
+        if key not in seen_titles:
+            seen_titles.add(key)
+            candidates.append({
+                'title': t,
+                'price': rec.get('price', 0),
+                'date': rec.get('date', ''),
+                'sold_date': rec.get('sold_date', rec.get('date', '')),
+                'source': source,
+                'url': rec.get('url', ''),
+            })
 
-    # 2. eBay active comps (current market)
+    # Build multiple search queries from the title
     noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
              'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
              'screen', 'edition', 'limited', 'art', 'original', 'obey', 'giant'}
     words = [w for w in re.findall(r'\w+', title) if w.lower() not in noise and len(w) > 2]
-    search_query = f"{artist} {' '.join(words[:3])}" if artist else ' '.join(words[:4])
 
-    if search_query.strip():
-        comp_min = FAKE_PRICE_THRESHOLDS.get(artist, 15)
-        active = search_ebay(search_query, max(price * 4, 500), comp_min, limit=50)
-        for a in active:
-            candidates.append({
-                'title': a.get('title', ''),
-                'price': a.get('price', 0),
-                'source': 'eBay Active',
-                'url': a.get('url', ''),
-            })
+    # Extract canonical work name (strip artist, noise, edition info)
+    from comp_engine import normalize_record
+    target_rec = normalize_record(title, artist, price=price)
+    canonical = ''
+    clean_title = target_rec.get('title_normalized', '')
 
-    # 3. eBay sold comps (Finding API)
-    sold = search_sold_comps(search_query, comp_min, max(price * 4, 500))
-    for s in sold:
-        candidates.append({
-            'title': s.get('title', ''),
-            'price': s.get('price', 0),
-            'sold_date': s.get('sold_date', ''),
-            'source': 'eBay Sold',
-            'url': s.get('url', ''),
-        })
+    # Build 3-4 query variations
+    queries = []
+    if artist and words:
+        queries.append(f"{artist} {' '.join(words[:3])}")           # Q1: artist + 3 key words
+        queries.append(f"{artist} {' '.join(words[:2])}")           # Q2: artist + 2 key words (broader)
+        if len(words) > 3:
+            queries.append(f"{artist} {' '.join(words[1:4])}")      # Q3: artist + different 3 words
+        queries.append(f"{artist} {words[0]}")                       # Q4: artist + 1 word (broadest)
+    elif words:
+        queries.append(' '.join(words[:4]))
+
+    # Deduplicate queries
+    queries = list(dict.fromkeys(queries))[:4]
+    comp_min = FAKE_PRICE_THRESHOLDS.get(artist, 15)
+
+    # 1. Historical database — multiple lookups with different word combinations
+    for q_words in [words[:3], words[:2], words[1:4] if len(words) > 3 else words[:2]]:
+        if q_words:
+            fake_title = f"{artist} {' '.join(q_words)}"
+            for h in lookup_historical_prices(fake_title, artist, 50):
+                add_candidate(h, h.get('source', 'WorthPoint'))
+
+    # Also do canonical work clustering — search historical by canonical work name
+    hist_data = load_historical_clean()
+    if clean_title and artist:
+        target_words = set(w for w in clean_title.split() if len(w) > 2 and w not in noise)
+        for rec in hist_data:
+            if rec.get('artist') != artist:
+                continue
+            # Match by canonical_work field
+            rec_canonical = rec.get('canonical_work', '')
+            rec_words = set(rec.get('title_words', []))
+            # Check: does the canonical work share key words?
+            if target_words and rec_words:
+                overlap = len(target_words & rec_words)
+                if overlap >= 1:
+                    add_candidate(rec, rec.get('source', 'WorthPoint'))
+
+    # 2. eBay active — multi-query search
+    for q in queries:
+        if q.strip():
+            for a in search_ebay(q, max(price * 4, 500), comp_min, limit=30):
+                add_candidate(a, 'eBay Active')
+
+    # 3. eBay sold — multi-query search (Finding API)
+    for q in queries[:2]:  # Only first 2 to avoid rate limits
+        if q.strip():
+            for s in search_sold_comps(q, comp_min, max(price * 4, 500)):
+                add_candidate(s, 'eBay Sold')
 
     # Run through the comp engine (programmatic layer)
     rejections = load_comp_rejections()
