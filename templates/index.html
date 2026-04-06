@@ -1879,12 +1879,62 @@
                     </table></div>
                 ` : ''}
 
+                <div id="deal-ai-price" style="margin-bottom:12px;"><div class="loading"><div class="spinner"></div><div style="font-size:10px;color:var(--dim);margin-top:4px;">Claude + GPT analyzing buy price...</div></div></div>
+
                 <div style="display:flex;gap:8px;">
                     ${p.url ? `<a href="${p.url}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;">View on eBay</a>` : ''}
                     <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="runSearch();document.getElementById('search-input').value='${esc(p.title).substring(0,40)}';showTab('dash');setTimeout(runSearch,100);">Deep Analysis</button>
                 </div>
             `;
             modal.classList.add('show');
+
+            // Load AI buy price async
+            loadAIBuyPrice(p.title, p.artist || '', p.price, p, 'deal-ai-price');
+        }
+
+        async function loadAIBuyPrice(title, artist, price, dealData, elId) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            try {
+                const resp = await fetch('/api/ai/price', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title, artist, price, context: 'buy', comp_data: {
+                        comps: dealData.comps || [],
+                        pricing: {estimated: dealData.median, low: dealData.comp_low, high: dealData.comp_high},
+                        stats: {confidence: dealData.liquidity, accepted: dealData.comp_count}
+                    }})
+                });
+                const d = await resp.json();
+                const claude = d.claude || {};
+                const gpt = d.gpt || {};
+                const con = d.consensus || {};
+
+                el.innerHTML = `<div style="background:linear-gradient(135deg,rgba(48,209,88,0.08),rgba(255,159,10,0.08));border-radius:12px;padding:14px;border:1px solid var(--border);">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:10px;">AI Buy Recommendation</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--accent);font-weight:600;">Claude</div>
+                            <div style="font-size:18px;font-weight:800;color:var(--accent);">${claude.verdict||'--'}</div>
+                            ${claude.buy_below ? `<div style="font-size:12px;">Buy below: $${claude.buy_below}</div>` : ''}
+                            ${claude.fair_value ? `<div style="font-size:10px;color:var(--dim);">Fair: $${claude.fair_value}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--green);font-weight:600;">GPT</div>
+                            <div style="font-size:18px;font-weight:800;color:var(--green);">${gpt.verdict||'--'}</div>
+                            ${gpt.buy_below ? `<div style="font-size:12px;">Buy below: $${gpt.buy_below}</div>` : ''}
+                            ${gpt.fair_value ? `<div style="font-size:10px;color:var(--dim);">Fair: $${gpt.fair_value}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--purple);font-weight:600;">Consensus</div>
+                            <div style="font-size:18px;font-weight:800;color:var(--purple);">${con.buy_below ? 'BUY <$'+con.buy_below : '--'}</div>
+                            ${con.fair_value ? `<div style="font-size:10px;color:var(--dim);">Fair: $${con.fair_value}</div>` : ''}
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;">
+                        ${claude.reasoning||''} ${gpt.reasoning ? '<br>GPT: '+gpt.reasoning : ''}
+                    </div>
+                </div>`;
+            } catch(e) { el.innerHTML = ''; }
         }
 
         document.getElementById('deal-search-sort')?.addEventListener('change', () => { if (dealSearchData) renderDealResults(dealSearchData); });
@@ -2961,8 +3011,25 @@
                         </tr>`).join('')}</tbody>
                     </table></div>` : ''}
 
-                    ${valData.removed?.length ? `<div style="margin-top:12px;font-size:11px;color:var(--dim);">Filtered out: ${valData.removed.map(r=>'$'+r.price+' '+r.title).join(', ')}</div>` : ''}
+                    <!-- Overall Analytics -->
+                    <div style="margin-top:16px;background:var(--card2);border-radius:12px;padding:14px;margin-bottom:16px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Overall Market Summary</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;">
+                            <div style="text-align:center;"><div style="font-size:9px;color:var(--orange);">eBay Active</div><div style="font-size:16px;font-weight:700;">${st.active_median ? '$'+Math.round(st.active_median) : '--'}</div><div style="font-size:9px;color:var(--dim);">${comps.length} listings</div></div>
+                            <div style="text-align:center;"><div style="font-size:9px;color:var(--accent);">WorthPoint</div><div style="font-size:16px;font-weight:700;">${st.hist_median ? '$'+Math.round(st.hist_median) : '--'}</div><div style="font-size:9px;color:var(--dim);">${historicalPoints.length} sales</div></div>
+                            <div style="text-align:center;"><div style="font-size:9px;color:var(--green);">eBay Sold</div><div style="font-size:16px;font-weight:700;">${soldStats.median ? '$'+Math.round(soldStats.median) : '--'}</div><div style="font-size:9px;color:var(--dim);">${soldComps.length} sales</div></div>
+                            <div style="text-align:center;"><div style="font-size:9px;color:var(--purple);">V2 Engine</div><div style="font-size:16px;font-weight:700;">${v2pricing.estimated ? '$'+v2pricing.estimated : '--'}</div><div style="font-size:9px;color:var(--dim);">${v2stats.confidence||'--'} conf</div></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Price Recommendations (loads async) -->
+                    <div style="margin-bottom:16px;" id="drill-ai-price"><div class="loading"><div class="spinner"></div><div style="font-size:10px;color:var(--dim);margin-top:4px;">Getting AI price recommendations from Claude + GPT...</div></div></div>
+
+                    ${v2.rejected?.length ? `<div style="font-size:11px;color:var(--dim);">Filtered: ${v2.rejected.slice(0,3).map(r=>r.reason+' ($'+r.price+')').join(', ')}</div>` : ''}
                 `;
+
+                // Load AI pricing async
+                loadAIPrice(name, artist, price, v2, 'drill-ai-price');
 
                 // Draw combined line chart
                 if (points.length && document.getElementById('drill-combo-chart')) {
@@ -3044,6 +3111,49 @@
                     }, 100);
                 }
             } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load detail</div>'; }
+        }
+
+        async function loadAIPrice(title, artist, price, compData, elId) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+
+            try {
+                const resp = await fetch('/api/ai/price', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title, artist, price, context: 'sell', comp_data: compData})
+                });
+                const d = await resp.json();
+                const claude = d.claude || {};
+                const gpt = d.gpt || {};
+                const con = d.consensus || {};
+
+                el.innerHTML = `<div style="background:linear-gradient(135deg,rgba(10,132,255,0.08),rgba(48,209,88,0.08));border-radius:12px;padding:14px;border:1px solid var(--border);">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:10px;">AI Price Recommendations</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--accent);font-weight:600;">Claude</div>
+                            <div style="font-size:22px;font-weight:800;color:var(--accent);">${claude.recommended_price ? '$'+claude.recommended_price : '--'}</div>
+                            ${claude.aggressive_price ? `<div style="font-size:10px;color:var(--dim);">Quick: $${claude.aggressive_price} · Hold: $${claude.conservative_price||'?'}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--green);font-weight:600;">GPT</div>
+                            <div style="font-size:22px;font-weight:800;color:var(--green);">${gpt.recommended_price ? '$'+gpt.recommended_price : '--'}</div>
+                            ${gpt.aggressive_price ? `<div style="font-size:10px;color:var(--dim);">Quick: $${gpt.aggressive_price} · Hold: $${gpt.conservative_price||'?'}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--purple);font-weight:600;">Consensus</div>
+                            <div style="font-size:22px;font-weight:800;color:var(--purple);">${con.recommended ? '$'+con.recommended : '--'}</div>
+                            ${con.aggressive ? `<div style="font-size:10px;color:var(--dim);">Quick sell: $${con.aggressive}</div>` : ''}
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;">
+                        ${claude.reasoning ? `Claude: ${claude.reasoning}` : ''}
+                        ${gpt.reasoning ? `<br>GPT: ${gpt.reasoning}` : ''}
+                    </div>
+                </div>`;
+            } catch(e) {
+                el.innerHTML = '<div style="font-size:11px;color:var(--dim);">AI pricing unavailable</div>';
+            }
         }
 
         function closeDrill() {

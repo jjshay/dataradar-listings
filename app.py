@@ -6252,6 +6252,125 @@ def get_executive_dashboard():
     })
 
 
+@app.route('/api/ai/price', methods=['POST'])
+def ai_price_recommendation():
+    """Dual-LLM pricing — Claude + GPT both recommend buy/sell price"""
+    data = request.get_json()
+    title = data.get('title', '')
+    artist = data.get('artist', '')
+    current_price = data.get('price', 0)
+    context = data.get('context', 'sell')  # 'sell' for inventory, 'buy' for deals
+    comp_data = data.get('comp_data', {})
+
+    # Build pricing context
+    comps_text = ''
+    if comp_data.get('comps'):
+        comps_text = '\n'.join([f"  ${c['price']:.0f} — {c.get('title','')[:50]} ({c.get('source','')})" for c in comp_data['comps'][:10]])
+
+    pricing = comp_data.get('pricing', {})
+    stats_text = ''
+    if pricing:
+        stats_text = f"Comp engine: est=${pricing.get('estimated','?')} median=${pricing.get('median','?')} range=${pricing.get('low','?')}-${pricing.get('high','?')} ({comp_data.get('stats',{}).get('confidence','?')} confidence, {comp_data.get('stats',{}).get('accepted',0)} comps)"
+
+    if context == 'buy':
+        prompt = f"""You are an art market expert pricing advisor. A collector is considering BUYING this item on eBay:
+
+Item: {title}
+Artist: {artist}
+Listed price: ${current_price:.0f}
+
+{stats_text}
+
+Comparable sales:
+{comps_text or 'No comps available'}
+
+What is the MAXIMUM you would pay for this item? Consider:
+- Current market (recent sold prices)
+- Expected resale value after eBay fees (13%) and shipping ($8-15)
+- Target 30%+ profit margin on resale
+- Authentication/condition risk
+
+Respond ONLY with JSON:
+{{"buy_below": NUMBER, "fair_value": NUMBER, "resale_estimate": NUMBER, "verdict": "BUY/PASS/WAIT", "reasoning": "1-2 sentences"}}"""
+    else:
+        prompt = f"""You are an art market pricing expert. A seller needs to price this item for their eBay store:
+
+Item: {title}
+Artist: {artist}
+Current listed price: ${current_price:.0f}
+
+{stats_text}
+
+Comparable sales:
+{comps_text or 'No comps available'}
+
+What should this be priced at? Consider:
+- Recent sold prices (weight last 90 days heavily)
+- Current market conditions
+- eBay fees (13%) and promotion costs (5-10%)
+- Competitive positioning (slightly below median sells faster)
+- Time value of money (don't sit on inventory)
+
+Respond ONLY with JSON:
+{{"recommended_price": NUMBER, "aggressive_price": NUMBER, "conservative_price": NUMBER, "reasoning": "1-2 sentences"}}"""
+
+    results = {}
+
+    # Claude
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    if claude_key:
+        try:
+            resp = requests.post('https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
+                timeout=15)
+            if resp.status_code == 200:
+                text = resp.json().get('content', [{}])[0].get('text', '')
+                match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+                if match:
+                    results['claude'] = json.loads(match.group())
+        except Exception as e:
+            print(f"Claude pricing error: {e}")
+
+    # GPT
+    openai_key = ENV.get('OPENAI_API_KEY', '')
+    if openai_key:
+        try:
+            resp = requests.post('https://api.openai.com/v1/chat/completions',
+                headers={'Authorization': f'Bearer {openai_key}', 'Content-Type': 'application/json'},
+                json={'model': 'gpt-4o-mini', 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 200},
+                timeout=15)
+            if resp.status_code == 200:
+                text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+                match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+                if match:
+                    results['gpt'] = json.loads(match.group())
+        except Exception as e:
+            print(f"GPT pricing error: {e}")
+
+    # Consensus
+    consensus = {}
+    if context == 'buy':
+        claude_buy = results.get('claude', {}).get('buy_below', 0)
+        gpt_buy = results.get('gpt', {}).get('buy_below', 0)
+        vals = [v for v in [claude_buy, gpt_buy] if v > 0]
+        consensus['buy_below'] = round(sum(vals) / max(len(vals), 1)) if vals else None
+        consensus['fair_value'] = round(sum(v for v in [results.get('claude', {}).get('fair_value', 0), results.get('gpt', {}).get('fair_value', 0)] if v > 0) / max(len([v for v in [results.get('claude', {}).get('fair_value', 0), results.get('gpt', {}).get('fair_value', 0)] if v > 0]), 1)) if any(v > 0 for v in [results.get('claude', {}).get('fair_value', 0), results.get('gpt', {}).get('fair_value', 0)]) else None
+    else:
+        claude_rec = results.get('claude', {}).get('recommended_price', 0)
+        gpt_rec = results.get('gpt', {}).get('recommended_price', 0)
+        vals = [v for v in [claude_rec, gpt_rec] if v > 0]
+        consensus['recommended'] = round(sum(vals) / max(len(vals), 1)) if vals else None
+        consensus['aggressive'] = round(sum(v for v in [results.get('claude', {}).get('aggressive_price', 0), results.get('gpt', {}).get('aggressive_price', 0)] if v > 0) / max(len([v for v in [results.get('claude', {}).get('aggressive_price', 0), results.get('gpt', {}).get('aggressive_price', 0)] if v > 0]), 1)) if any(v > 0 for v in [results.get('claude', {}).get('aggressive_price', 0), results.get('gpt', {}).get('aggressive_price', 0)]) else None
+
+    return jsonify({
+        'claude': results.get('claude', {}),
+        'gpt': results.get('gpt', {}),
+        'consensus': consensus,
+        'context': context,
+    })
+
+
 @app.route('/api/ai/strategy')
 def ai_strategy_recommendations():
     """AI-powered strategic recommendations from all inventory, sales, scoring, and capital data"""
