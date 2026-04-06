@@ -11582,8 +11582,8 @@ def get_comps_v2():
     # Gather candidates from all sources
     candidates = []
 
-    # 1. WorthPoint / historical database
-    historical = lookup_historical_prices(title, artist, 30)
+    # 1. WorthPoint / historical database — pull lots, let engine filter
+    historical = lookup_historical_prices(title, artist, 100)
     for h in historical:
         candidates.append({
             'title': h.get('name', ''),
@@ -11602,7 +11602,7 @@ def get_comps_v2():
 
     if search_query.strip():
         comp_min = FAKE_PRICE_THRESHOLDS.get(artist, 15)
-        active = search_ebay(search_query, max(price * 4, 500), comp_min, limit=30)
+        active = search_ebay(search_query, max(price * 4, 500), comp_min, limit=50)
         for a in active:
             candidates.append({
                 'title': a.get('title', ''),

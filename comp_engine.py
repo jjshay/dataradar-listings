@@ -72,15 +72,15 @@ CATEGORY_CONFIGS = {
         'pricing_mode': {
             'require_signed_match': True,
             'require_numbered_match': True,
-            'require_medium_match': False,  # soft preference
-            'title_threshold': 0.20,
+            'require_medium_match': False,
+            'title_threshold': 0.10,  # Lower — let LLM be the final gate
             'min_price': 40,
         },
         'deal_finder_mode': {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.12,
+            'title_threshold': 0.06,
             'min_price': 20,
         },
         'scoring_weights': {
@@ -117,14 +117,14 @@ CATEGORY_CONFIGS = {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.18,
+            'title_threshold': 0.10,
             'min_price': 50,
         },
         'deal_finder_mode': {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.10,
+            'title_threshold': 0.05,
             'min_price': 20,
         },
         'scoring_weights': {
@@ -164,14 +164,14 @@ CATEGORY_CONFIGS = {
             'require_signed_match': True,
             'require_numbered_match': False,
             'require_medium_match': True,
-            'title_threshold': 0.15,
+            'title_threshold': 0.08,
             'min_price': 25,
         },
         'deal_finder_mode': {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.10,
+            'title_threshold': 0.05,
             'min_price': 10,
         },
         'scoring_weights': {
@@ -197,14 +197,14 @@ CATEGORY_CONFIGS = {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.15,
+            'title_threshold': 0.08,
             'min_price': 10,
         },
         'deal_finder_mode': {
             'require_signed_match': False,
             'require_numbered_match': False,
             'require_medium_match': False,
-            'title_threshold': 0.08,
+            'title_threshold': 0.04,
             'min_price': 5,
         },
         'scoring_weights': {
