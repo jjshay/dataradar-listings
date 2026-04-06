@@ -11712,6 +11712,107 @@ def send_daily_email(to_email='jjshay@gmail.com'):
         return False
 
 
+@app.route('/api/lookup', methods=['POST'])
+def artwork_lookup():
+    """Look up an artwork by artist + title — pulls from database, eBay sold, eBay active.
+    Returns structured comp data + pricing from all 3 sources."""
+    data = request.get_json()
+    query = data.get('query', '').strip()
+    artist = data.get('artist', '').strip()
+    min_price = float(data.get('min_price', 0))
+    max_price = float(data.get('max_price', 50000))
+
+    if not query:
+        return jsonify({'error': 'Missing query'}), 400
+
+    # Detect artist from query if not provided
+    if not artist:
+        from comp_engine import normalize_record
+        q_lower = query.lower()
+        artist_map = [
+            (['shepard fairey', 'obey'], 'Shepard Fairey'),
+            (['kaws'], 'KAWS'), (['death nyc'], 'Death NYC'),
+            (['banksy'], 'Banksy'), (['brainwash', 'mbw'], 'Mr. Brainwash'),
+            (['bearbrick'], 'Bearbrick'), (['apollo', 'astronaut', 'nasa', 'aldrin', 'armstrong'], 'Space/NASA'),
+        ]
+        for keywords, name in artist_map:
+            if any(kw in q_lower for kw in keywords):
+                artist = name
+                break
+
+    results = {'artist': artist, 'query': query}
+
+    # 1. Historical database
+    hist = lookup_historical_prices(f"{artist} {query}" if artist else query, artist, 50)
+    hist_filtered = [h for h in hist if min_price <= (h.get('price', 0) or 0) <= max_price]
+    hist_prices = sorted([h['price'] for h in hist_filtered if h.get('price', 0) > 0])
+    results['historical'] = {
+        'records': [{'name': h.get('name', '')[:80], 'price': h.get('price', 0), 'date': h.get('date', ''), 'source': h.get('source', '')} for h in hist_filtered[:20]],
+        'count': len(hist_filtered),
+        'median': hist_prices[len(hist_prices)//2] if hist_prices else None,
+        'min': hist_prices[0] if hist_prices else None,
+        'max': hist_prices[-1] if hist_prices else None,
+        'avg': round(sum(hist_prices)/len(hist_prices)) if hist_prices else None,
+    }
+
+    # 2. eBay active listings
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered'}
+    words = [w for w in re.findall(r'\w+', query) if w.lower() not in noise and len(w) > 2]
+    search_q = f"{artist} {' '.join(words[:3])}" if artist else ' '.join(words[:4])
+
+    active = []
+    if search_q.strip():
+        comp_min = max(min_price, FAKE_PRICE_THRESHOLDS.get(artist, 10))
+        active = search_ebay(search_q, max_price, comp_min, limit=40)
+        # Quality gate
+        active = [a for a in active if passes_artist_quality_gate(a.get('title', ''), artist)]
+
+    active_prices = sorted([a['price'] for a in active if a.get('price', 0) > 0])
+    results['active'] = {
+        'records': [{'title': a.get('title', '')[:80], 'price': a.get('price', 0), 'url': a.get('url', ''), 'seller': a.get('seller', ''), 'condition': a.get('condition', '')} for a in active[:20]],
+        'count': len(active),
+        'median': active_prices[len(active_prices)//2] if active_prices else None,
+        'min': active_prices[0] if active_prices else None,
+        'max': active_prices[-1] if active_prices else None,
+        'avg': round(sum(active_prices)/len(active_prices)) if active_prices else None,
+    }
+
+    # 3. eBay sold (Finding API)
+    sold = []
+    if search_q.strip():
+        sold = search_sold_comps(search_q, comp_min, max_price)
+        sold = [s for s in sold if passes_artist_quality_gate(s.get('title', ''), artist)]
+
+    sold_prices = sorted([s['price'] for s in sold if s.get('price', 0) > 0])
+    results['sold'] = {
+        'records': [{'title': s.get('title', '')[:80], 'price': s.get('price', 0), 'sold_date': s.get('sold_date', ''), 'url': s.get('url', '')} for s in sold[:20]],
+        'count': len(sold),
+        'median': sold_prices[len(sold_prices)//2] if sold_prices else None,
+        'min': sold_prices[0] if sold_prices else None,
+        'max': sold_prices[-1] if sold_prices else None,
+        'avg': round(sum(sold_prices)/len(sold_prices)) if sold_prices else None,
+    }
+
+    # 4. V2 comp engine pricing (combines all sources)
+    all_candidates = []
+    for h in hist_filtered:
+        all_candidates.append({'title': h.get('name', ''), 'price': h.get('price', 0), 'sold_date': h.get('date', ''), 'source': 'Historical'})
+    for a in active:
+        all_candidates.append({'title': a.get('title', ''), 'price': a.get('price', 0), 'source': 'eBay Active'})
+    for s in sold:
+        all_candidates.append({'title': s.get('title', ''), 'price': s.get('price', 0), 'sold_date': s.get('sold_date', ''), 'source': 'eBay Sold'})
+
+    rejections = load_comp_rejections()
+    avg_price = (results['historical']['median'] or results['active']['median'] or results['sold']['median'] or 200)
+    comp_result = find_comps(f"{artist} {query}", artist, avg_price, all_candidates, learned_rejections=rejections)
+    results['pricing'] = comp_result.get('pricing', {})
+    results['comp_stats'] = comp_result.get('stats', {})
+    results['validated_comps'] = comp_result.get('comps', [])[:10]
+
+    return jsonify(results)
+
+
 @app.route('/api/email/preview')
 def email_preview():
     """Preview the daily email in browser"""

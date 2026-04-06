@@ -474,6 +474,45 @@
         </div>
 
         <!-- ========== REPORTS ========== -->
+        <!-- ========== LOOKUP ========== -->
+        <div class="page" id="page-lookup">
+            <div class="header">
+                <h1>Artwork Lookup</h1>
+                <p>Search any artwork — historical sales, active listings, eBay sold, AI pricing</p>
+            </div>
+
+            <div class="section">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                    <select id="lookup-artist" style="background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;padding:10px 14px;min-width:160px;">
+                        <option value="">Any Artist</option>
+                        <option value="Shepard Fairey">Shepard Fairey</option>
+                        <option value="KAWS">KAWS</option>
+                        <option value="Death NYC">Death NYC</option>
+                        <option value="Banksy">Banksy</option>
+                        <option value="Mr. Brainwash">Mr. Brainwash</option>
+                        <option value="Bearbrick">Bearbrick</option>
+                        <option value="Space/NASA">Space/NASA</option>
+                    </select>
+                    <div class="search" style="flex:1;min-width:200px;">
+                        <input type="text" id="lookup-query" placeholder="Artwork name — e.g., Peace Goddess, Companion, BFF">
+                    </div>
+                    <button class="btn btn-primary" style="padding:10px 24px;font-size:15px;font-weight:700;" onclick="runLookup()">Lookup</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span style="font-size:11px;color:var(--dim);">Price range:</span>
+                    <span style="font-size:12px;font-weight:600;color:var(--green);" id="lookup-min-label">$0</span>
+                    <input type="range" id="lookup-min" min="0" max="10000" value="0" step="10" style="flex:1;accent-color:var(--accent);" oninput="document.getElementById('lookup-min-label').textContent='$'+this.value">
+                    <span style="font-size:11px;color:var(--dim);">to</span>
+                    <input type="range" id="lookup-max" min="0" max="50000" value="50000" step="100" style="flex:1;accent-color:var(--accent);" oninput="document.getElementById('lookup-max-label').textContent='$'+Number(this.value).toLocaleString()">
+                    <span style="font-size:12px;font-weight:600;color:var(--orange);" id="lookup-max-label">$50,000</span>
+                </div>
+            </div>
+
+            <div id="lookup-progress"></div>
+            <div id="lookup-results"></div>
+        </div>
+
+        <!-- ========== REPORTS ========== -->
         <div class="page" id="page-reports">
             <div class="header">
                 <h1>Reports</h1>
@@ -591,6 +630,10 @@
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             Promos
         </button>
+        <button class="nav-btn" data-tab="lookup">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Lookup
+        </button>
         <button class="nav-btn" data-tab="reports">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Reports
@@ -620,6 +663,7 @@
 
             if (tab === 'inventory' && !invData) loadInv();
             if (tab === 'promos') loadPromos();
+            if (tab === 'lookup') {}  // Manual search only
             if (tab === 'reports') loadReportsTab();
         }
 
@@ -3141,6 +3185,244 @@
                     }, 100);
                 }
             } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load detail</div>'; }
+        }
+
+        // ==========================================
+        // Artwork Lookup
+        // ==========================================
+        document.getElementById('lookup-query')?.addEventListener('keypress', e => { if (e.key === 'Enter') runLookup(); });
+
+        async function runLookup() {
+            const query = document.getElementById('lookup-query').value.trim();
+            const artist = document.getElementById('lookup-artist').value;
+            const minPrice = parseInt(document.getElementById('lookup-min').value) || 0;
+            const maxPrice = parseInt(document.getElementById('lookup-max').value) || 50000;
+            if (!query) { toast('Enter an artwork name'); return; }
+
+            const progress = document.getElementById('lookup-progress');
+            const el = document.getElementById('lookup-results');
+            showProgress(progress, 20, 'Searching...', 'Querying database + eBay active + eBay sold');
+
+            try {
+                const resp = await fetch('/api/lookup', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query, artist, min_price: minPrice, max_price: maxPrice})
+                });
+                const d = await resp.json();
+                showProgress(progress, 70, 'Building results...', 'Analyzing pricing from all sources');
+
+                const h = d.historical || {};
+                const a = d.active || {};
+                const s = d.sold || {};
+                const p = d.pricing || {};
+                const cs = d.comp_stats || {};
+
+                // AI pricing request (async)
+                setTimeout(() => loadAILookupPrice(query, artist, p.estimated || h.median || a.median || 0, d), 100);
+
+                showProgressDone(progress, `${(h.count||0)+(a.count||0)+(s.count||0)} results`, `Historical: ${h.count||0} · Active: ${a.count||0} · Sold: ${s.count||0}`);
+
+                el.innerHTML = `
+                    <!-- Pricing Summary -->
+                    <div class="section">
+                        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                            <div class="card" style="flex:1;text-align:center;min-width:90px;border-left:3px solid var(--green);">
+                                <div style="font-size:24px;font-weight:800;color:var(--green);">${p.estimated ? '$'+p.estimated : '--'}</div>
+                                <div class="stat-lbl">Fair Value</div>
+                            </div>
+                            <div class="card" style="flex:1;text-align:center;min-width:90px;">
+                                <div style="font-size:20px;font-weight:700;">${p.low && p.high ? '$'+p.low+' — $'+p.high : '--'}</div>
+                                <div class="stat-lbl">Range</div>
+                            </div>
+                            <div class="card" style="flex:1;text-align:center;min-width:90px;">
+                                <div style="font-size:20px;font-weight:700;">${cs.accepted||0}</div>
+                                <div class="stat-lbl">Validated Comps</div>
+                            </div>
+                            <div class="card" style="flex:1;text-align:center;min-width:90px;">
+                                <div style="font-size:20px;font-weight:700;color:${cs.confidence==='high'?'var(--green)':cs.confidence==='medium'?'var(--accent)':'var(--orange)'};">${cs.confidence||'--'}</div>
+                                <div class="stat-lbl">Confidence</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Source comparison -->
+                    <div class="section">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                            <div class="card" style="border-top:3px solid var(--accent);">
+                                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Historical Database</div>
+                                <div style="font-size:22px;font-weight:800;color:var(--accent);">${h.median ? '$'+Math.round(h.median) : '--'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${h.count||0} records · ${h.min ? '$'+Math.round(h.min)+' — $'+Math.round(h.max) : '--'}</div>
+                            </div>
+                            <div class="card" style="border-top:3px solid var(--orange);">
+                                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">eBay Active</div>
+                                <div style="font-size:22px;font-weight:800;color:var(--orange);">${a.median ? '$'+Math.round(a.median) : '--'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${a.count||0} listings · ${a.min ? '$'+Math.round(a.min)+' — $'+Math.round(a.max) : '--'}</div>
+                            </div>
+                            <div class="card" style="border-top:3px solid var(--green);">
+                                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">eBay Sold</div>
+                                <div style="font-size:22px;font-weight:800;color:var(--green);">${s.median ? '$'+Math.round(s.median) : '--'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${s.count||0} sales · ${s.min ? '$'+Math.round(s.min)+' — $'+Math.round(s.max) : '--'}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Price chart -->
+                    <div class="section">
+                        <canvas id="lookup-chart" height="250" style="margin-bottom:16px;"></canvas>
+                    </div>
+
+                    <!-- AI Guidance -->
+                    <div class="section" id="lookup-ai"><div class="loading"><div class="spinner"></div><div style="font-size:10px;color:var(--dim);margin-top:4px;">Claude + GPT analyzing pricing...</div></div></div>
+
+                    <!-- Historical Records -->
+                    ${h.records?.length ? `<div class="section">
+                        <div class="section-title" style="color:var(--accent);">Historical Sales (${h.count})</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Source</th></tr></thead>
+                            <tbody>${h.records.map(r => `<tr>
+                                <td class="trunc">${r.name}</td><td class="r g b">$${Math.round(r.price).toLocaleString()}</td>
+                                <td class="d" style="font-size:11px;">${r.date||'--'}</td><td class="d" style="font-size:10px;">${r.source}</td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>` : ''}
+
+                    <!-- Active Listings -->
+                    ${a.records?.length ? `<div class="section">
+                        <div class="section-title" style="color:var(--orange);">eBay Active Listings (${a.count})</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Item</th><th class="r">Price</th><th>Seller</th><th>Link</th></tr></thead>
+                            <tbody>${a.records.map(r => `<tr>
+                                <td class="trunc">${r.title}</td><td class="r g b">$${Math.round(r.price).toLocaleString()}</td>
+                                <td class="d" style="font-size:11px;">${r.seller||''}</td>
+                                <td>${r.url ? `<a href="${r.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>` : ''}
+
+                    <!-- Sold Listings -->
+                    ${s.records?.length ? `<div class="section">
+                        <div class="section-title" style="color:var(--green);">eBay Recently Sold (${s.count})</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th></tr></thead>
+                            <tbody>${s.records.map(r => `<tr>
+                                <td class="trunc">${r.title}</td><td class="r g b">$${Math.round(r.price).toLocaleString()}</td>
+                                <td class="d" style="font-size:11px;">${r.sold_date||'--'}</td>
+                                <td>${r.url ? `<a href="${r.url}" target="_blank" style="color:var(--accent);font-size:11px;">eBay</a>` : '--'}</td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>` : ''}
+                `;
+
+                // Draw chart — all sources combined
+                setTimeout(() => {
+                    const ctx = document.getElementById('lookup-chart');
+                    if (!ctx) return;
+                    const datasets = [];
+
+                    // Historical scatter
+                    const histDated = (h.records||[]).filter(r => r.date).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+                    if (histDated.length) {
+                        datasets.push({
+                            label: 'Historical (' + histDated.length + ')',
+                            data: histDated.map(r => ({x: r.date, y: r.price})),
+                            borderColor: '#0a84ff', backgroundColor: 'rgba(10,132,255,0.3)',
+                            pointRadius: 5, showLine: true, tension: 0.3, borderWidth: 2, fill: false,
+                        });
+                    }
+
+                    // Active (all at today's date)
+                    const today = new Date().toISOString().slice(0,10);
+                    if (a.records?.length) {
+                        datasets.push({
+                            label: 'Active (' + a.records.length + ')',
+                            data: a.records.map(r => ({x: today, y: r.price})),
+                            borderColor: '#ff9f0a', backgroundColor: 'rgba(255,159,10,0.5)',
+                            pointRadius: 7, pointStyle: 'triangle', showLine: false,
+                        });
+                    }
+
+                    // Sold
+                    const soldDated = (s.records||[]).filter(r => r.sold_date).sort((a,b) => (a.sold_date||'').localeCompare(b.sold_date||''));
+                    if (soldDated.length) {
+                        datasets.push({
+                            label: 'Sold (' + soldDated.length + ')',
+                            data: soldDated.map(r => ({x: r.sold_date, y: r.price})),
+                            borderColor: '#30d158', backgroundColor: 'rgba(48,209,88,0.3)',
+                            pointRadius: 6, pointStyle: 'rect', showLine: false,
+                        });
+                    }
+
+                    // Fair value line
+                    if (p.estimated && histDated.length >= 2) {
+                        datasets.push({
+                            label: 'Fair Value ($' + p.estimated + ')',
+                            data: [{x: histDated[0].date, y: p.estimated}, {x: today, y: p.estimated}],
+                            borderColor: '#bf5af2', borderWidth: 2, borderDash: [6,4],
+                            pointRadius: 0, fill: false,
+                        });
+                    }
+
+                    if (datasets.length) {
+                        new Chart(ctx, {
+                            type: 'line', data: {datasets},
+                            options: {
+                                responsive: true,
+                                interaction: {mode:'nearest', intersect:false},
+                                plugins: {legend:{labels:{color:'#86868b',font:{size:10}}}},
+                                scales: {
+                                    x: {type:'category', ticks:{color:'#86868b',font:{size:8},maxTicksLimit:10}, grid:{color:'rgba(255,255,255,0.04)'}},
+                                    y: {ticks:{color:'#86868b',callback:v=>'$'+v}, grid:{color:'rgba(255,255,255,0.04)'}}
+                                }
+                            }
+                        });
+                    }
+                }, 200);
+
+            } catch(e) { showProgressError(progress, 'Lookup failed: ' + e.message); }
+        }
+
+        async function loadAILookupPrice(query, artist, price, data) {
+            const el = document.getElementById('lookup-ai');
+            if (!el) return;
+            try {
+                const resp = await fetch('/api/ai/price', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title: query, artist, price, context: 'buy', comp_data: {
+                        comps: data.validated_comps || [],
+                        pricing: data.pricing || {},
+                        stats: data.comp_stats || {},
+                    }})
+                });
+                const d = await resp.json();
+                const claude = d.claude || {};
+                const gpt = d.gpt || {};
+                const con = d.consensus || {};
+
+                el.innerHTML = `<div style="background:linear-gradient(135deg,rgba(10,132,255,0.08),rgba(48,209,88,0.08));border-radius:12px;padding:16px;border:1px solid var(--border);">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:10px;">AI Market Analysis</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--accent);font-weight:600;">Claude</div>
+                            <div style="font-size:20px;font-weight:800;color:var(--accent);">${claude.verdict || (claude.recommended_price ? '$'+claude.recommended_price : '--')}</div>
+                            ${claude.buy_below ? `<div style="font-size:11px;">Buy below: $${claude.buy_below}</div>` : ''}
+                            ${claude.fair_value ? `<div style="font-size:10px;color:var(--dim);">Fair: $${claude.fair_value}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--green);font-weight:600;">GPT</div>
+                            <div style="font-size:20px;font-weight:800;color:var(--green);">${gpt.verdict || (gpt.recommended_price ? '$'+gpt.recommended_price : '--')}</div>
+                            ${gpt.buy_below ? `<div style="font-size:11px;">Buy below: $${gpt.buy_below}</div>` : ''}
+                            ${gpt.fair_value ? `<div style="font-size:10px;color:var(--dim);">Fair: $${gpt.fair_value}</div>` : ''}
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--purple);font-weight:600;">Consensus</div>
+                            <div style="font-size:20px;font-weight:800;color:var(--purple);">${con.buy_below ? '$'+con.buy_below : (con.recommended ? '$'+con.recommended : '--')}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;">
+                        ${claude.reasoning||''} ${gpt.reasoning ? '<br>GPT: '+gpt.reasoning : ''}
+                    </div>
+                </div>`;
+            } catch(e) { el.innerHTML = ''; }
         }
 
         function renderSoldSection(allSold, itemName, itemArtist, elId) {
