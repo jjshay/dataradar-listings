@@ -2949,7 +2949,7 @@
                 const soldComps = soldData.sold_comps || [];
                 const soldStats = soldData.stats || {};
 
-                // V2 comp engine response
+                // V2 comp engine response — split by source
                 const v2 = valData;
                 const v2pricing = v2.pricing || {};
                 const v2stats = v2.stats || {};
@@ -2957,6 +2957,11 @@
                 const comps = compData.items || [];
                 const points = chartData.chart_points || [];
                 const st = chartData.stats || {};
+
+                // Split V2 comps by source for display
+                const v2Active = v2comps.filter(c => c.source === 'eBay Active');
+                const v2Historical = v2comps.filter(c => c.source === 'WorthPoint' || c.source === 'Historical');
+                const v2Sold = v2comps.filter(c => c.source === 'eBay Sold');
 
                 const activePoints = points.filter(p => p.type === 'active');
                 const historicalPoints = points.filter(p => p.type === 'sold');
@@ -2990,10 +2995,10 @@
 
                     <!-- Section 1: Current eBay Listings -->
                     <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-                        <span style="color:var(--orange);">Current eBay Listings (${comps.length})</span>
+                        <span style="color:var(--orange);">Current eBay Listings (${v2Active.length || comps.length})</span>
                         ${st.active_median ? `<span>Median: $${Math.round(st.active_median)}</span>` : ''}
                     </div>
-                    ${comps.length ? `<div class="table-wrap" style="margin-bottom:20px;" id="drill-comps-table"><table>
+                    ${(v2Active.length || comps.length) ? `<div class="table-wrap" style="margin-bottom:20px;" id="drill-comps-table"><table>
                         <thead><tr><th>Item</th><th class="r">Price</th><th>Seller</th><th>Link</th><th></th></tr></thead>
                         <tbody>${comps.slice(0,15).map(c => `<tr class="comp-row" data-comp-title="${(c.title||'').replace(/"/g,'')}" data-comp-price="${c.price||0}" data-item-title="${name.replace(/"/g,'')}" data-artist="${artist}">
                             <td class="trunc">${c.title||''}</td>
@@ -3004,37 +3009,48 @@
                         </tr>`).join('')}</tbody>
                     </table></div>` : '<div style="color:var(--dim);font-size:12px;margin-bottom:20px;">No active competitors found</div>'}
 
-                    <!-- Section 2: WorthPoint Historical Sales -->
-                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-                        <span style="color:var(--accent);">WorthPoint Historical Sales (${historicalPoints.length})</span>
-                        ${st.hist_median ? `<span>Median: $${Math.round(st.hist_median)} · Avg: $${Math.round(st.hist_avg||0)}</span>` : ''}
-                    </div>
-                    ${historicalPoints.length ? `<div class="table-wrap"><table>
-                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Source</th></tr></thead>
-                        <tbody>${historicalPoints.map(h => `<tr>
-                            <td class="trunc">${h.name||''}</td>
-                            <td class="r g b">$${Math.round(h.price).toLocaleString()}</td>
-                            <td class="d" style="font-size:11px;">${h.date||'--'}</td>
-                            <td class="d" style="font-size:10px;">${h.source||''}</td>
-                        </tr>`).join('')}</tbody>
-                    </table></div>` : '<div style="color:var(--dim);font-size:12px;">No WorthPoint historical data found</div>'}
+                    <!-- Section 2: Historical Sales (WorthPoint + V2 engine) -->
+                    ${(() => {
+                        // Merge V2 historical comps with chart historical, dedupe
+                        const allHist = [...v2Historical.map(c => ({name: c.title, price: c.price, date: c.sold_date||'', source: c.source, score: c.score})), ...historicalPoints.map(h => ({name: h.name, price: h.price, date: h.date, source: h.source}))];
+                        const seen = new Set();
+                        const merged = allHist.filter(h => { const k = (h.name||'').substring(0,30)+h.price; if (seen.has(k)) return false; seen.add(k); return true; });
+                        const histPrices = merged.filter(h => h.price > 0).map(h => h.price);
+                        const histMedian = histPrices.length ? histPrices.sort((a,b)=>a-b)[Math.floor(histPrices.length/2)] : 0;
+                        return `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="color:var(--accent);">Historical Sales (${merged.length})</span>
+                            ${histMedian ? '<span>Median: $'+Math.round(histMedian)+'</span>' : ''}
+                        </div>` +
+                        (merged.length ? `<div class="table-wrap" style="margin-bottom:16px;"><table>
+                            <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Source</th><th></th></tr></thead>
+                            <tbody>${merged.slice(0,20).map(h => `<tr class="comp-row" data-comp-title="${(h.name||'').replace(/"/g,'')}" data-comp-price="${h.price||0}" data-item-title="${name.replace(/"/g,'')}" data-artist="${artist}">
+                                <td class="trunc">${h.name||''}</td>
+                                <td class="r g b">$${Math.round(h.price).toLocaleString()}</td>
+                                <td class="d" style="font-size:11px;">${h.date||'--'}</td>
+                                <td class="d" style="font-size:10px;">${h.source||''}</td>
+                                <td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp('${(h.name||'').replace(/'/g,'')}',${h.price||0},'${name.replace(/'/g,'')}','${artist}',this.closest('tr'))">✕</button></td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>` : '<div style="color:var(--dim);font-size:12px;">No historical data</div>');
+                    })()}
 
-                    <!-- Section 3: eBay Sold Comps (actual sold prices) -->
-                    ${soldComps.length ? `
-                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center;">
-                        <span style="color:var(--green);">eBay Sold Prices (${soldComps.length} actual sales)</span>
-                        ${soldStats.median ? `<span>Median: $${Math.round(soldStats.median)} · Avg: $${Math.round(soldStats.avg||0)}</span>` : ''}
-                    </div>
-                    <div class="table-wrap" style="margin-bottom:12px;"><table>
-                        <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th><th></th></tr></thead>
-                        <tbody>${soldComps.slice(0,15).map(c => `<tr class="comp-row" data-comp-title="${(c.title||'').replace(/"/g,'')}" data-comp-price="${c.price||0}" data-item-title="${name.replace(/"/g,'')}" data-artist="${artist}">
-                            <td class="trunc">${c.title||''}</td>
-                            <td class="r g b">$${Math.round(c.price).toLocaleString()}</td>
-                            <td class="d" style="font-size:11px;">${c.sold_date||'--'}</td>
-                            <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;" onclick="event.stopPropagation()">eBay</a>` : '--'}</td>
-                            <td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp('${(c.title||'').replace(/'/g,'')}',${c.price||0},'${name.replace(/'/g,'')}','${artist}',this.closest('tr'))" title="Remove — AI learns">✕</button></td>
-                        </tr>`).join('')}</tbody>
-                    </table></div>` : ''}
+                    <!-- Section 3: eBay Recently Sold (actual sold prices) -->
+                    ${(() => {
+                        // Merge V2 sold comps with sold endpoint
+                        const allSold = [...v2Sold.map(c => ({title: c.title, price: c.price, sold_date: c.sold_date||'', url: c.url||'', source: 'eBay Sold'})), ...soldComps.map(c => ({title: c.title, price: c.price, sold_date: c.sold_date||'', url: c.url||'', source: 'eBay Sold'}))];
+                        const seen = new Set();
+                        const merged = allSold.filter(s => { const k = (s.title||'').substring(0,30)+s.price; if (seen.has(k)) return false; seen.add(k); return true; });
+                        const soldPrices = merged.filter(s => s.price > 0).map(s => s.price);
+                        const soldMed = soldPrices.length ? soldPrices.sort((a,b)=>a-b)[Math.floor(soldPrices.length/2)] : 0;
+                        if (!merged.length) return '';
+                        return `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="color:var(--green);">eBay Recently Sold (${merged.length})</span>
+                            ${soldMed ? '<span>Median: $'+Math.round(soldMed)+'</span>' : ''}
+                        </div>
+                        <div class="table-wrap" style="margin-bottom:12px;"><table>
+                            <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th><th></th></tr></thead>
+                            <tbody>${merged.slice(0,15).map(c => '<tr class="comp-row"><td class="trunc">'+c.title+'</td><td class="r g b">$'+Math.round(c.price).toLocaleString()+'</td><td class="d" style="font-size:11px;">'+(c.sold_date||'--')+'</td><td>'+(c.url ? '<a href="'+c.url+'" target="_blank" style="color:var(--accent);font-size:11px;" onclick="event.stopPropagation()">eBay</a>' : '--')+'</td><td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp(\\\''+((c.title||'').replace(/'/g,''))+'\\\',' +c.price+',\\\''+name.replace(/'/g,'')+'\\\'  ,\\\''+artist+'\\\',this.closest(\\\'tr\\\'))">✕</button></td></tr>').join('')}</tbody>
+                        </table></div>`;
+                    })()}
 
                     <!-- Overall Analytics -->
                     <div style="margin-top:16px;background:var(--card2);border-radius:12px;padding:14px;margin-bottom:16px;">
