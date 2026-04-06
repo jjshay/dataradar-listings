@@ -2239,18 +2239,29 @@
                         <td class="r ${mc}" title="Revenue: $${Math.round(i.suggested_price||0)} — Cost est: $${Math.round((i.suggested_price||0)*0.4)} — Fee: $${Math.round((i.suggested_price||0)*0.13)} — Ad: $${Math.round(i.ad_cost||0)} — Profit: $${Math.round(i.net_profit||0)} (${i.margin_pct||0}%)">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
                         <td style="font-size:10px;color:var(--purple);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${i.seasonal_event?'cursor:pointer;':''}" title="${i.seasonal_event ? i.seasonal_event+' (+'+i.seasonal_boost+'%). Click to see matching items.' : 'No active event'}" ${i.seasonal_event ? `onclick="event.stopPropagation();drill('event_items',{event:'${i.seasonal_event}'})"` : ''}>${i.seasonal_event ? '+'+i.seasonal_boost+'% '+i.seasonal_event : '--'}</td>
                         <td style="font-size:11px;color:var(--dim);min-width:150px;" title="${i.reason||''}">${i.action_reason||i.reason||''}</td>
-                        <td onclick="event.stopPropagation();">${hasSuggestion ?
-                            `<button onclick="acceptPrice('${i.id}',${i.suggested_price})" class="btn" style="background:var(--green);color:#000;padding:3px 8px;font-size:10px;" title="Accept AI price and update on eBay">✓ $${Math.round(i.suggested_price)}</button>` : '<span class="d">—</span>'}</td>
+                        <td onclick="event.stopPropagation();" style="min-width:110px;">
+                            <div style="display:flex;gap:3px;align-items:center;">
+                                <input type="number" id="price-${i.id}" value="${Math.round(i.suggested_price||i.your_price||0)}" min="1" step="1" style="width:65px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 5px;font-size:11px;text-align:right;">
+                                <button onclick="applyCustomPrice('${i.id}')" class="btn" style="background:var(--green);color:#000;padding:3px 6px;font-size:10px;" title="Update price on eBay">✓</button>
+                            </div>
+                        </td>
                     </tr>`;
                 }).join('')}</tbody></table></div>` +
                 (items.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${items.length}</div>` : '');
         }
 
+        async function applyCustomPrice(id, prefix) {
+            const input = document.getElementById((prefix || 'price-') + id);
+            if (!input) return;
+            const price = parseFloat(input.value);
+            if (!price || price <= 0) { toast('Enter a valid price'); return; }
+            await acceptPrice(id, price);
+        }
+
         async function acceptPrice(id, price) {
-            // Show inline progress on the button
             const btn = event?.target;
             if (btn) { btn.disabled = true; btn.textContent = '...'; }
-            toast('Updating price to $' + Math.round(price) + '...');
+            toast('Updating to $' + Math.round(price) + '...');
 
             try {
                 const resp = await fetch('/api/pricing/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({changes:[{listing_id:id,new_price:price}]})});
@@ -2258,15 +2269,17 @@
                 if (d.applied) {
                     toast('Price updated to $' + Math.round(price));
                     if (btn) { btn.textContent = '✓'; btn.style.background = 'var(--green)'; }
+                    const input = document.getElementById('price-' + id);
+                    if (input) input.style.borderColor = 'var(--green)';
                 } else {
                     toast('Price update failed');
                     if (btn) { btn.textContent = '✗'; btn.style.background = 'var(--red)'; }
                 }
             } catch(e) {
-                toast('Price update failed — network error');
+                toast('Failed — network error');
                 if (btn) { btn.textContent = '✗'; btn.style.background = 'var(--red)'; }
             }
-            setTimeout(() => { invData = null; loadInv(); }, 1500);
+            setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '✓'; } }, 2000);
         }
 
         function exportInv() {
@@ -2478,9 +2491,9 @@
                         <thead><tr>
                             <th>Item</th><th>Status</th><th class="r">Current</th><th class="r">Proposed</th>
                             <th class="r">Floor</th><th class="r">Median</th><th class="r">Min</th><th class="r">Max</th>
-                            <th class="r">Comps</th><th class="r">Sold</th><th class="r">Days</th><th class="r">Ad%</th>
+                            <th class="r">Comps</th><th class="r">Sold</th><th class="r">Days</th><th class="r">Ad%</th><th>Set Price</th>
                         </tr></thead>
-                        <tbody>${items.map(i => `<tr onclick="drillItem('${i.id}','${(i.title||'').replace(/'/g,'')}','${i.category}',${i.current_price})" style="cursor:pointer;" title="Click for full detail with competitors + historical">
+                        <tbody>${items.map(i => `<tr onclick="drillItem('${i.id}','${esc(i.title)}','${i.category}',${i.current_price})" style="cursor:pointer;" title="Click for full detail">
                             <td class="trunc">${i.title}</td>
                             <td><span class="pill ${statusPill(i.status)}">${i.status}</span></td>
                             <td class="r b">$${i.current_price}</td>
@@ -2493,6 +2506,12 @@
                             <td class="r ${i.times_sold?'g':''}">${i.times_sold||'—'}</td>
                             <td class="r ${i.days_listed>21?'rd b':''}">${i.days_listed}d</td>
                             <td class="r">${i.ad_rate?i.ad_rate+'%':'—'}</td>
+                            <td onclick="event.stopPropagation();" style="min-width:110px;">
+                                <div style="display:flex;gap:3px;align-items:center;">
+                                    <input type="number" id="rp-${i.id}" value="${i.would_change ? i.proposed_price : i.current_price}" min="1" step="1" style="width:65px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 5px;font-size:11px;text-align:right;">
+                                    <button onclick="applyCustomPrice('${i.id}','rp-')" class="btn" style="background:var(--green);color:#000;padding:3px 6px;font-size:10px;">✓</button>
+                                </div>
+                            </td>
                         </tr>`).join('')}</tbody>
                     </table></div>
 
@@ -2946,7 +2965,13 @@
 
                 content.innerHTML = `
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
-                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Your Price</div><div style="font-size:20px;font-weight:700;color:var(--green);">$${Math.round(price)}</div></div>
+                        <div style="text-align:center;">
+                            <div style="font-size:10px;color:var(--dim);">Your Price</div>
+                            <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:2px;">
+                                <input type="number" id="drill-price-${id}" value="${Math.round(price)}" min="1" step="1" style="width:70px;background:var(--bg);border:1px solid var(--green);border-radius:8px;color:var(--green);padding:4px 6px;font-size:18px;font-weight:700;text-align:center;">
+                                <button onclick="applyCustomPrice('${id}','drill-price-')" class="btn" style="background:var(--green);color:#000;padding:4px 8px;font-size:11px;">Update</button>
+                            </div>
+                        </div>
                         ${v2pricing.estimated ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Fair Value</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${v2pricing.estimated}</div></div>` : ''}
                         ${v2pricing.low ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Range</div><div style="font-size:14px;font-weight:600;">$${v2pricing.low}—$${v2pricing.high}</div></div>` : ''}
                         <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Comps</div><div style="font-size:20px;font-weight:700;">${v2stats.accepted||0}</div></div>
