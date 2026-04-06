@@ -3889,7 +3889,7 @@ Respond in this exact JSON format:
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=20)
             if resp.status_code == 200:
                 text = resp.json().get('content', [{}])[0].get('text', '')
@@ -4837,7 +4837,7 @@ Respond in this exact JSON format:
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=15)
             if resp.status_code == 200:
                 text = resp.json().get('content', [{}])[0].get('text', '')
@@ -6322,7 +6322,7 @@ Respond ONLY with JSON:
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=15)
             if resp.status_code == 200:
                 text = resp.json().get('content', [{}])[0].get('text', '')
@@ -6486,7 +6486,7 @@ Be specific — use actual item names, dollar amounts, percentages. No generic a
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 800, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 800, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=30)
             if resp.status_code == 200:
                 text = resp.json().get('content', [{}])[0].get('text', '')
@@ -7053,7 +7053,7 @@ If NONE are valid, respond: {{"valid": [], "reason": "none match"}}"""
     try:
         resp = requests.post('https://api.anthropic.com/v1/messages',
             headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-            json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': validate_prompt}]},
+            json={'model': 'claude-3-haiku-20240307', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': validate_prompt}]},
             timeout=15)
         if resp.status_code == 200:
             text = resp.json().get('content', [{}])[0].get('text', '')
@@ -7276,7 +7276,7 @@ Respond ONLY with JSON: {{"valid": [1, 3, 5], "removed": [2, 4], "reason": "brie
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 200, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=20)
             if resp.status_code == 200:
                 text = resp.json().get('content', [{}])[0].get('text', '')
@@ -9054,7 +9054,7 @@ Answer the question using the data. Be specific with numbers. If the question as
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': context}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': context}]},
                 timeout=20)
             if resp.status_code == 200:
                 answer = resp.json().get('content', [{}])[0].get('text', '')
@@ -9233,7 +9233,7 @@ NEVER: "Great seller", "A++", generic phrases. Return ONLY the text, no quotes."
             try:
                 resp = requests.post('https://api.anthropic.com/v1/messages',
                     headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                    json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 60, 'messages': [{'role': 'user', 'content': prompt}]},
+                    json={'model': 'claude-3-haiku-20240307', 'max_tokens': 60, 'messages': [{'role': 'user', 'content': prompt}]},
                     timeout=10)
                 if resp.status_code == 200:
                     draft = resp.json().get('content', [{}])[0].get('text', '').strip().strip('"')
@@ -10322,7 +10322,7 @@ Respond in JSON:
             try:
                 resp = requests.post('https://api.anthropic.com/v1/messages',
                     headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                    json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': prompt}]},
+                    json={'model': 'claude-3-haiku-20240307', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': prompt}]},
                     timeout=20)
                 if resp.status_code == 200:
                     text = resp.json().get('content', [{}])[0].get('text', '')
@@ -11622,9 +11622,105 @@ def get_comps_v2():
             'url': s.get('url', ''),
         })
 
-    # Run through the comp engine
+    # Run through the comp engine (programmatic layer)
     rejections = load_comp_rejections()
     result = find_comps(title, artist, price, candidates, learned_rejections=rejections)
+
+    # Two-layer LLM review — Claude validates, then GPT second opinion
+    comps = result.get('comps', [])
+    if comps and len(comps) >= 1:
+        comp_text = '\n'.join([f"{i+1}. ${c['price']:.0f} — {c.get('title', '')[:65]} (score:{c.get('score',0)}, {c.get('source','')})" for i, c in enumerate(comps[:15])])
+
+        llm_prompt = f"""You are an art/collectibles expert. Validate which of these are REAL comparable sales for:
+"{title}" by {artist} (listed at ${price:.0f})
+
+STRICT RULES:
+1. Must be the SAME specific artwork/product — same print name, same figure model
+2. Same artist is REQUIRED but NOT SUFFICIENT
+3. "{title}" is the item — a DIFFERENT work by the same artist is NOT a comp
+4. Reject wrong product types (sticker vs print, poster vs screenprint)
+5. When in doubt, REJECT
+
+Comps to validate:
+{comp_text}
+
+Return ONLY JSON: {{"valid": [1, 3, 5], "reason": "brief"}}
+If NONE are valid: {{"valid": [], "reason": "none match"}}"""
+
+        # Layer 1: Claude
+        claude_valid = None
+        claude_key = ENV.get('CLAUDE_API_KEY', '')
+        if claude_key:
+            try:
+                resp = requests.post('https://api.anthropic.com/v1/messages',
+                    headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                    json={'model': 'claude-3-haiku-20240307', 'max_tokens': 150, 'messages': [{'role': 'user', 'content': llm_prompt}]},
+                    timeout=15)
+                if resp.status_code == 200:
+                    text = resp.json().get('content', [{}])[0].get('text', '')
+                    match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+                    if match:
+                        parsed = json.loads(match.group())
+                        claude_valid = set(n - 1 for n in parsed.get('valid', []) if isinstance(n, int) and 1 <= n <= len(comps))
+                        result['claude_reason'] = parsed.get('reason', '')
+            except Exception as e:
+                print(f"Claude comp review error: {e}")
+
+        # Layer 2: GPT
+        gpt_valid = None
+        openai_key = ENV.get('OPENAI_API_KEY', '')
+        if openai_key:
+            try:
+                resp = requests.post('https://api.openai.com/v1/chat/completions',
+                    headers={'Authorization': f'Bearer {openai_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'gpt-4o-mini', 'messages': [{'role': 'user', 'content': llm_prompt}], 'max_tokens': 150},
+                    timeout=15)
+                if resp.status_code == 200:
+                    text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+                    match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+                    if match:
+                        parsed = json.loads(match.group())
+                        gpt_valid = set(n - 1 for n in parsed.get('valid', []) if isinstance(n, int) and 1 <= n <= len(comps))
+                        result['gpt_reason'] = parsed.get('reason', '')
+            except Exception as e:
+                print(f"GPT comp review error: {e}")
+
+        # Consensus: keep only comps BOTH LLMs agree on (or all if only one responded)
+        if claude_valid is not None and gpt_valid is not None:
+            consensus = claude_valid & gpt_valid
+            result['llm_review'] = f'Claude kept {len(claude_valid)}, GPT kept {len(gpt_valid)}, consensus {len(consensus)}'
+        elif claude_valid is not None:
+            consensus = claude_valid
+            result['llm_review'] = f'Claude kept {len(claude_valid)} (GPT unavailable)'
+        elif gpt_valid is not None:
+            consensus = gpt_valid
+            result['llm_review'] = f'GPT kept {len(gpt_valid)} (Claude unavailable)'
+        else:
+            consensus = None
+            result['llm_review'] = 'No LLM review (keys unavailable)'
+
+        if consensus is not None:
+            llm_rejected = [comps[i] for i in range(len(comps)) if i not in consensus]
+            comps = [comps[i] for i in sorted(consensus) if i < len(comps)]
+            result['comps'] = comps
+            result['llm_rejected'] = [{'title': r.get('title', '')[:50], 'price': r.get('price', 0), 'reason': 'LLM rejected'} for r in llm_rejected]
+
+            # Recalculate pricing with LLM-filtered comps
+            if comps:
+                from comp_engine import recency_weight, weighted_median
+                import statistics
+                prices = [c['price'] for c in comps if c.get('price', 0) > 0]
+                pw = [(c['price'], recency_weight(c.get('sold_date'))) for c in comps if c.get('price', 0) > 0]
+                wm = weighted_median(pw)
+                result['pricing'] = {
+                    'estimated': round(wm) if wm else None,
+                    'low': round(wm * 0.9) if wm else None,
+                    'high': round(wm * 1.1) if wm else None,
+                    'median': round(statistics.median(prices)) if prices else None,
+                    'avg': round(sum(prices) / len(prices)) if prices else None,
+                    'weighted_median': round(wm) if wm else None,
+                }
+                result['stats']['accepted'] = len(comps)
 
     return jsonify(result)
 
@@ -12080,7 +12176,7 @@ Return ONLY the message text, no quotes, under 500 characters."""
         try:
             resp = requests.post('https://api.anthropic.com/v1/messages',
                 headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-                json={'model': 'claude-sonnet-4-5-20241022', 'max_tokens': 80, 'messages': [{'role': 'user', 'content': prompt}]},
+                json={'model': 'claude-3-haiku-20240307', 'max_tokens': 80, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=10)
             if resp.status_code == 200:
                 msg = resp.json().get('content', [{}])[0].get('text', '').strip().strip('"')
