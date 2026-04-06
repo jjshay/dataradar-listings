@@ -2243,8 +2243,8 @@
                             <div style="font-size:9px;color:var(--dim);margin-bottom:2px;">Now: $${Math.round(i.your_price||0)}</div>
                             <div style="display:flex;gap:4px;align-items:center;">
                                 <span style="color:var(--dim);font-size:11px;">$</span>
-                                <input type="number" id="price-${i.id}" value="${Math.round(i.suggested_price||i.your_price||0)}" min="1" step="1" style="width:70px;background:var(--bg);border:2px solid var(--green);border-radius:8px;color:var(--green);padding:5px 6px;font-size:14px;font-weight:700;text-align:right;">
-                                <button onclick="applyCustomPrice('${i.id}')" class="btn" style="background:var(--green);color:#000;padding:5px 10px;font-size:12px;font-weight:700;" title="Update price on eBay">Go</button>
+                                <input type="number" id="price-${i.id}" value="${Math.round(i.suggested_price||i.your_price||0)}" min="1" step="1" onclick="event.stopPropagation();" onfocus="event.stopPropagation();" style="width:70px;background:var(--bg);border:2px solid var(--green);border-radius:8px;color:var(--green);padding:5px 6px;font-size:14px;font-weight:700;text-align:right;">
+                                <button onclick="event.stopPropagation();applyCustomPrice('${i.id}')" class="btn" style="background:var(--green);color:#000;padding:5px 10px;font-size:12px;font-weight:700;" title="Update price on eBay">Go</button>
                             </div>
                         </td>
                     </tr>`;
@@ -2511,7 +2511,7 @@
                             <td onclick="event.stopPropagation();" style="min-width:110px;">
                                 <div style="display:flex;gap:3px;align-items:center;">
                                     <input type="number" id="rp-${i.id}" value="${i.would_change ? i.proposed_price : i.current_price}" min="1" step="1" style="width:65px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 5px;font-size:11px;text-align:right;">
-                                    <button onclick="applyCustomPrice('${i.id}','rp-')" class="btn" style="background:var(--green);color:#000;padding:3px 6px;font-size:10px;">✓</button>
+                                    <button onclick="event.stopPropagation();applyCustomPrice('${i.id}','rp-')" class="btn" style="background:var(--green);color:#000;padding:3px 6px;font-size:10px;">✓</button>
                                 </div>
                             </td>
                         </tr>`).join('')}</tbody>
@@ -3035,24 +3035,8 @@
                         </table></div>` : '<div style="color:var(--dim);font-size:12px;">No historical data</div>');
                     })()}
 
-                    <!-- Section 3: eBay Recently Sold (actual sold prices) -->
-                    ${(() => {
-                        // Merge V2 sold comps with sold endpoint
-                        const allSold = [...v2Sold.map(c => ({title: c.title, price: c.price, sold_date: c.sold_date||'', url: c.url||'', source: 'eBay Sold'})), ...soldComps.map(c => ({title: c.title, price: c.price, sold_date: c.sold_date||'', url: c.url||'', source: 'eBay Sold'}))];
-                        const seen = new Set();
-                        const merged = allSold.filter(s => { const k = (s.title||'').substring(0,30)+s.price; if (seen.has(k)) return false; seen.add(k); return true; });
-                        const soldPrices = merged.filter(s => s.price > 0).map(s => s.price);
-                        const soldMed = soldPrices.length ? soldPrices.sort((a,b)=>a-b)[Math.floor(soldPrices.length/2)] : 0;
-                        if (!merged.length) return '';
-                        return `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center;">
-                            <span style="color:var(--green);">eBay Recently Sold (${merged.length})</span>
-                            ${soldMed ? '<span>Median: $'+Math.round(soldMed)+'</span>' : ''}
-                        </div>
-                        <div class="table-wrap" style="margin-bottom:12px;"><table>
-                            <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th><th></th></tr></thead>
-                            <tbody>${merged.slice(0,15).map(c => '<tr class="comp-row"><td class="trunc">'+c.title+'</td><td class="r g b">$'+Math.round(c.price).toLocaleString()+'</td><td class="d" style="font-size:11px;">'+(c.sold_date||'--')+'</td><td>'+(c.url ? '<a href="'+c.url+'" target="_blank" style="color:var(--accent);font-size:11px;" onclick="event.stopPropagation()">eBay</a>' : '--')+'</td><td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp(\\\''+((c.title||'').replace(/'/g,''))+'\\\',' +c.price+',\\\''+name.replace(/'/g,'')+'\\\'  ,\\\''+artist+'\\\',this.closest(\\\'tr\\\'))">✕</button></td></tr>').join('')}</tbody>
-                        </table></div>`;
-                    })()}
+                    <!-- Section 3: eBay Recently Sold -->
+                    <div id="drill-sold-section"></div>
 
                     <!-- Overall Analytics -->
                     <div style="margin-top:16px;background:var(--card2);border-radius:12px;padding:14px;margin-bottom:16px;">
@@ -3070,6 +3054,9 @@
 
                     ${v2.rejected?.length ? `<div style="font-size:11px;color:var(--dim);">Filtered: ${v2.rejected.slice(0,3).map(r=>r.reason+' ($'+r.price+')').join(', ')}</div>` : ''}
                 `;
+
+                // Render sold comps section separately (avoids escaping issues)
+                renderSoldSection([...v2Sold, ...soldComps], name, artist, 'drill-sold-section');
 
                 // Load AI pricing async
                 loadAIPrice(name, artist, price, v2, 'drill-ai-price');
@@ -3154,6 +3141,39 @@
                     }, 100);
                 }
             } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load detail</div>'; }
+        }
+
+        function renderSoldSection(allSold, itemName, itemArtist, elId) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            // Dedup
+            const seen = new Set();
+            const merged = allSold.filter(s => {
+                const k = (s.title||'').substring(0,30) + (s.price||0);
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return s.price > 0;
+            });
+            if (!merged.length) { el.innerHTML = ''; return; }
+            const prices = merged.map(s => s.price).sort((a,b) => a-b);
+            const med = prices[Math.floor(prices.length/2)];
+
+            el.innerHTML = `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:var(--green);">eBay Recently Sold (${merged.length})</span>
+                <span>Median: $${Math.round(med)}</span>
+            </div>
+            <div class="table-wrap" style="margin-bottom:12px;"><table>
+                <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th>Link</th><th></th></tr></thead>
+                <tbody>${merged.slice(0,15).map(c => {
+                    return `<tr class="comp-row">
+                        <td class="trunc">${c.title||''}</td>
+                        <td class="r g b">$${Math.round(c.price).toLocaleString()}</td>
+                        <td class="d" style="font-size:11px;">${c.sold_date||'--'}</td>
+                        <td>${c.url ? `<a href="${c.url}" target="_blank" style="color:var(--accent);font-size:11px;" onclick="event.stopPropagation()">eBay</a>` : '--'}</td>
+                        <td><button class="comp-dismiss" onclick="event.stopPropagation();rejectComp('${esc(c.title)}',${c.price},'${esc(itemName)}','${itemArtist}',this.closest('tr'))">✕</button></td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table></div>`;
         }
 
         async function loadAIPrice(title, artist, price, compData, elId) {
