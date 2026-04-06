@@ -189,6 +189,15 @@
 
             <!-- TAB: Overview -->
             <div id="dtab-overview">
+                <!-- Daily Ops Snapshot -->
+                <div class="section" id="daily-ops-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Daily Ops</div>
+                        <button class="btn-ghost" onclick="loadDailyOps()">Refresh</button>
+                    </div>
+                    <div id="d-daily-ops"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
                 <div class="section" style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-green" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High</button>
                     <button class="btn btn-primary" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Scan Competitors</button>
@@ -810,6 +819,7 @@
                 document.getElementById('dash-time').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
 
                 // Load features
+                loadDailyOps();
                 loadSchedulerStatus();
                 loadAIStrategy();
                 loadSellThisWeek();
@@ -1143,6 +1153,54 @@
                     </div>
                 `).join('');
             } catch(e) {}
+        }
+
+        async function loadDailyOps() {
+            const el = document.getElementById('d-daily-ops');
+            try {
+                const resp = await fetch('/api/daily-ops');
+                const d = await resp.json();
+                const s = d.sales || {};
+                const ship = d.shipments || {};
+                const promos = d.promo_changes || [];
+                const prods = d.product_changes || [];
+                const insights = d.insights || [];
+
+                el.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:22px;font-weight:700;color:var(--green);">$${(s.today_revenue||0).toLocaleString()}</div><div class="stat-lbl">Today</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:22px;font-weight:700;">$${(s.week_revenue||0).toLocaleString()}</div><div class="stat-lbl">This Week</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);"><div style="font-size:22px;font-weight:700;color:var(--orange);">${ship.pending||0}</div><div class="stat-lbl">To Ship</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:22px;font-weight:700;">${d.stats?.velocity||0}/d</div><div class="stat-lbl">Velocity</div></div>
+                    </div>
+
+                    ${ship.items?.length ? `<div style="margin-bottom:10px;">
+                        <div style="font-size:11px;color:var(--orange);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pending Shipments</div>
+                        ${ship.items.slice(0,5).map(i => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                            <span>${i.title}</span><span class="g b">$${i.price} · ${i.days_ago}d ago</span>
+                        </div>`).join('')}
+                    </div>` : ''}
+
+                    ${promos.length ? `<div style="margin-bottom:10px;">
+                        <div style="font-size:11px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Promo Changes Needed</div>
+                        ${promos.map(p => `<div class="card" style="margin-bottom:4px;border-left:3px solid ${p.priority==='high'?'var(--red)':'var(--orange)'};font-size:12px;">
+                            <b>${p.action}</b> — ${p.detail}
+                        </div>`).join('')}
+                    </div>` : ''}
+
+                    ${prods.length ? `<div style="margin-bottom:10px;">
+                        <div style="font-size:11px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Product Actions (${prods.length})</div>
+                        ${prods.slice(0,5).map(p => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px;">
+                            <span><b style="color:${p.action==='RELIST'?'var(--red)':'var(--orange)'}">${p.action}</b> ${p.title}</span><span class="d">${p.days}d · $${p.price}</span>
+                        </div>`).join('')}
+                    </div>` : ''}
+
+                    ${insights.length ? `<div>
+                        <div style="font-size:11px;color:var(--purple);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">AI Insights</div>
+                        ${insights.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);">${i}</div>`).join('')}
+                    </div>` : ''}
+                `;
+            } catch(e) { el.innerHTML = '<div class="d" style="font-size:12px;">Failed to load daily ops</div>'; }
         }
 
         async function loadAIStrategy() {
@@ -2812,7 +2870,7 @@
                 const [compResp, chartResp, valResp, soldResp] = await Promise.all([
                     fetch(`/api/drill/competing?title=${encodeURIComponent(name)}&id=${id}`),
                     fetch(`/api/listing/chart/${id}`),
-                    fetch(`/api/comps/smart?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`),
+                    fetch(`/api/comps/v2?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`),
                     fetch(`/api/comps/sold?title=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&price=${price}`)
                 ]);
                 const compData = await compResp.json();
@@ -2822,30 +2880,34 @@
                 const soldComps = soldData.sold_comps || [];
                 const soldStats = soldData.stats || {};
 
-                const vs = valData.stats || {};
+                // V2 comp engine response
+                const v2 = valData;
+                const v2pricing = v2.pricing || {};
+                const v2stats = v2.stats || {};
+                const v2comps = v2.comps || [];
                 const comps = compData.items || [];
                 const points = chartData.chart_points || [];
                 const st = chartData.stats || {};
 
-                // Split into current (eBay active) and historical (WorthPoint sold)
                 const activePoints = points.filter(p => p.type === 'active');
                 const historicalPoints = points.filter(p => p.type === 'sold');
-                const yourPoint = points.filter(p => p.type === 'yours');
+
+                const confColor = v2stats.confidence === 'high' ? 'var(--green)' : v2stats.confidence === 'medium' ? 'var(--accent)' : 'var(--orange)';
 
                 content.innerHTML = `
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;">
                         <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Your Price</div><div style="font-size:20px;font-weight:700;color:var(--green);">$${Math.round(price)}</div></div>
-                        ${vs.median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Market Median</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${Math.round(vs.median)}</div></div>` : ''}
-                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Historical</div><div style="font-size:20px;font-weight:700;color:var(--accent);">${st.historical_count||0}</div></div>
-                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Active Comps</div><div style="font-size:20px;font-weight:700;color:var(--orange);">${st.active_count||0}</div></div>
-                        ${st.hist_median ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Hist Median</div><div style="font-size:16px;font-weight:700;">$${Math.round(st.hist_median)}</div></div>` : ''}
+                        ${v2pricing.estimated ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Fair Value</div><div style="font-size:20px;font-weight:700;color:var(--accent);">$${v2pricing.estimated}</div></div>` : ''}
+                        ${v2pricing.low ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Range</div><div style="font-size:14px;font-weight:600;">$${v2pricing.low}—$${v2pricing.high}</div></div>` : ''}
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Comps</div><div style="font-size:20px;font-weight:700;">${v2stats.accepted||0}</div></div>
+                        <div style="text-align:center;"><div style="font-size:10px;color:var(--dim);">Confidence</div><div style="font-size:16px;font-weight:700;color:${confColor};">${v2stats.confidence||'--'}</div></div>
                     </div>
 
-                    ${valData.reason ? `<div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">
-                        <div style="font-weight:600;margin-bottom:4px;">AI Comp Validation (${valData.validated}/${valData.raw} passed)</div>
-                        ${valData.reason}
-                        ${valData.queries ? `<div style="margin-top:4px;color:var(--dim);font-size:11px;">Searched: ${valData.queries.join(' | ')}</div>` : ''}
-                    </div>` : ''}
+                    <div style="background:rgba(10,132,255,0.08);border-left:3px solid var(--accent);border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;">
+                        <div style="font-weight:600;margin-bottom:4px;">V2 Comp Engine (${v2stats.accepted||0} accepted / ${v2stats.rejected||0} rejected)</div>
+                        ${v2pricing.weighted_median ? `Weighted median: $${v2pricing.weighted_median} · Median: $${v2pricing.median||'--'} · Avg: $${v2pricing.avg||'--'}` : 'No pricing data'}
+                        ${v2.rejected?.length ? `<div style="margin-top:4px;color:var(--dim);font-size:11px;">Rejected: ${v2.rejected.slice(0,3).map(r=>r.reason+' ($'+r.price+')').join(', ')}</div>` : ''}
+                    </div>
 
                     <!-- Combined line chart: Historical vs Current -->
                     <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Price History — WorthPoint (blue) vs eBay Active (orange)</div>

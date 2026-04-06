@@ -21,6 +21,8 @@ import requests
 import pickle
 import re
 
+from comp_engine import find_comps, normalize_record, get_config as get_comp_config
+
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dataradar-dev-key-change-in-prod')
 
@@ -11321,6 +11323,123 @@ def manage_cost_basis():
 
 
 # =============================================================================
+# Daily Ops Snapshot — Everything needed to run the business today
+# =============================================================================
+
+@app.route('/api/daily-ops')
+def daily_ops():
+    """Single view: today's sales, pending shipments, promo changes, AI insights, action items"""
+    listings = ebay.get_all_listings()
+    sold = ebay.get_sold_items(days_back=7)
+    sold_60 = ebay.get_sold_items(days_back=60)
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+    rules = load_pricing_rules()
+    now = datetime.now()
+
+    # 1. Today's / This Week's Sales
+    today_str = now.strftime('%Y-%m-%d')
+    this_week = [s for s in sold if s.get('end_time', '')[:10] >= (now - timedelta(days=7)).strftime('%Y-%m-%d')]
+    today_sales = [s for s in sold if s.get('end_time', '')[:10] == today_str]
+    week_revenue = sum(s['price'] for s in this_week)
+    today_revenue = sum(s['price'] for s in today_sales)
+
+    # 2. Pending Shipments (sold in last 3 days, likely need shipping)
+    recent_sold = [s for s in sold if s.get('end_time', '')[:10] >= (now - timedelta(days=3)).strftime('%Y-%m-%d')]
+    shipments = [{
+        'title': s.get('title', '')[:50],
+        'price': s['price'],
+        'buyer': s.get('buyer', ''),
+        'sold_date': s.get('end_time', '')[:10],
+        'days_ago': (now - datetime.fromisoformat(s['end_time'][:19])).days if s.get('end_time') else 0,
+    } for s in recent_sold]
+
+    # 3. Promotion Changes Needed
+    promo_changes = []
+    not_promoted = [l for l in listings if l['id'] not in per_listing]
+    if len(not_promoted) > 5:
+        promo_changes.append({'action': 'PROMOTE', 'detail': f'{len(not_promoted)} listings have no promotion — add to campaigns', 'count': len(not_promoted), 'priority': 'high'})
+
+    high_rate = [l for l in listings if per_listing.get(l['id'], {}).get('ad_rate', 0) > 10]
+    if high_rate:
+        promo_changes.append({'action': 'REDUCE RATE', 'detail': f'{len(high_rate)} items have ad rate > 10% — eating margin', 'count': len(high_rate), 'priority': 'medium'})
+
+    # Check for upcoming events
+    for rule in rules:
+        try:
+            start = rule['start_date']
+            ed = datetime.strptime(f"{now.year}-{start}", '%Y-%m-%d')
+            if ed < now: ed = datetime.strptime(f"{now.year + 1}-{start}", '%Y-%m-%d')
+            delta = (ed - now).days
+            if 0 < delta <= 7:
+                promo_changes.append({'action': 'BOOST', 'detail': f'{rule["name"]} in {delta}d — boost {", ".join(rule.get("keywords",[])[:3])} items', 'count': delta, 'priority': 'high'})
+        except Exception:
+            pass
+
+    # 4. Product Changes (stale items, underperformers)
+    product_changes = []
+    for l in listings:
+        start_time = l.get('start_time', '') or ''
+        days_listed = 0
+        if start_time:
+            try:
+                st = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                days_listed = (now - st).days
+            except Exception:
+                pass
+        if days_listed > 30 and l.get('watchers', 0) == 0:
+            product_changes.append({'action': 'RELIST', 'title': l['title'][:50], 'days': days_listed, 'price': l['price']})
+        elif days_listed > 21 and l.get('watchers', 0) == 0:
+            product_changes.append({'action': 'DISCOUNT', 'title': l['title'][:50], 'days': days_listed, 'price': l['price']})
+
+    product_changes.sort(key=lambda x: -x['days'])
+
+    # 5. AI Insights (quick rules-based)
+    insights = []
+    velocity_60 = len(sold_60) / 60
+    if velocity_60 < 1:
+        insights.append(f'Velocity is {velocity_60:.1f}/day — below target of 1/day. Push promotions harder.')
+    elif velocity_60 > 2:
+        insights.append(f'Velocity is {velocity_60:.1f}/day — strong. Consider raising prices on hot items.')
+
+    with_watchers = len([l for l in listings if l.get('watchers', 0) > 0])
+    if with_watchers > len(listings) * 0.4:
+        insights.append(f'{with_watchers} items ({round(with_watchers/max(len(listings),1)*100)}%) have watchers — high interest, send offers.')
+    elif with_watchers < len(listings) * 0.1:
+        insights.append(f'Only {with_watchers} items have watchers — visibility is low. Increase ad rates.')
+
+    avg_price = sum(s['price'] for s in sold_60) / max(len(sold_60), 1)
+    if avg_price > 200:
+        insights.append(f'Average sale is ${avg_price:.0f} — selling higher-value items. Good margin zone.')
+    elif avg_price < 80:
+        insights.append(f'Average sale is ${avg_price:.0f} — consider focusing on higher-value inventory.')
+
+    return jsonify({
+        'date': today_str,
+        'sales': {
+            'today': len(today_sales),
+            'today_revenue': round(today_revenue),
+            'week': len(this_week),
+            'week_revenue': round(week_revenue),
+            'items': [{'title': s.get('title', '')[:50], 'price': s['price'], 'date': s.get('end_time', '')[:10]} for s in this_week],
+        },
+        'shipments': {
+            'pending': len(shipments),
+            'items': shipments[:10],
+        },
+        'promo_changes': promo_changes,
+        'product_changes': product_changes[:10],
+        'insights': insights,
+        'stats': {
+            'total_listings': len(listings),
+            'promoted': len(per_listing),
+            'with_watchers': with_watchers,
+            'velocity': round(velocity_60, 2),
+        },
+    })
+
+
+# =============================================================================
 # Consolidated detect_cat — single source of truth for category detection
 # =============================================================================
 
@@ -11400,6 +11519,66 @@ def search_sold_comps(query, min_price=0, max_price=9999, days_back=90):
     except Exception as e:
         print(f"Finding API error: {e}")
         return []
+
+
+@app.route('/api/comps/v2')
+def get_comps_v2():
+    """V2 Comp Engine — structured matching, recency weighting, category-specific rules"""
+    title = request.args.get('title', '')
+    artist = request.args.get('artist', '')
+    price = float(request.args.get('price', 0))
+
+    if not title:
+        return jsonify({'error': 'Missing title'}), 400
+
+    # Gather candidates from all sources
+    candidates = []
+
+    # 1. WorthPoint / historical database
+    historical = lookup_historical_prices(title, artist, 30)
+    for h in historical:
+        candidates.append({
+            'title': h.get('name', ''),
+            'price': h.get('price', 0),
+            'date': h.get('date', ''),
+            'source': h.get('source', 'WorthPoint'),
+            'sold_date': h.get('date', ''),
+        })
+
+    # 2. eBay active comps (current market)
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'screen', 'edition', 'limited', 'art', 'original', 'obey', 'giant'}
+    words = [w for w in re.findall(r'\w+', title) if w.lower() not in noise and len(w) > 2]
+    search_query = f"{artist} {' '.join(words[:3])}" if artist else ' '.join(words[:4])
+
+    if search_query.strip():
+        comp_min = FAKE_PRICE_THRESHOLDS.get(artist, 15)
+        active = search_ebay(search_query, max(price * 4, 500), comp_min, limit=30)
+        for a in active:
+            candidates.append({
+                'title': a.get('title', ''),
+                'price': a.get('price', 0),
+                'source': 'eBay Active',
+                'url': a.get('url', ''),
+            })
+
+    # 3. eBay sold comps (Finding API)
+    sold = search_sold_comps(search_query, comp_min, max(price * 4, 500))
+    for s in sold:
+        candidates.append({
+            'title': s.get('title', ''),
+            'price': s.get('price', 0),
+            'sold_date': s.get('sold_date', ''),
+            'source': 'eBay Sold',
+            'url': s.get('url', ''),
+        })
+
+    # Run through the comp engine
+    rejections = load_comp_rejections()
+    result = find_comps(title, artist, price, candidates, learned_rejections=rejections)
+
+    return jsonify(result)
 
 
 @app.route('/api/comps/sold')
