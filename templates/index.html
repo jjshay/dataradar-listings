@@ -167,7 +167,6 @@
                     <button class="btn-primary btn" style="padding:8px 16px;font-size:13px;" onclick="runSearch()">Go</button>
                 </div>
                 <div id="search-results" style="margin-top:12px;"></div>
-                <!-- Natural language query -->
                 <div style="margin-top:8px;">
                     <div class="search" style="background:rgba(10,132,255,0.05);border-color:rgba(10,132,255,0.2);">
                         <span style="font-size:14px;">🧠</span>
@@ -178,255 +177,219 @@
                 </div>
             </div>
 
-            <!-- Action row -->
-            <div class="section" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-green" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High — All Listings</button>
-                <button class="btn btn-primary" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Scan Competitors</button>
-                <div id="speed-status" style="width:100%;text-align:center;font-size:12px;color:var(--dim);"></div>
+            <!-- Dashboard Sub-Tabs -->
+            <div class="section">
+                <div class="chips">
+                    <button class="chip active" data-dtab="overview" onclick="showDTab('overview')">Overview</button>
+                    <button class="chip" data-dtab="actions" onclick="showDTab('actions')">Actions</button>
+                    <button class="chip" data-dtab="market" onclick="showDTab('market')">Market</button>
+                    <button class="chip" data-dtab="tools" onclick="showDTab('tools')">Tools</button>
+                </div>
             </div>
 
-            <!-- Health + Revenue side by side -->
-            <div class="section" style="display:flex;gap:12px;flex-wrap:wrap;">
-                <!-- Left: key numbers -->
-                <div style="flex:1;min-width:200px;">
-                    <div class="grid grid-2" style="padding:0;">
-                        <div class="card card-click" onclick="showTab('inventory')">
-                            <div class="stat-val" id="d-health" style="font-size:36px;">--</div>
-                            <div class="stat-lbl">Health</div>
-                            <div style="height:4px;background:var(--border);border-radius:2px;margin-top:6px;"><div id="d-health-bar" style="height:100%;border-radius:2px;width:0%;transition:width 1s;"></div></div>
+            <!-- TAB: Overview -->
+            <div id="dtab-overview">
+                <div class="section" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn btn-green" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High</button>
+                    <button class="btn btn-primary" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Scan Competitors</button>
+                    <div id="speed-status" style="width:100%;"></div>
+                </div>
+
+                <div class="section" style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <div class="grid grid-2" style="padding:0;">
+                            <div class="card card-click" onclick="showTab('inventory')">
+                                <div class="stat-val" id="d-health" style="font-size:36px;">--</div>
+                                <div class="stat-lbl">Health</div>
+                                <div style="height:4px;background:var(--border);border-radius:2px;margin-top:6px;"><div id="d-health-bar" style="height:100%;border-radius:2px;width:0%;transition:width 1s;"></div></div>
+                            </div>
+                            <div class="card card-click" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100);">
+                                <div class="stat-val g" id="d-revenue">--</div>
+                                <div class="stat-lbl">Revenue (60d)</div>
+                            </div>
+                            <div class="card card-click" onclick="drill('sell_now')">
+                                <div class="stat-val" style="color:var(--purple);" id="d-sellnow">--</div>
+                                <div class="stat-lbl">Sell Now</div>
+                            </div>
+                            <div class="card card-click" onclick="showTab('inventory')">
+                                <div class="stat-val" id="d-forecast">--</div>
+                                <div class="stat-lbl">30d Forecast</div>
+                            </div>
                         </div>
-                        <div class="card card-click" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100);">
-                            <div class="stat-val g" id="d-revenue">--</div>
-                            <div class="stat-lbl">Revenue (60d)</div>
+                    </div>
+                    <div class="card" style="flex:1;min-width:280px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Weekly Revenue</div>
+                        <canvas id="dash-rev-chart" height="130"></canvas>
+                    </div>
+                </div>
+
+                <div class="grid grid-3" style="margin-top:-8px;">
+                    <div class="card card-click" style="text-align:center;" onclick="showTab('inventory')"><div style="font-size:18px;font-weight:700;" id="d-listings">--</div><div class="stat-lbl">Listings</div></div>
+                    <div class="card card-click" style="text-align:center;" onclick="window.open('/reports/levers','_blank')"><div style="font-size:18px;font-weight:700;color:var(--orange);" id="d-adspend">--</div><div class="stat-lbl">Ad Spend</div></div>
+                    <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100)"><div style="font-size:18px;font-weight:700;" id="d-velocity">--</div><div class="stat-lbl">Items/Day</div></div>
+                    <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('deep'),100)"><div style="font-size:18px;font-weight:700;" id="d-avgprice">--</div><div class="stat-lbl">Avg Sale</div></div>
+                    <div class="card card-click" style="text-align:center;" onclick="drill('watchers',{min:1})"><div style="font-size:18px;font-weight:700;" id="d-watchers">--</div><div class="stat-lbl">Watchers</div></div>
+                    <div class="card card-click" style="text-align:center;" onclick="showTab('promos')"><div style="font-size:18px;font-weight:700;" id="d-promoted">--</div><div class="stat-lbl">Promoted %</div></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Today's Brief</div>
+                    <div id="d-brief" class="card"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Quick Wins</div>
+                    <div id="d-wins"></div>
+                </div>
+
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Next Events</div>
+                        <button class="btn-ghost" onclick="showTab('reports')">Calendar</button>
+                    </div>
+                    <div id="d-events" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
+                </div>
+            </div>
+
+            <!-- TAB: Actions -->
+            <div id="dtab-actions" style="display:none;">
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">AI Strategy</div>
+                        <button class="btn-ghost" onclick="loadAIStrategy()">Refresh</button>
+                    </div>
+                    <div id="d-ai-strategy"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Sell This Week</div>
+                        <button class="btn-ghost" onclick="loadSellThisWeek()">Refresh</button>
+                    </div>
+                    <div id="d-sellweek"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Price Sniper</div>
+                        <button class="btn-ghost" onclick="loadSniper()">Rescan</button>
+                    </div>
+                    <div id="d-sniper"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Buyer Outreach</div>
+                    <div id="d-outreach"><div class="loading"><div class="spinner"></div></div></div>
+                </div>
+
+                <div class="section" style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="btn-ghost" onclick="window.open('/reports/levers','_blank')">Levers</button>
+                    <button class="btn-ghost" onclick="window.open('/reports/what-worked','_blank')">What Worked</button>
+                    <button class="btn-ghost" onclick="window.open('/reports/performance','_blank')">Performance</button>
+                    <button class="btn-ghost" onclick="window.open('/reports/vs-market','_blank')">vs Market</button>
+                </div>
+            </div>
+
+            <!-- TAB: Market -->
+            <div id="dtab-market" style="display:none;">
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Watcher Velocity</div>
+                        <button class="btn-ghost" onclick="loadWatcherTrends()">Refresh</button>
+                    </div>
+                    <div id="d-watcher-trends" style="font-size:12px;color:var(--dim);">Loads with dashboard</div>
+                </div>
+
+                <div class="section">
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;min-width:250px;">
+                            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Appreciating Prints</div>
+                            <div id="d-appreciate"></div>
                         </div>
-                        <div class="card card-click" onclick="drill('sell_now')">
-                            <div class="stat-val" style="color:var(--purple);" id="d-sellnow">--</div>
-                            <div class="stat-lbl">Sell Now</div>
-                        </div>
-                        <div class="card card-click" onclick="showTab('inventory')">
-                            <div class="stat-val" id="d-forecast">--</div>
-                            <div class="stat-lbl">30d Forecast</div>
+                        <div class="card" style="flex:1;min-width:250px;">
+                            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Cross-Platform Arbitrage</div>
+                            <div id="d-arbitrage"></div>
                         </div>
                     </div>
                 </div>
-                <!-- Right: revenue trend chart -->
-                <div class="card" style="flex:1;min-width:280px;">
-                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Weekly Revenue</div>
-                    <canvas id="dash-rev-chart" height="130"></canvas>
-                </div>
-            </div>
 
-            <!-- Key ratios row — EVERY card is clickable -->
-            <div class="grid grid-3" style="margin-top:-8px;">
-                <div class="card card-click" style="text-align:center;" onclick="showTab('inventory')" title="View all listings">
-                    <div style="font-size:18px;font-weight:700;" id="d-listings">--</div>
-                    <div class="stat-lbl">Listings</div>
+                <div class="section">
+                    <div class="section-title">Auction Calendar</div>
+                    <div id="d-auctions"></div>
                 </div>
-                <div class="card card-click" style="text-align:center;" onclick="window.open('/reports/levers','_blank')" title="See ad spend analysis">
-                    <div style="font-size:18px;font-weight:700;color:var(--orange);" id="d-adspend">--</div>
-                    <div class="stat-lbl">Ad Spend</div>
-                </div>
-                <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('allsales'),100)" title="See all sales">
-                    <div style="font-size:18px;font-weight:700;" id="d-velocity">--</div>
-                    <div class="stat-lbl">Items/Day</div>
-                </div>
-                <div class="card card-click" style="text-align:center;" onclick="showTab('reports');setTimeout(()=>showRTab('deep'),100)" title="Price analysis">
-                    <div style="font-size:18px;font-weight:700;" id="d-avgprice">--</div>
-                    <div class="stat-lbl">Avg Sale</div>
-                </div>
-                <div class="card card-click" style="text-align:center;" onclick="drill('watchers',{min:1})" title="See items with watchers">
-                    <div style="font-size:18px;font-weight:700;" id="d-watchers">--</div>
-                    <div class="stat-lbl">Watchers</div>
-                </div>
-                <div class="card card-click" style="text-align:center;" onclick="showTab('promos')" title="Manage promotions">
-                    <div style="font-size:18px;font-weight:700;" id="d-promoted">--</div>
-                    <div class="stat-lbl">Promoted %</div>
-                </div>
-            </div>
 
-            <!-- Quick links to reports -->
-            <div class="section" style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button class="btn-ghost" onclick="window.open('/reports/levers','_blank')">🎛 Levers</button>
-                <button class="btn-ghost" onclick="window.open('/reports/what-worked','_blank')">📊 What Worked</button>
-                <button class="btn-ghost" onclick="window.open('/reports/performance','_blank')">📈 Performance</button>
-                <button class="btn-ghost" onclick="window.open('/reports/vs-market','_blank')">🏪 vs Market</button>
-            </div>
-
-            <!-- AI Strategy Recommendations -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">AI Strategy</div>
-                    <button class="btn-ghost" onclick="loadAIStrategy()">Refresh</button>
-                </div>
-                <div id="d-ai-strategy"><div class="loading"><div class="spinner"></div></div></div>
-            </div>
-
-            <!-- AI Brief -->
-            <div class="section">
-                <div class="section-title">Today's Brief</div>
-                <div id="d-brief" class="card"><div class="loading"><div class="spinner"></div></div></div>
-            </div>
-
-            <!-- Quick Wins -->
-            <div class="section">
-                <div class="section-title">Quick Wins</div>
-                <div id="d-wins"></div>
-            </div>
-
-            <!-- Upcoming Events -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Next Events</div>
-                    <button class="btn-ghost" onclick="showTab('reports')">See Calendar</button>
-                </div>
-                <div id="d-events" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
-            </div>
-
-            <!-- Sell This Week -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Sell This Week</div>
-                    <button class="btn-ghost" onclick="loadSellThisWeek()">Refresh</button>
-                </div>
-                <div id="d-sellweek"><div class="loading"><div class="spinner"></div></div></div>
-            </div>
-
-            <!-- Price Sniper -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">🎯 Price Sniper — Competitor Undercuts</div>
-                    <button class="btn-ghost" onclick="loadSniper()">Rescan</button>
-                </div>
-                <div id="d-sniper"><div class="loading"><div class="spinner"></div></div></div>
-            </div>
-
-            <!-- Buyer Outreach -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Buyer Outreach</div>
-                </div>
-                <div id="d-outreach"><div class="loading"><div class="spinner"></div></div></div>
-            </div>
-
-            <!-- Trends + Arbitrage -->
-            <div class="section">
-                <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                    <div class="card" style="flex:1;min-width:250px;">
-                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Appreciating Prints</div>
-                        <div id="d-appreciate"></div>
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Buyer CRM</div>
+                        <button class="btn-ghost" onclick="loadBuyerCRM()">Load</button>
                     </div>
-                    <div class="card" style="flex:1;min-width:250px;">
-                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Cross-Platform Opportunities</div>
-                        <div id="d-arbitrage"></div>
+                    <div id="d-buyer-crm" style="font-size:12px;color:var(--dim);">Click Load to see repeat buyers</div>
+                </div>
+
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Listing Quality</div>
+                        <button class="btn-ghost" onclick="loadListingQuality()">Scan</button>
                     </div>
+                    <div id="d-listing-quality" style="font-size:12px;color:var(--dim);">Click Scan to score listings</div>
                 </div>
             </div>
 
-            <!-- Auction Alerts -->
-            <div class="section">
-                <div class="section-title">Auction Calendar</div>
-                <div id="d-auctions"></div>
-            </div>
+            <!-- TAB: Tools -->
+            <div id="dtab-tools" style="display:none;">
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Feedback</div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="loadFeedback()">Load</button>
+                            <button class="btn-ghost" style="font-size:11px;" onclick="generateFB()">AI Generate</button>
+                            <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="submitFB()">Submit</button>
+                        </div>
+                    </div>
+                    <div id="fb-progress"></div>
+                    <div id="fb-content" style="font-size:12px;color:var(--dim);">Click Load for pending feedback</div>
+                </div>
 
-            <!-- Watcher Trends -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Watcher Velocity</div>
-                    <button class="btn-ghost" onclick="loadWatcherTrends()">Refresh</button>
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Auto-Offers</div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn-ghost" onclick="previewOffers()">Preview</button>
+                            <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="sendOffers()">Send</button>
+                        </div>
+                    </div>
+                    <div id="offer-status"></div>
+                    <div id="offer-preview"></div>
                 </div>
-                <div id="d-watcher-trends" style="font-size:12px;color:var(--dim);">Loads with dashboard</div>
-            </div>
 
-            <!-- Buyer CRM -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Buyer CRM</div>
-                    <button class="btn-ghost" onclick="loadBuyerCRM()">Load</button>
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Auto-Reprice</div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn-ghost" onclick="previewReprice()">Preview</button>
+                            <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="runReprice()">Run</button>
+                        </div>
+                    </div>
+                    <div id="reprice-status"></div>
+                    <div id="reprice-preview"></div>
                 </div>
-                <div id="d-buyer-crm" style="font-size:12px;color:var(--dim);">Click Load to see repeat buyers and VIPs</div>
-            </div>
 
-            <!-- Listing Quality Scorer -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Listing Quality</div>
-                    <button class="btn-ghost" onclick="loadListingQuality()">Scan</button>
+                <div class="section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Scheduler</div>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <span id="sched-status" style="font-size:11px;color:var(--dim);"></span>
+                            <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" id="sched-toggle" onclick="toggleScheduler()">Start</button>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">
+                        <div class="card" style="border-left:3px solid var(--accent);"><div style="font-size:12px;font-weight:600;">Scrape</div><div style="font-size:10px;color:var(--dim);">Every 4h</div><div style="font-size:10px;color:var(--accent);margin-top:2px;" id="sched-scrape-last"></div></div>
+                        <div class="card" style="border-left:3px solid var(--orange);"><div style="font-size:12px;font-weight:600;">Reprice</div><div style="font-size:10px;color:var(--dim);">Mon 9am</div><div style="font-size:10px;color:var(--orange);margin-top:2px;" id="sched-reprice-last"></div></div>
+                        <div class="card" style="border-left:3px solid var(--green);"><div style="font-size:12px;font-weight:600;">Offers</div><div style="font-size:10px;color:var(--dim);">Tue 10am</div><div style="font-size:10px;color:var(--green);margin-top:2px;" id="sched-offers-last"></div></div>
+                        <div class="card" style="border-left:3px solid var(--red);"><div style="font-size:12px;font-weight:600;">Alerts</div><div style="font-size:10px;color:var(--dim);">Every 4h</div><div style="font-size:10px;color:var(--red);margin-top:2px;" id="sched-alerts-last"></div></div>
+                    </div>
+                    <div id="sched-log" style="margin-top:6px;font-size:10px;color:var(--dim);max-height:60px;overflow-y:auto;"></div>
                 </div>
-                <div id="d-listing-quality" style="font-size:12px;color:var(--dim);">Click Scan to score all listings</div>
-            </div>
-
-            <!-- Feedback Dashboard — Rebuilt -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Feedback</div>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="loadFeedback()">Load</button>
-                        <button class="btn-ghost" style="font-size:11px;" onclick="generateFB()">AI Generate All</button>
-                        <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="submitFB()">Submit to eBay</button>
-                    </div>
-                </div>
-                <div id="fb-progress"></div>
-                <div id="fb-content" style="font-size:12px;color:var(--dim);">Click Load to pull pending feedback from eBay</div>
-            </div>
-
-            <!-- Auto-Offer to Watchers -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Auto-Offers to Watchers</div>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn-ghost" onclick="previewOffers()">Preview</button>
-                        <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" onclick="sendOffers()">Send All Offers</button>
-                    </div>
-                </div>
-                <div id="offer-status"></div>
-                <div id="offer-preview"></div>
-            </div>
-
-            <!-- Auto-Reprice Engine -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Auto-Reprice Stale Items</div>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn-ghost" onclick="previewReprice()">Preview</button>
-                        <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="runReprice()">Run Reprice</button>
-                    </div>
-                </div>
-                <div id="reprice-status"></div>
-                <div id="reprice-preview"></div>
-            </div>
-
-            <!-- Scheduler — Cron Automation -->
-            <div class="section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div class="section-title" style="margin-bottom:0;">Automation Scheduler</div>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <span id="sched-status" style="font-size:11px;color:var(--dim);"></span>
-                        <button class="btn btn-green" style="padding:6px 14px;font-size:12px;" id="sched-toggle" onclick="toggleScheduler()">Start</button>
-                    </div>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;" id="sched-tasks">
-                    <div class="card" style="border-left:3px solid var(--accent);">
-                        <div style="font-size:13px;font-weight:600;">Scrape Deals</div>
-                        <div style="font-size:11px;color:var(--dim);">Every 4 hours — 172 targets</div>
-                        <div style="font-size:10px;color:var(--accent);margin-top:4px;" id="sched-scrape-last"></div>
-                    </div>
-                    <div class="card" style="border-left:3px solid var(--orange);">
-                        <div style="font-size:13px;font-weight:600;">Auto-Reprice</div>
-                        <div style="font-size:11px;color:var(--dim);">Monday 9am — stale items</div>
-                        <div style="font-size:10px;color:var(--orange);margin-top:4px;" id="sched-reprice-last"></div>
-                    </div>
-                    <div class="card" style="border-left:3px solid var(--green);">
-                        <div style="font-size:13px;font-weight:600;">Auto-Offers</div>
-                        <div style="font-size:11px;color:var(--dim);">Tuesday 10am — watchers</div>
-                        <div style="font-size:10px;color:var(--green);margin-top:4px;" id="sched-offers-last"></div>
-                    </div>
-                    <div class="card" style="border-left:3px solid var(--red);">
-                        <div style="font-size:13px;font-weight:600;">Deal Alerts</div>
-                        <div style="font-size:11px;color:var(--dim);">Every 4 hours — hot deals</div>
-                        <div style="font-size:10px;color:var(--red);margin-top:4px;" id="sched-alerts-last"></div>
-                    </div>
-                </div>
-                <div id="sched-log" style="margin-top:8px;font-size:11px;color:var(--dim);max-height:80px;overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -649,6 +612,15 @@
             if (tab === 'inventory' && !invData) loadInv();
             if (tab === 'promos') loadPromos();
             if (tab === 'reports') loadReportsTab();
+        }
+
+        function showDTab(tab) {
+            document.querySelectorAll('[data-dtab]').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-dtab="${tab}"]`).classList.add('active');
+            ['overview','actions','market','tools'].forEach(t => {
+                const el = document.getElementById('dtab-'+t);
+                if (el) el.style.display = t===tab ? 'block' : 'none';
+            });
         }
 
         // ==========================================
