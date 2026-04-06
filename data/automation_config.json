@@ -1,0 +1,40 @@
+{
+  "auto_event_boost": true,
+  "auto_event_pullback": true,
+  "auto_markdown_stale": true,
+  "daily_brief_enabled": true,
+  "enabled": true,
+  "event_boost_strategy": "speed_medium",
+  "log": [
+    {
+      "actions": 0,
+      "time": "2026-03-31T23:57:58.533397"
+    },
+    {
+      "actions": 0,
+      "time": "2026-03-31T23:45:38.860334"
+    },
+    {
+      "actions": 0,
+      "time": "2026-03-31T23:45:35.535613"
+    },
+    {
+      "actions": 39,
+      "time": "2026-03-31T23:16:11.983251"
+    },
+    {
+      "actions": 39,
+      "time": "2026-03-31T23:14:18.661476"
+    },
+    {
+      "actions": 39,
+      "time": "2026-03-31T23:14:07.802622"
+    },
+    {
+      "actions": 39,
+      "time": "2026-03-31T22:54:27.547606"
+    }
+  ],
+  "stale_days": 30,
+  "stale_markdown_pct": 10
+}

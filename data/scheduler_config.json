@@ -1,0 +1,28 @@
+{
+  "enabled": false,
+  "tasks": {
+    "scrape": {
+      "enabled": true,
+      "interval_hours": 4,
+      "last_run": null
+    },
+    "reprice": {
+      "enabled": true,
+      "day": "monday",
+      "hour": 9,
+      "last_run": null
+    },
+    "offers": {
+      "enabled": true,
+      "day": "tuesday",
+      "hour": 10,
+      "last_run": null
+    },
+    "deal_alerts": {
+      "enabled": true,
+      "interval_hours": 4,
+      "last_run": null
+    }
+  },
+  "log": []
+}

@@ -1,0 +1,2312 @@
+{
+  "campaigns": [
+    {
+      "campaignId": "163039414017",
+      "startDate": "2026-04-05T23:06:27.000Z",
+      "endDate": null,
+      "campaignName": "TEST 16:06",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "163039413017",
+      "startDate": "2026-04-05T23:05:23.000Z",
+      "endDate": null,
+      "campaignName": "TEST_DELETE_ME",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "163039354017",
+      "startDate": "2026-04-05T22:38:24.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 5.0% 04/05",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "163039353017",
+      "startDate": "2026-04-05T22:38:23.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 8.0% 04/05",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "8.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "163039351017",
+      "startDate": "2026-04-05T22:38:11.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 4.0% 04/05",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "163039349017",
+      "startDate": "2026-04-05T22:38:01.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 6.0% 04/05",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "6.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162895740017",
+      "startDate": "2026-04-03T02:27:40.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 5.0% 04/02",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4325952925017",
+          "bidPercentage": "5.0",
+          "listingId": "318089256737"
+        },
+        {
+          "adId": "4326053054017",
+          "bidPercentage": "5.0",
+          "listingId": "318091093940"
+        },
+        {
+          "adId": "4326019747017",
+          "bidPercentage": "5.0",
+          "listingId": "318089250037"
+        },
+        {
+          "adId": "4325741670017",
+          "bidPercentage": "5.0",
+          "listingId": "318091093943"
+        },
+        {
+          "adId": "4325924058017",
+          "bidPercentage": "5.0",
+          "listingId": "318091093921"
+        },
+        {
+          "adId": "4325747915017",
+          "bidPercentage": "5.0",
+          "listingId": "318089256715"
+        },
+        {
+          "adId": "4325905806017",
+          "bidPercentage": "5.0",
+          "listingId": "318089256729"
+        },
+        {
+          "adId": "4325877028017",
+          "bidPercentage": "5.0",
+          "listingId": "318089250036"
+        }
+      ],
+      "ad_count": 8
+    },
+    {
+      "campaignId": "162895739017",
+      "startDate": "2026-04-03T02:27:38.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 8.0% 04/02",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "8.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4326009941017",
+          "bidPercentage": "8.0",
+          "listingId": "318089249999"
+        },
+        {
+          "adId": "4326069669017",
+          "bidPercentage": "8.0",
+          "listingId": "318089256721"
+        }
+      ],
+      "ad_count": 2
+    },
+    {
+      "campaignId": "162895738017",
+      "startDate": "2026-04-03T02:27:16.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 4.0% 04/02",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4325709909017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093959"
+        },
+        {
+          "adId": "4325931953017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256753"
+        },
+        {
+          "adId": "4325920748017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250011"
+        },
+        {
+          "adId": "4325938452017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250021"
+        },
+        {
+          "adId": "4325908639017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256739"
+        },
+        {
+          "adId": "4326009158017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093937"
+        },
+        {
+          "adId": "4326009157017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250025"
+        },
+        {
+          "adId": "4326001524017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250042"
+        },
+        {
+          "adId": "4326013979017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093964"
+        },
+        {
+          "adId": "4325921853017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256775"
+        },
+        {
+          "adId": "4326052562017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256758"
+        },
+        {
+          "adId": "4325703009017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256771"
+        },
+        {
+          "adId": "4325902037017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250026"
+        },
+        {
+          "adId": "4326039373017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256724"
+        },
+        {
+          "adId": "4326037470017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250032"
+        },
+        {
+          "adId": "4325831882017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250044"
+        },
+        {
+          "adId": "4325831881017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250022"
+        },
+        {
+          "adId": "4325910404017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093942"
+        },
+        {
+          "adId": "4325881539017",
+          "bidPercentage": "4.0",
+          "listingId": "318089249996"
+        },
+        {
+          "adId": "4325933841017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256787"
+        },
+        {
+          "adId": "4325943900017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250018"
+        },
+        {
+          "adId": "4326057079017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256728"
+        },
+        {
+          "adId": "4325926831017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256732"
+        },
+        {
+          "adId": "4325747914017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093965"
+        },
+        {
+          "adId": "4326013401017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250023"
+        },
+        {
+          "adId": "4326044483017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250009"
+        },
+        {
+          "adId": "4325989361017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250038"
+        },
+        {
+          "adId": "4325948774017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093930"
+        },
+        {
+          "adId": "4326069668017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093945"
+        },
+        {
+          "adId": "4325996563017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093962"
+        },
+        {
+          "adId": "4326026517017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250005"
+        },
+        {
+          "adId": "4325906382017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256751"
+        },
+        {
+          "adId": "4325906381017",
+          "bidPercentage": "4.0",
+          "listingId": "318089249995"
+        },
+        {
+          "adId": "4325905083017",
+          "bidPercentage": "4.0",
+          "listingId": "318089249993"
+        },
+        {
+          "adId": "4325986389017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250039"
+        }
+      ],
+      "ad_count": 35
+    },
+    {
+      "campaignId": "162895737017",
+      "startDate": "2026-04-03T02:26:58.000Z",
+      "endDate": null,
+      "campaignName": "DR steady 6.0% 04/02",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "6.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4326005305017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250014"
+        },
+        {
+          "adId": "4325920747017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256776"
+        },
+        {
+          "adId": "4325938451017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256785"
+        },
+        {
+          "adId": "4326058712017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250003"
+        },
+        {
+          "adId": "4326058183017",
+          "bidPercentage": "6.0",
+          "listingId": "318089249991"
+        },
+        {
+          "adId": "4326013978017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250013"
+        },
+        {
+          "adId": "4326051415017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256730"
+        },
+        {
+          "adId": "4326039372017",
+          "bidPercentage": "6.0",
+          "listingId": "318091093939"
+        },
+        {
+          "adId": "4326039370017",
+          "bidPercentage": "6.0",
+          "listingId": "318089249997"
+        },
+        {
+          "adId": "4325831880017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250034"
+        },
+        {
+          "adId": "4325831879017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250012"
+        },
+        {
+          "adId": "4325936431017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250016"
+        },
+        {
+          "adId": "4326016161017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250041"
+        },
+        {
+          "adId": "4326013400017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256745"
+        },
+        {
+          "adId": "4326013399017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256718"
+        },
+        {
+          "adId": "4325977256017",
+          "bidPercentage": "6.0",
+          "listingId": "318091093951"
+        },
+        {
+          "adId": "4325916960017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256786"
+        },
+        {
+          "adId": "4326090062017",
+          "bidPercentage": "6.0",
+          "listingId": "318089249992"
+        },
+        {
+          "adId": "4325989360017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250001"
+        },
+        {
+          "adId": "4325948773017",
+          "bidPercentage": "6.0",
+          "listingId": "318091093941"
+        },
+        {
+          "adId": "4326069667017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256768"
+        },
+        {
+          "adId": "4325961243017",
+          "bidPercentage": "6.0",
+          "listingId": "318091093925"
+        },
+        {
+          "adId": "4325679050017",
+          "bidPercentage": "6.0",
+          "listingId": "318089256791"
+        },
+        {
+          "adId": "4325925862017",
+          "bidPercentage": "6.0",
+          "listingId": "318089250029"
+        }
+      ],
+      "ad_count": 24
+    },
+    {
+      "campaignId": "162840344017",
+      "startDate": "2026-04-01T04:58:26.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4.9% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.9",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840343017",
+      "startDate": "2026-04-01T04:58:26.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 5.9% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.9",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840342017",
+      "startDate": "2026-04-01T04:58:24.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4.4% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.4",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840340017",
+      "startDate": "2026-04-01T04:58:24.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4.6% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.6",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840339017",
+      "startDate": "2026-04-01T04:58:23.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 6% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "6.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840338017",
+      "startDate": "2026-04-01T04:58:22.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 3.9% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "3.9",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840315017",
+      "startDate": "2026-04-01T04:53:12.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 7% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "7.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840314017",
+      "startDate": "2026-04-01T04:53:10.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 5% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840250017",
+      "startDate": "2026-04-01T04:34:27.000Z",
+      "endDate": null,
+      "campaignName": "Dynamic Campaign 03/31/2026 21:34:20",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "adRateStrategy": "DYNAMIC",
+        "dynamicAdRatePreferences": [
+          {
+            "adRateCapPercent": null,
+            "adRateAdjustmentPercent": "0.0"
+          }
+        ]
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4321999781017",
+          "bidPercentage": "12.5",
+          "listingId": "318089249994"
+        }
+      ],
+      "ad_count": 1
+    },
+    {
+      "campaignId": "162840115017",
+      "startDate": "2026-04-01T03:39:14.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 3% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "3.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840114017",
+      "startDate": "2026-04-01T03:39:11.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 2.5% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "2.5",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162840113017",
+      "startDate": "2026-04-01T03:39:01.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 2% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "2.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4322000975017",
+          "bidPercentage": "2.0",
+          "listingId": "318089256731"
+        }
+      ],
+      "ad_count": 1
+    },
+    {
+      "campaignId": "162840112017",
+      "startDate": "2026-04-01T03:39:00.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4% 03/31",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4322378752017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256773"
+        }
+      ],
+      "ad_count": 1
+    },
+    {
+      "campaignId": "162649165017",
+      "startDate": "2026-03-28T05:44:00.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 2.5% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "2.5",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4322676057017",
+          "bidPercentage": "2.5",
+          "listingId": "318091093976"
+        },
+        {
+          "adId": "4322000452017",
+          "bidPercentage": "11.0",
+          "listingId": "318089250028"
+        },
+        {
+          "adId": "4322363767017",
+          "bidPercentage": "16.3",
+          "listingId": "318089256750"
+        },
+        {
+          "adId": "4322363182017",
+          "bidPercentage": "2.5",
+          "listingId": "318089250045"
+        },
+        {
+          "adId": "4322363180017",
+          "bidPercentage": "16.3",
+          "listingId": "318089250030"
+        },
+        {
+          "adId": "4322342835017",
+          "bidPercentage": "9.0",
+          "listingId": "318089256762"
+        },
+        {
+          "adId": "4322313513017",
+          "bidPercentage": "2.5",
+          "listingId": "318089256784"
+        },
+        {
+          "adId": "4322313512017",
+          "bidPercentage": "13.0",
+          "listingId": "318089256788"
+        },
+        {
+          "adId": "4322364340017",
+          "bidPercentage": "12.5",
+          "listingId": "318089250033"
+        }
+      ],
+      "ad_count": 9
+    },
+    {
+      "campaignId": "162649163017",
+      "startDate": "2026-03-28T05:43:43.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 2% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "2.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4321994401017",
+          "bidPercentage": "2.0",
+          "listingId": "318089250007"
+        },
+        {
+          "adId": "4321996234017",
+          "bidPercentage": "2.0",
+          "listingId": "318089250006"
+        },
+        {
+          "adId": "4321996826017",
+          "bidPercentage": "2.0",
+          "listingId": "318089250004"
+        },
+        {
+          "adId": "4322361994017",
+          "bidPercentage": "2.0",
+          "listingId": "318089256767"
+        },
+        {
+          "adId": "4322363183017",
+          "bidPercentage": "2.0",
+          "listingId": "318089256763"
+        },
+        {
+          "adId": "4322363181017",
+          "bidPercentage": "2.0",
+          "listingId": "318089250031"
+        },
+        {
+          "adId": "4322342837017",
+          "bidPercentage": "2.0",
+          "listingId": "318089256779"
+        }
+      ],
+      "ad_count": 7
+    },
+    {
+      "campaignId": "162649162017",
+      "startDate": "2026-03-28T05:43:31.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 3% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "3.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4323075243017",
+          "bidPercentage": "3.0",
+          "listingId": "318091093960"
+        },
+        {
+          "adId": "4323075242017",
+          "bidPercentage": "3.0",
+          "listingId": "318091093954"
+        }
+      ],
+      "ad_count": 2
+    },
+    {
+      "campaignId": "162649160017",
+      "startDate": "2026-03-28T05:43:29.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [
+        {
+          "adId": "4323075241017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093956"
+        },
+        {
+          "adId": "4322684424017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093963"
+        },
+        {
+          "adId": "4323480094017",
+          "bidPercentage": "4.0",
+          "listingId": "318091093970"
+        },
+        {
+          "adId": "4322361993017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256783"
+        },
+        {
+          "adId": "4322342836017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256765"
+        },
+        {
+          "adId": "4322290702017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256764"
+        },
+        {
+          "adId": "4322290701017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250909"
+        },
+        {
+          "adId": "4322313511017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256782"
+        },
+        {
+          "adId": "4322378751017",
+          "bidPercentage": "4.0",
+          "listingId": "318089256781"
+        },
+        {
+          "adId": "4322378750017",
+          "bidPercentage": "4.0",
+          "listingId": "318089250027"
+        }
+      ],
+      "ad_count": 10
+    },
+    {
+      "campaignId": "162649159017",
+      "startDate": "2026-03-28T05:43:28.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 5.7% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "5.7",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162649158017",
+      "startDate": "2026-03-28T05:43:27.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 3.7% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "3.7",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162649133017",
+      "startDate": "2026-03-28T05:28:39.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Standard Cps 4.0% 03/27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "162649132017",
+      "startDate": "2026-03-28T05:26:42.000Z",
+      "endDate": null,
+      "campaignName": "DATARADAR Test",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "4.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "RUNNING",
+      "marketplaceId": "EBAY_US",
+      "ads": [],
+      "ad_count": 0
+    },
+    {
+      "campaignId": "161818440017",
+      "startDate": "2026-03-25T14:39:18.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "DYNAMIC 10%",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "adRateStrategy": "DYNAMIC",
+        "dynamicAdRatePreferences": [
+          {
+            "adRateCapPercent": "10.0",
+            "adRateAdjustmentPercent": "3.0"
+          }
+        ]
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "160398275017",
+      "startDate": "2026-02-07T01:33:17.000Z",
+      "channels": [
+        "OFF_SITE"
+      ],
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Promoted offsite - 02/06/2026, 17:33",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK",
+        "biddingStrategy": "DYNAMIC"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "6.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "159443229017",
+      "startDate": "2026-01-18T22:42:39.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Campaign 01/18/2026 14:42:36",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "12.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "159359671017",
+      "startDate": "2026-01-17T02:49:47.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Campaign 01/16/2026 18:49:45",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "12.5",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "156480701017",
+      "startDate": "2025-12-01T07:45:41.000Z",
+      "channels": [
+        "ON_SITE"
+      ],
+      "endDate": "2025-12-02T08:10:00.000Z",
+      "campaignName": "Priority - 11/30/2025, 23:45",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "8.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US",
+      "campaignTargetingType": "SMART"
+    },
+    {
+      "campaignId": "156480699017",
+      "startDate": "2025-12-01T07:43:50.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Campaign Dec 01 2025, 00:43:50",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "9.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "156406929017",
+      "startDate": "2025-11-29T21:13:50.000Z",
+      "channels": [
+        "ON_SITE"
+      ],
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Priority Smart 11/29/2025 13:13:38",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "19.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US",
+      "campaignTargetingType": "SMART"
+    },
+    {
+      "campaignId": "156005727017",
+      "startDate": "2025-11-23T10:27:27.000Z",
+      "channels": [
+        "OFF_SITE"
+      ],
+      "endDate": "2025-11-25T08:12:43.000Z",
+      "campaignName": "Promoted offsite - 11/23/2025, 02:27",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK",
+        "biddingStrategy": "DYNAMIC"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "7.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "152800431017",
+      "startDate": "2025-09-17T05:57:23.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Dynamic Campaign 09/16/2025 22:57:14",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "adRateStrategy": "DYNAMIC",
+        "dynamicAdRatePreferences": [
+          {
+            "adRateCapPercent": null,
+            "adRateAdjustmentPercent": "0.0"
+          }
+        ]
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "152800429017",
+      "startDate": "2025-09-17T05:56:37.000Z",
+      "channels": [
+        "ON_SITE"
+      ],
+      "endDate": "2025-12-04T08:15:29.000Z",
+      "campaignName": "Priority Smart 09/16/2025 22:56:34",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "5.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US",
+      "campaignTargetingType": "SMART"
+    },
+    {
+      "campaignId": "151395104017",
+      "startDate": "2025-08-21T00:47:06.000Z",
+      "channels": [
+        "OFF_SITE"
+      ],
+      "endDate": "2025-10-01T05:21:55.000Z",
+      "campaignName": "hy",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK",
+        "biddingStrategy": "DYNAMIC"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "6.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    },
+    {
+      "campaignId": "151394961017",
+      "startDate": "2025-08-20T23:43:29.000Z",
+      "channels": [
+        "ON_SITE"
+      ],
+      "endDate": "2025-12-04T08:15:31.000Z",
+      "campaignName": "Priority Smart 08/20/2025 16:43:06",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_CLICK"
+      },
+      "budget": {
+        "daily": {
+          "amount": {
+            "value": "3.0",
+            "currency": "USD"
+          },
+          "budgetStatus": "ALLOCATED"
+        }
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US",
+      "campaignTargetingType": "SMART"
+    },
+    {
+      "campaignId": "150470058017",
+      "startDate": "2025-07-29T18:23:36.000Z",
+      "endDate": "2026-03-28T03:53:22.000Z",
+      "campaignName": "Campaign 07/29/2025, 11:23",
+      "fundingStrategy": {
+        "fundingModel": "COST_PER_SALE",
+        "bidPercentage": "9.0",
+        "adRateStrategy": "FIXED"
+      },
+      "campaignStatus": "ENDED",
+      "marketplaceId": "EBAY_US"
+    }
+  ],
+  "item_promotions": [
+    {
+      "name": "10% off ends May 5, 2026",
+      "startDate": "2026-04-06T04:51:00.000Z",
+      "endDate": "2026-05-06T04:51:00.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "RUNNING",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215425461607@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215425461607@EBAY_US"
+    },
+    {
+      "name": "Extra 15% off ending Mar 31, 2026",
+      "startDate": "2026-03-25T12:29:37.000Z",
+      "endDate": "2026-03-28T14:19:25.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1715382402607@EBAY_US",
+      "promotionType": "CODED_COUPON",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1715382402607@EBAY_US",
+      "couponCode": "GALLERYART26"
+    },
+    {
+      "name": "Extra 30% off ending Apr 7, 2026",
+      "startDate": "2026-03-19T01:28:22.000Z",
+      "endDate": "2026-03-28T05:14:27.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1715356023207@EBAY_US",
+      "promotionType": "CODED_COUPON",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1715356023207@EBAY_US",
+      "couponCode": "GAUNTLETSPRING2"
+    },
+    {
+      "name": "Extra 20% off ending Apr 10, 2026",
+      "startDate": "2026-03-22T00:12:33.000Z",
+      "endDate": "2026-03-28T05:14:23.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1715367538807@EBAY_US",
+      "promotionType": "CODED_COUPON",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1715367538807@EBAY_US",
+      "couponCode": "GALLERYART2026"
+    },
+    {
+      "name": "15% off ends Apr 1, 2026",
+      "startDate": "2026-03-26T04:28:16.000Z",
+      "endDate": "2026-03-28T05:13:52.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215385972607@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215385972607@EBAY_US"
+    },
+    {
+      "name": "Sale event ending Mar 21, 2026",
+      "startDate": "2026-02-19T08:37:56.000Z",
+      "endDate": "2026-03-22T06:59:00.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215254490407@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215254490407@EBAY_US"
+    },
+    {
+      "name": "15% off ends Mar 12, 2026",
+      "startDate": "2026-03-11T01:06:57.000Z",
+      "endDate": "2026-03-13T01:11:57.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215323132407@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215323132407@EBAY_US"
+    },
+    {
+      "name": "15% off ends Mar 9, 2026",
+      "startDate": "2026-02-08T01:33:26.000Z",
+      "endDate": "2026-03-02T20:53:28.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215216326507@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215216326507@EBAY_US"
+    },
+    {
+      "name": "15% off ends Mar 8, 2026",
+      "startDate": "2026-02-08T01:34:50.000Z",
+      "endDate": "2026-03-02T20:52:58.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215216330107@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215216330107@EBAY_US"
+    },
+    {
+      "name": "Extra $30 off $75 or more ending Mar 14, 2026",
+      "startDate": "2026-02-18T03:51:41.000Z",
+      "endDate": "2026-02-19T08:37:03.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1715251247107@EBAY_US",
+      "promotionType": "CODED_COUPON",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1715251247107@EBAY_US",
+      "couponCode": "GAUNTLETART26"
+    },
+    {
+      "name": "Order Discount ending Jan 31, 2027",
+      "startDate": "2026-01-14T05:26:50.000Z",
+      "endDate": "2026-02-18T03:48:32.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1115068458507@EBAY_US",
+      "promotionType": "ORDER_DISCOUNT",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1115068458507@EBAY_US"
+    },
+    {
+      "name": "10% off ends Mar 8, 2026",
+      "startDate": "2026-02-08T01:54:44.000Z",
+      "endDate": "2026-03-09T00:54:44.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "ENDED",
+      "priority": "PRIORITY_2",
+      "promotionId": "1215216363507@EBAY_US",
+      "promotionType": "MARKDOWN_SALE",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_price_markdown/1215216363507@EBAY_US"
+    },
+    {
+      "name": "Taylor Swift Evermore Signed Pickguard (PSA DNA 100% Authentic really 1757806750802",
+      "startDate": "2025-09-13T23:39:10.000Z",
+      "endDate": "2028-09-13T06:39:10.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "RUNNING",
+      "priority": "PRIORITY_1",
+      "promotionId": "1614436869207@EBAY_US",
+      "promotionType": "VOLUME_DISCOUNT",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1614436869207@EBAY_US"
+    },
+    {
+      "name": "Olivia Rodrigo Signed authenticated guitar pickguard 1757695882557",
+      "startDate": "2025-09-12T16:51:22.000Z",
+      "endDate": "2028-09-11T23:51:22.000Z",
+      "marketplaceId": "EBAY_US",
+      "promotionStatus": "RUNNING",
+      "priority": "PRIORITY_1",
+      "promotionId": "1614431838207@EBAY_US",
+      "promotionType": "VOLUME_DISCOUNT",
+      "promotionHref": "https://api.ebay.com/sell/marketing/v1/item_promotion/1614431838207@EBAY_US"
+    }
+  ],
+  "coupons": [],
+  "per_listing": {
+    "318089256737": {
+      "listing_id": "318089256737",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325952925017"
+    },
+    "318091093940": {
+      "listing_id": "318091093940",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326053054017"
+    },
+    "318089250037": {
+      "listing_id": "318089250037",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326019747017"
+    },
+    "318091093943": {
+      "listing_id": "318091093943",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325741670017"
+    },
+    "318091093921": {
+      "listing_id": "318091093921",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325924058017"
+    },
+    "318089256715": {
+      "listing_id": "318089256715",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325747915017"
+    },
+    "318089256729": {
+      "listing_id": "318089256729",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325905806017"
+    },
+    "318089250036": {
+      "listing_id": "318089250036",
+      "campaign_id": "162895740017",
+      "campaign_name": "DR steady 5.0% 04/02",
+      "ad_rate": 5.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325877028017"
+    },
+    "318089249999": {
+      "listing_id": "318089249999",
+      "campaign_id": "162895739017",
+      "campaign_name": "DR steady 8.0% 04/02",
+      "ad_rate": 8.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326009941017"
+    },
+    "318089256721": {
+      "listing_id": "318089256721",
+      "campaign_id": "162895739017",
+      "campaign_name": "DR steady 8.0% 04/02",
+      "ad_rate": 8.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326069669017"
+    },
+    "318091093959": {
+      "listing_id": "318091093959",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325709909017"
+    },
+    "318089256753": {
+      "listing_id": "318089256753",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325931953017"
+    },
+    "318089250011": {
+      "listing_id": "318089250011",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325920748017"
+    },
+    "318089250021": {
+      "listing_id": "318089250021",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325938452017"
+    },
+    "318089256739": {
+      "listing_id": "318089256739",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325908639017"
+    },
+    "318091093937": {
+      "listing_id": "318091093937",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326009158017"
+    },
+    "318089250025": {
+      "listing_id": "318089250025",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326009157017"
+    },
+    "318089250042": {
+      "listing_id": "318089250042",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326001524017"
+    },
+    "318091093964": {
+      "listing_id": "318091093964",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326013979017"
+    },
+    "318089256775": {
+      "listing_id": "318089256775",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325921853017"
+    },
+    "318089256758": {
+      "listing_id": "318089256758",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326052562017"
+    },
+    "318089256771": {
+      "listing_id": "318089256771",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325703009017"
+    },
+    "318089250026": {
+      "listing_id": "318089250026",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325902037017"
+    },
+    "318089256724": {
+      "listing_id": "318089256724",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326039373017"
+    },
+    "318089250032": {
+      "listing_id": "318089250032",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326037470017"
+    },
+    "318089250044": {
+      "listing_id": "318089250044",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325831882017"
+    },
+    "318089250022": {
+      "listing_id": "318089250022",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325831881017"
+    },
+    "318091093942": {
+      "listing_id": "318091093942",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325910404017"
+    },
+    "318089249996": {
+      "listing_id": "318089249996",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325881539017"
+    },
+    "318089256787": {
+      "listing_id": "318089256787",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325933841017"
+    },
+    "318089250018": {
+      "listing_id": "318089250018",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325943900017"
+    },
+    "318089256728": {
+      "listing_id": "318089256728",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326057079017"
+    },
+    "318089256732": {
+      "listing_id": "318089256732",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325926831017"
+    },
+    "318091093965": {
+      "listing_id": "318091093965",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325747914017"
+    },
+    "318089250023": {
+      "listing_id": "318089250023",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326013401017"
+    },
+    "318089250009": {
+      "listing_id": "318089250009",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326044483017"
+    },
+    "318089250038": {
+      "listing_id": "318089250038",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325989361017"
+    },
+    "318091093930": {
+      "listing_id": "318091093930",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325948774017"
+    },
+    "318091093945": {
+      "listing_id": "318091093945",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326069668017"
+    },
+    "318091093962": {
+      "listing_id": "318091093962",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325996563017"
+    },
+    "318089250005": {
+      "listing_id": "318089250005",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326026517017"
+    },
+    "318089256751": {
+      "listing_id": "318089256751",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325906382017"
+    },
+    "318089249995": {
+      "listing_id": "318089249995",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325906381017"
+    },
+    "318089249993": {
+      "listing_id": "318089249993",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325905083017"
+    },
+    "318089250039": {
+      "listing_id": "318089250039",
+      "campaign_id": "162895738017",
+      "campaign_name": "DR steady 4.0% 04/02",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325986389017"
+    },
+    "318089250014": {
+      "listing_id": "318089250014",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326005305017"
+    },
+    "318089256776": {
+      "listing_id": "318089256776",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325920747017"
+    },
+    "318089256785": {
+      "listing_id": "318089256785",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325938451017"
+    },
+    "318089250003": {
+      "listing_id": "318089250003",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326058712017"
+    },
+    "318089249991": {
+      "listing_id": "318089249991",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326058183017"
+    },
+    "318089250013": {
+      "listing_id": "318089250013",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326013978017"
+    },
+    "318089256730": {
+      "listing_id": "318089256730",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326051415017"
+    },
+    "318091093939": {
+      "listing_id": "318091093939",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326039372017"
+    },
+    "318089249997": {
+      "listing_id": "318089249997",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326039370017"
+    },
+    "318089250034": {
+      "listing_id": "318089250034",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325831880017"
+    },
+    "318089250012": {
+      "listing_id": "318089250012",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325831879017"
+    },
+    "318089250016": {
+      "listing_id": "318089250016",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325936431017"
+    },
+    "318089250041": {
+      "listing_id": "318089250041",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326016161017"
+    },
+    "318089256745": {
+      "listing_id": "318089256745",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326013400017"
+    },
+    "318089256718": {
+      "listing_id": "318089256718",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326013399017"
+    },
+    "318091093951": {
+      "listing_id": "318091093951",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325977256017"
+    },
+    "318089256786": {
+      "listing_id": "318089256786",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325916960017"
+    },
+    "318089249992": {
+      "listing_id": "318089249992",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326090062017"
+    },
+    "318089250001": {
+      "listing_id": "318089250001",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325989360017"
+    },
+    "318091093941": {
+      "listing_id": "318091093941",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325948773017"
+    },
+    "318089256768": {
+      "listing_id": "318089256768",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4326069667017"
+    },
+    "318091093925": {
+      "listing_id": "318091093925",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325961243017"
+    },
+    "318089256791": {
+      "listing_id": "318089256791",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325679050017"
+    },
+    "318089250029": {
+      "listing_id": "318089250029",
+      "campaign_id": "162895737017",
+      "campaign_name": "DR steady 6.0% 04/02",
+      "ad_rate": 6.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4325925862017"
+    },
+    "318089249994": {
+      "listing_id": "318089249994",
+      "campaign_id": "162840250017",
+      "campaign_name": "Dynamic Campaign 03/31/2026 21:34:20",
+      "ad_rate": 12.5,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4321999781017"
+    },
+    "318089256731": {
+      "listing_id": "318089256731",
+      "campaign_id": "162840113017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/31",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322000975017"
+    },
+    "318089256773": {
+      "listing_id": "318089256773",
+      "campaign_id": "162840112017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/31",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322378752017"
+    },
+    "318091093976": {
+      "listing_id": "318091093976",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 2.5,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322676057017"
+    },
+    "318089250028": {
+      "listing_id": "318089250028",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 11.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322000452017"
+    },
+    "318089256750": {
+      "listing_id": "318089256750",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 16.3,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322363767017"
+    },
+    "318089250045": {
+      "listing_id": "318089250045",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 2.5,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322363182017"
+    },
+    "318089250030": {
+      "listing_id": "318089250030",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 16.3,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322363180017"
+    },
+    "318089256762": {
+      "listing_id": "318089256762",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 9.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322342835017"
+    },
+    "318089256784": {
+      "listing_id": "318089256784",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 2.5,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322313513017"
+    },
+    "318089256788": {
+      "listing_id": "318089256788",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 13.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322313512017"
+    },
+    "318089250033": {
+      "listing_id": "318089250033",
+      "campaign_id": "162649165017",
+      "campaign_name": "DATARADAR Standard Cps 2.5% 03/27",
+      "ad_rate": 12.5,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322364340017"
+    },
+    "318089250007": {
+      "listing_id": "318089250007",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4321994401017"
+    },
+    "318089250006": {
+      "listing_id": "318089250006",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4321996234017"
+    },
+    "318089250004": {
+      "listing_id": "318089250004",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4321996826017"
+    },
+    "318089256767": {
+      "listing_id": "318089256767",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322361994017"
+    },
+    "318089256763": {
+      "listing_id": "318089256763",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322363183017"
+    },
+    "318089250031": {
+      "listing_id": "318089250031",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322363181017"
+    },
+    "318089256779": {
+      "listing_id": "318089256779",
+      "campaign_id": "162649163017",
+      "campaign_name": "DATARADAR Standard Cps 2% 03/27",
+      "ad_rate": 2.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322342837017"
+    },
+    "318091093960": {
+      "listing_id": "318091093960",
+      "campaign_id": "162649162017",
+      "campaign_name": "DATARADAR Standard Cps 3% 03/27",
+      "ad_rate": 3.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4323075243017"
+    },
+    "318091093954": {
+      "listing_id": "318091093954",
+      "campaign_id": "162649162017",
+      "campaign_name": "DATARADAR Standard Cps 3% 03/27",
+      "ad_rate": 3.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4323075242017"
+    },
+    "318091093956": {
+      "listing_id": "318091093956",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4323075241017"
+    },
+    "318091093963": {
+      "listing_id": "318091093963",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322684424017"
+    },
+    "318091093970": {
+      "listing_id": "318091093970",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4323480094017"
+    },
+    "318089256783": {
+      "listing_id": "318089256783",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322361993017"
+    },
+    "318089256765": {
+      "listing_id": "318089256765",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322342836017"
+    },
+    "318089256764": {
+      "listing_id": "318089256764",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322290702017"
+    },
+    "318089250909": {
+      "listing_id": "318089250909",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322290701017"
+    },
+    "318089256782": {
+      "listing_id": "318089256782",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322313511017"
+    },
+    "318089256781": {
+      "listing_id": "318089256781",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322378751017"
+    },
+    "318089250027": {
+      "listing_id": "318089250027",
+      "campaign_id": "162649160017",
+      "campaign_name": "DATARADAR Standard Cps 4% 03/27",
+      "ad_rate": 4.0,
+      "funding_model": "COST_PER_SALE",
+      "ad_status": "",
+      "ad_id": "4322378750017"
+    }
+  },
+  "summary": {
+    "total_campaigns": 44,
+    "active_campaigns": 31,
+    "total_promoted_listings": 100,
+    "total_item_promos": 14,
+    "total_coupons": 0
+  },
+  "last_fetched": "2026-04-05T23:07:53.797975"
+}

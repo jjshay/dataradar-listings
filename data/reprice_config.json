@@ -1,0 +1,45 @@
+{
+  "enabled": false,
+  "stale_threshold_days": 21,
+  "category_rules": {
+    "Shepard Fairey": {
+      "markdown_pct": 5,
+      "max_total_pct": 25
+    },
+    "KAWS": {
+      "markdown_pct": 5,
+      "max_total_pct": 20
+    },
+    "Death NYC": {
+      "markdown_pct": 8,
+      "max_total_pct": 30
+    },
+    "Banksy": {
+      "markdown_pct": 3,
+      "max_total_pct": 15
+    },
+    "Bearbrick": {
+      "markdown_pct": 5,
+      "max_total_pct": 25
+    },
+    "Mr. Brainwash": {
+      "markdown_pct": 7,
+      "max_total_pct": 30
+    },
+    "Space/NASA": {
+      "markdown_pct": 7,
+      "max_total_pct": 30
+    },
+    "Signed Music": {
+      "markdown_pct": 5,
+      "max_total_pct": 25
+    },
+    "Other": {
+      "markdown_pct": 10,
+      "max_total_pct": 35
+    }
+  },
+  "original_prices": {},
+  "history": [],
+  "last_run": "2026-04-05T15:47:47.206483"
+}

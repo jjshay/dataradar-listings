@@ -1,0 +1,106 @@
+[
+  {
+    "id": "n-20260405155518",
+    "type": "saved_search",
+    "title": "2 new: \"KAWS Companion authentic\"",
+    "message": "Best: $250 KAWS Companion Flayed Open Edition Vinyl",
+    "severity": "info",
+    "data": {
+      "query": "KAWS Companion authentic",
+      "url": "https://www.ebay.com/itm/406832727877?_skw=KAWS+Companion+authentic&hash=item5eb91ec745:g:sEwAAeSwh-Bp0tD3",
+      "price": 250.0
+    },
+    "read": true,
+    "created": "2026-04-05T15:55:18.708460"
+  },
+  {
+    "id": "n-20260403001010",
+    "type": "saved_search",
+    "title": "36 new: \"KAWS Companion authentic\"",
+    "message": "Best: $200 KAWS HOLIDAY KOREA Brown Companion Float",
+    "severity": "high",
+    "data": {
+      "query": "KAWS Companion authentic",
+      "url": "https://www.ebay.com/itm/389818683667?_skw=KAWS+Companion+authentic&hash=item5ac3011113:g:53YAAeSwEZ1pycv0",
+      "price": 200.0
+    },
+    "read": true,
+    "created": "2026-04-03T00:10:10.977696"
+  },
+  {
+    "id": "n-20260403001010",
+    "type": "saved_search",
+    "title": "8 new: \"Shepard Fairey signed numbered\"",
+    "message": "Best: $55 SIGNED Shepard Fairey OBEY Giant Reenvis",
+    "severity": "high",
+    "data": {
+      "query": "Shepard Fairey signed numbered",
+      "url": "https://www.ebay.com/itm/204571293904?_skw=Shepard+Fairey+signed+numbered&hash=item2fa16638d0:g:K~EAAOSwYmRlckiI",
+      "price": 54.99
+    },
+    "read": true,
+    "created": "2026-04-03T00:10:10.580620"
+  },
+  {
+    "id": "n-20260331235814",
+    "type": "event",
+    "title": "Beatles Breakup Anniversary in 7 days",
+    "message": "Consider boosting ad rates for beatles, lennon, mccartney items. Tier: MEDIUM",
+    "severity": "warning",
+    "data": {},
+    "read": true,
+    "created": "2026-03-31T23:58:14.379639"
+  },
+  {
+    "id": "n-20260331235813",
+    "type": "event",
+    "title": "Beatles Breakup Anniversary in 7 days",
+    "message": "Consider boosting ad rates for beatles, lennon, mccartney items. Tier: MEDIUM",
+    "severity": "warning",
+    "data": {},
+    "read": true,
+    "created": "2026-03-31T23:58:13.895026"
+  },
+  {
+    "id": "n-20260331235110",
+    "type": "event",
+    "title": "Beatles Breakup Anniversary in 7 days",
+    "message": "Consider boosting ad rates for beatles, lennon, mccartney items. Tier: MEDIUM",
+    "severity": "warning",
+    "data": {},
+    "read": true,
+    "created": "2026-03-31T23:51:10.717775"
+  },
+  {
+    "id": "n-20260331231404",
+    "type": "promo",
+    "title": "High-value item not promoted",
+    "message": "Shepard Fairey God Save the Queen Print 2012 Signe ($1155) has no active promotion.",
+    "severity": "info",
+    "data": {
+      "listing_id": "317898357271"
+    },
+    "read": true,
+    "created": "2026-03-31T23:14:04.291419"
+  },
+  {
+    "id": "n-20260331231404",
+    "type": "event",
+    "title": "Beatles Breakup Anniversary in 7 days",
+    "message": "Consider boosting ad rates for beatles, lennon, mccartney items. Tier: MEDIUM",
+    "severity": "warning",
+    "data": {},
+    "read": true,
+    "created": "2026-03-31T23:14:04.290026"
+  },
+  {
+    "id": "n-20260331204431",
+    "type": "event",
+    "title": "Beatles Breakup Anniversary in 7 days",
+    "message": "Consider boosting ad rates for beatles, lennon, mccartney items. Tier: MEDIUM",
+    "severity": "warning",
+    "data": {},
+    "read": true,
+    "created": "2026-03-31T20:44:31.006120"
+  }
+]

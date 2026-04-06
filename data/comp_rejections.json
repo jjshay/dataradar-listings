@@ -1,0 +1,9 @@
+{
+  "rejected_titles": [],
+  "rejected_patterns": [],
+  "learned_rules": [],
+  "stats": {
+    "total_rejected": 0,
+    "total_learned": 0
+  }
+}
