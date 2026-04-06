@@ -11370,6 +11370,56 @@ def manage_cost_basis():
     return jsonify(load_cost_basis())
 
 
+@app.route('/api/cost-basis/import', methods=['POST'])
+def import_cost_basis():
+    """Import cost basis from JSON — {title_or_id: cost, ...} or [{title, cost}, ...]"""
+    data = request.get_json()
+    cb = load_cost_basis()
+    listings = ebay.get_all_listings()
+    title_to_id = {l['title'].lower()[:40]: l['id'] for l in listings}
+
+    imported = 0
+    if isinstance(data, dict):
+        items = [{'title': k, 'cost': v} for k, v in data.items()]
+    elif isinstance(data, list):
+        items = data
+    else:
+        return jsonify({'error': 'Send JSON dict or list'}), 400
+
+    for item in items:
+        title = item.get('title', '')
+        cost = float(item.get('cost', 0))
+        listing_id = item.get('listing_id', '')
+
+        if not cost or cost <= 0:
+            continue
+
+        # Try direct listing_id first
+        if listing_id:
+            cb[listing_id] = {'cost': cost, 'source': 'import', 'updated': datetime.now().isoformat()}
+            imported += 1
+            continue
+
+        # Fuzzy match by title
+        t_lower = title.lower()[:40]
+        if t_lower in title_to_id:
+            cb[title_to_id[t_lower]] = {'cost': cost, 'source': 'import', 'title': title[:60], 'updated': datetime.now().isoformat()}
+            imported += 1
+        else:
+            # Try partial match
+            for t_key, lid in title_to_id.items():
+                if t_lower[:20] in t_key or t_key[:20] in t_lower:
+                    cb[lid] = {'cost': cost, 'source': 'import', 'title': title[:60], 'updated': datetime.now().isoformat()}
+                    imported += 1
+                    break
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(COST_BASIS_FILE, 'w') as f:
+        json.dump(cb, f, indent=2)
+
+    return jsonify({'imported': imported, 'total_items': len(items), 'total_costs': len(cb)})
+
+
 # =============================================================================
 # Daily Ops Snapshot — Everything needed to run the business today
 # =============================================================================
@@ -11633,20 +11683,69 @@ def get_comps_v2():
             for h in lookup_historical_prices(fake_title, artist, 50):
                 add_candidate(h, h.get('source', 'WorthPoint'))
 
-    # Also do canonical work clustering — search historical by canonical work name
-    hist_data = load_historical_clean()
-    if clean_title and artist:
-        target_words = set(w for w in clean_title.split() if len(w) > 2 and w not in noise)
+    # Canonical work clustering — find all records in the same cluster
+    CLUSTER_NOISE = {'red','blue','black','white','gold','silver','green','pink',
+                     'orange','purple','grey','gray','variant','version','set','pair',
+                     'open','closed','flayed','i','ii','iii','iv','v'}
+    target_cw = target_rec.get('title_normalized', '')
+    cw_words = sorted([w for w in target_cw.split() if w not in noise and w not in CLUSTER_NOISE and len(w) > 1])
+    cluster_key = f"{artist}::{' '.join(cw_words)}" if cw_words else ''
+
+    # Load cluster data
+    cluster_file = os.path.join(DATA_DIR, 'work_clusters.json')
+    cluster_data = {}
+    if os.path.exists(cluster_file):
+        try:
+            with open(cluster_file) as f:
+                cluster_data = json.load(f)
+        except Exception:
+            pass
+
+    # Try exact cluster match first, then fuzzy
+    clusters = cluster_data.get('clusters', {})
+    reverse_map = cluster_data.get('reverse_map', {})
+    matched_cluster = None
+
+    # Try reverse lookup
+    for cw_variant in [f"{artist}::{target_cw}", cluster_key]:
+        if cw_variant in reverse_map:
+            matched_cluster = reverse_map[cw_variant]
+            break
+
+    # If no reverse match, try partial key match
+    if not matched_cluster and cw_words:
+        for ck in clusters:
+            if not ck.startswith(artist + '::'):
+                continue
+            ck_words = set(ck.split('::')[1].split()) if '::' in ck else set()
+            if len(set(cw_words) & ck_words) >= 2:
+                matched_cluster = ck
+                break
+
+    # Pull all historical records from the matched cluster
+    if matched_cluster and matched_cluster in clusters:
+        cluster_info = clusters[matched_cluster]
+        hist_data = load_historical_clean()
+        cluster_cw_words = set(matched_cluster.split('::')[1].split()) if '::' in matched_cluster else set()
         for rec in hist_data:
             if rec.get('artist') != artist:
                 continue
-            # Match by canonical_work field
-            rec_canonical = rec.get('canonical_work', '')
-            rec_words = set(rec.get('title_words', []))
-            # Check: does the canonical work share key words?
-            if target_words and rec_words:
-                overlap = len(target_words & rec_words)
-                if overlap >= 1:
+            rec_cw = rec.get('canonical_work', '')
+            rec_cw_stripped = ' '.join(sorted([w for w in rec_cw.split() if w not in CLUSTER_NOISE and len(w) > 1]))
+            if cluster_cw_words and set(rec_cw_stripped.split()) & cluster_cw_words:
+                if len(set(rec_cw_stripped.split()) & cluster_cw_words) >= 2 or len(cluster_cw_words) <= 2:
+                    add_candidate(rec, rec.get('source', 'WorthPoint'))
+
+    # Also fallback: scan by title word overlap for unclustered records
+    else:
+        hist_data = load_historical_clean()
+        if clean_title and artist:
+            target_words_set = set(w for w in clean_title.split() if len(w) > 2 and w not in noise)
+            for rec in hist_data:
+                if rec.get('artist') != artist:
+                    continue
+                rec_words = set(rec.get('title_words', []))
+                if target_words_set and rec_words and len(target_words_set & rec_words) >= 1:
                     add_candidate(rec, rec.get('source', 'WorthPoint'))
 
     # 2. eBay active — multi-query search
