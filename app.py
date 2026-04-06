@@ -13051,6 +13051,15 @@ def buyer_crm():
     """Build buyer CRM from sold items + feedback overview — repeat buyers, total spend"""
     sold = ebay.get_sold_items(days_back=90)
 
+    # Also pull from longer window for more complete buyer history
+    sold_extended = ebay.get_sold_items(days_back=180)
+    # Merge without duplicates
+    seen_ids = set(s.get('id','') for s in sold)
+    for s in sold_extended:
+        if s.get('id','') not in seen_ids:
+            sold.append(s)
+            seen_ids.add(s.get('id',''))
+
     # Also pull buyer data from feedback overview (has buyer IDs reliably)
     try:
         token = ebay.get_access_token()
