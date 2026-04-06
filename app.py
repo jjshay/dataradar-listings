@@ -11544,6 +11544,190 @@ def daily_ops():
 
 
 # =============================================================================
+# Daily Summary Email
+# =============================================================================
+
+def build_daily_email_html():
+    """Build a beautiful HTML email summary from all app data."""
+    listings = ebay.get_all_listings()
+    sold = ebay.get_sold_items(days_back=7)
+    sold_60 = ebay.get_sold_items(days_back=60)
+    promo = fetch_all_promotions()
+    per_listing = promo.get('per_listing', {})
+    now = datetime.now()
+
+    # Sales
+    today_str = now.strftime('%Y-%m-%d')
+    week_sales = [s for s in sold if s.get('end_time', '')[:10] >= (now - timedelta(days=7)).strftime('%Y-%m-%d')]
+    today_sales = [s for s in sold if s.get('end_time', '')[:10] == today_str]
+    week_rev = round(sum(s['price'] for s in week_sales))
+    today_rev = round(sum(s['price'] for s in today_sales))
+    velocity = round(len(sold_60) / 60, 1)
+    avg_sale = round(sum(s['price'] for s in sold_60) / max(len(sold_60), 1))
+
+    # Inventory
+    total = len(listings)
+    with_watchers = len([l for l in listings if l.get('watchers', 0) > 0])
+    total_watchers = sum(l.get('watchers', 0) for l in listings)
+    promoted = len(per_listing)
+
+    # Pending shipments
+    recent = [s for s in sold if s.get('end_time', '')[:10] >= (now - timedelta(days=3)).strftime('%Y-%m-%d')]
+
+    # Top sales this week
+    top_sales = sorted(week_sales, key=lambda s: -s['price'])[:5]
+
+    # Stale items
+    stale = []
+    for l in listings:
+        st = l.get('start_time', '') or ''
+        if st:
+            try:
+                days = (now - datetime.strptime(st[:19], '%Y-%m-%dT%H:%M:%S')).days
+                if days > 21 and l.get('watchers', 0) == 0:
+                    stale.append({'title': l['title'][:50], 'price': l['price'], 'days': days})
+            except Exception:
+                pass
+    stale.sort(key=lambda x: -x['days'])
+
+    # Hot items (watchers)
+    hot = sorted([l for l in listings if l.get('watchers', 0) >= 2], key=lambda l: -l.get('watchers', 0))[:5]
+
+    # Build HTML
+    html = f'''<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:#f5f5f7;margin:0;padding:0;">
+<div style="max-width:600px;margin:0 auto;padding:20px;">
+
+    <div style="text-align:center;padding:20px 0;">
+        <h1 style="font-size:28px;font-weight:800;letter-spacing:-0.5px;margin:0;">DATARADAR</h1>
+        <p style="color:#86868b;font-size:13px;margin:4px 0;">{now.strftime('%A, %B %d, %Y')}</p>
+    </div>
+
+    <!-- Key Numbers -->
+    <table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom:16px;">
+    <tr>
+        <td style="background:#1c1c1e;border-radius:12px;padding:16px;text-align:center;width:33%;">
+            <div style="font-size:28px;font-weight:800;color:#30d158;">${today_rev:,}</div>
+            <div style="font-size:10px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;">Today</div>
+        </td>
+        <td style="background:#1c1c1e;border-radius:12px;padding:16px;text-align:center;width:33%;">
+            <div style="font-size:28px;font-weight:800;color:#0a84ff;">${week_rev:,}</div>
+            <div style="font-size:10px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;">This Week</div>
+        </td>
+        <td style="background:#1c1c1e;border-radius:12px;padding:16px;text-align:center;width:33%;">
+            <div style="font-size:28px;font-weight:800;">{velocity}</div>
+            <div style="font-size:10px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;">Sales/Day</div>
+        </td>
+    </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom:20px;">
+    <tr>
+        <td style="background:#1c1c1e;border-radius:12px;padding:12px;text-align:center;">
+            <div style="font-size:18px;font-weight:700;">{total}</div>
+            <div style="font-size:9px;color:#86868b;text-transform:uppercase;">Listings</div>
+        </td>
+        <td style="background:#1c1c1e;border-radius:12px;padding:12px;text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:#ff9f0a;">{total_watchers}</div>
+            <div style="font-size:9px;color:#86868b;text-transform:uppercase;">Watchers</div>
+        </td>
+        <td style="background:#1c1c1e;border-radius:12px;padding:12px;text-align:center;">
+            <div style="font-size:18px;font-weight:700;">${avg_sale}</div>
+            <div style="font-size:9px;color:#86868b;text-transform:uppercase;">Avg Sale</div>
+        </td>
+        <td style="background:#1c1c1e;border-radius:12px;padding:12px;text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:#ff9f0a;">{len(recent)}</div>
+            <div style="font-size:9px;color:#86868b;text-transform:uppercase;">To Ship</div>
+        </td>
+    </tr>
+    </table>
+
+    <!-- Top Sales -->
+    {f"""<div style="background:#1c1c1e;border-radius:12px;padding:16px;margin-bottom:12px;border-left:4px solid #30d158;">
+        <div style="font-size:11px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Top Sales This Week</div>
+        {''.join(f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:13px;">{s["title"][:45]}</span><span style="font-size:13px;font-weight:700;color:#30d158;">${s["price"]:,.0f}</span></div>' for s in top_sales)}
+    </div>""" if top_sales else ''}
+
+    <!-- Hot Items -->
+    {f"""<div style="background:#1c1c1e;border-radius:12px;padding:16px;margin-bottom:12px;border-left:4px solid #ff9f0a;">
+        <div style="font-size:11px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Hot Items (Watchers)</div>
+        {''.join(f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:13px;">{l["title"][:40]}</span><span style="font-size:13px;font-weight:700;color:#ff9f0a;">{l.get("watchers",0)}w · ${l["price"]:,.0f}</span></div>' for l in hot)}
+    </div>""" if hot else ''}
+
+    <!-- Stale Items -->
+    {f"""<div style="background:#1c1c1e;border-radius:12px;padding:16px;margin-bottom:12px;border-left:4px solid #ff453a;">
+        <div style="font-size:11px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Stale — Needs Attention ({len(stale)})</div>
+        {''.join(f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;"><span>{s["title"]}</span><span style="color:#ff453a;">{s["days"]}d · ${s["price"]:,.0f}</span></div>' for s in stale[:5])}
+    </div>""" if stale else ''}
+
+    <!-- Shipments -->
+    {f"""<div style="background:#1c1c1e;border-radius:12px;padding:16px;margin-bottom:12px;border-left:4px solid #0a84ff;">
+        <div style="font-size:11px;color:#86868b;text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:8px;">Ship Today ({len(recent)})</div>
+        {''.join(f'<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;">{s.get("title","")[:45]} · <b style="color:#30d158;">${s["price"]:,.0f}</b></div>' for s in recent[:5])}
+    </div>""" if recent else ''}
+
+    <div style="text-align:center;padding:20px 0;font-size:11px;color:#86868b;">
+        DATARADAR · {total} listings · ${week_rev:,} this week · {velocity}/day velocity
+    </div>
+
+</div>
+</body>
+</html>'''
+    return html
+
+
+def send_daily_email(to_email='jjshay@gmail.com'):
+    """Send daily summary email via SMTP."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    smtp_user = ENV.get('SMTP_USER', '') or ENV.get('GMAIL_USER', '')
+    smtp_pass = ENV.get('SMTP_PASS', '') or ENV.get('GMAIL_APP_PASSWORD', '')
+
+    if not smtp_user or not smtp_pass:
+        print("[Email] No SMTP credentials — set SMTP_USER and SMTP_PASS in .env")
+        return False
+
+    html = build_daily_email_html()
+    now = datetime.now()
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = f'DATARADAR Daily — {now.strftime("%b %d")}'
+    msg['From'] = smtp_user
+    msg['To'] = to_email
+    msg.attach(MIMEText(html, 'html'))
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        print(f"[Email] Daily summary sent to {to_email}")
+        add_notification('email', 'Daily email sent', f'Summary sent to {to_email}', severity='info')
+        return True
+    except Exception as e:
+        print(f"[Email] Failed: {e}")
+        return False
+
+
+@app.route('/api/email/preview')
+def email_preview():
+    """Preview the daily email in browser"""
+    return build_daily_email_html(), 200, {'Content-Type': 'text/html'}
+
+
+@app.route('/api/email/send', methods=['POST'])
+def send_email_now():
+    """Send the daily summary email now"""
+    data = request.get_json() or {}
+    to = data.get('to', 'jjshay@gmail.com')
+    success = send_daily_email(to)
+    return jsonify({'sent': success, 'to': to})
+
+
+# =============================================================================
 # Consolidated detect_cat — single source of truth for category detection
 # =============================================================================
 
@@ -12651,6 +12835,19 @@ def scheduler_loop():
                             config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Saved searches: {new_count} new items"] + config.get('log', []))[:50]
                     except Exception as e:
                         print(f"Saved search check error: {e}")
+                    ran_something = True
+
+            # Daily email — send at 8am
+            email_task = tasks.get('daily_email', {'enabled': True, 'hour': 8, 'last_run': None})
+            if email_task.get('enabled', True):
+                target_hour = email_task.get('hour', 8)
+                last = email_task.get('last_run')
+                today_str = now.strftime('%Y-%m-%d')
+                already_ran = last and last[:10] == today_str
+                if now.hour >= target_hour and not already_ran:
+                    send_daily_email()
+                    tasks.setdefault('daily_email', {})['last_run'] = now.isoformat()
+                    config['log'] = ([f"{now.strftime('%m/%d %H:%M')} Daily email sent"] + config.get('log', []))[:50]
                     ran_something = True
 
             if ran_something:
