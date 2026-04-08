@@ -509,6 +509,20 @@
                 </div>
             </div>
 
+            <!-- Database Search — pure historical, instant -->
+            <div class="section">
+                <div class="card" style="border:2px solid var(--accent);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div>
+                            <div style="font-size:14px;font-weight:700;color:var(--accent);">📚 Historical Database (54k+ sales)</div>
+                            <div style="font-size:11px;color:var(--dim);">Instant search of cleaned WorthPoint records — no eBay calls</div>
+                        </div>
+                        <button class="btn btn-primary" style="padding:8px 16px;font-size:13px;font-weight:700;" onclick="searchDatabase()">Search DB</button>
+                    </div>
+                    <div id="db-results"></div>
+                </div>
+            </div>
+
             <!-- Photo upload — AI extracts artist/title from photo -->
             <div class="section">
                 <div class="card" style="border:2px dashed var(--accent);text-align:center;cursor:pointer;" onclick="document.getElementById('photo-upload').click();">
@@ -3405,6 +3419,97 @@
         // Artwork Lookup
         // ==========================================
         document.getElementById('lookup-query')?.addEventListener('keypress', e => { if (e.key === 'Enter') runLookup(); });
+
+        async function searchDatabase() {
+            const query = document.getElementById('lookup-query').value.trim();
+            const artist = document.getElementById('lookup-artist').value;
+            const minPrice = parseInt(document.getElementById('lookup-min').value) || 0;
+            const maxPrice = parseInt(document.getElementById('lookup-max').value) || 999999;
+            if (!query && !artist) { toast('Enter search term or pick artist'); return; }
+
+            const el = document.getElementById('db-results');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const resp = await fetch('/api/database/search', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query, artist, min_price: minPrice, max_price: maxPrice})
+                });
+                const d = await resp.json();
+                if (d.error) { el.innerHTML = `<div style="color:var(--red);padding:10px;">${d.error}</div>`; return; }
+
+                const s = d.stats || {};
+                const records = d.records || [];
+
+                if (!records.length) {
+                    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--dim);">No matches in database for "${query}"</div>`;
+                    return;
+                }
+
+                el.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px;">
+                        <div class="card" style="text-align:center;border-left:3px solid var(--accent);"><div style="font-size:20px;font-weight:800;">${s.count}</div><div class="stat-lbl">Sales</div></div>
+                        <div class="card" style="text-align:center;border-left:3px solid var(--green);"><div style="font-size:20px;font-weight:800;color:var(--green);">$${s.median ? Math.round(s.median) : '--'}</div><div class="stat-lbl">Median</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:20px;font-weight:800;">$${s.avg || '--'}</div><div class="stat-lbl">Average</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:14px;font-weight:700;">$${s.min ? Math.round(s.min) : '--'}—$${s.max ? Math.round(s.max) : '--'}</div><div class="stat-lbl">Range</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:14px;font-weight:700;">$${s.p25 ? Math.round(s.p25) : '--'}—$${s.p75 ? Math.round(s.p75) : '--'}</div><div class="stat-lbl">25-75%</div></div>
+                        <div class="card" style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--purple);">${s.signed_pct || 0}%</div><div class="stat-lbl">Signed</div></div>
+                    </div>
+
+                    ${d.by_year?.length ? `<div style="margin-bottom:12px;">
+                        <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Trend by Year</div>
+                        <canvas id="db-chart" height="200"></canvas>
+                    </div>` : ''}
+
+                    ${Object.keys(d.by_medium||{}).length ? `<div style="margin-bottom:12px;">
+                        <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">By Medium</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            ${Object.entries(d.by_medium).sort((a,b)=>b[1]-a[1]).map(([m,c])=>`<span class="pill pill-blue">${m||'unknown'}: ${c}</span>`).join('')}
+                        </div>
+                    </div>` : ''}
+
+                    <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Showing ${Math.min(records.length, 50)} of ${s.count}</div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Price</th><th>Date</th><th>Signed</th><th>Medium</th><th>Source</th></tr></thead>
+                        <tbody>${records.slice(0,50).map(r => `<tr>
+                            <td class="trunc">${r.name}</td>
+                            <td class="r g b">$${Math.round(r.price).toLocaleString()}</td>
+                            <td class="d" style="font-size:11px;">${r.date||'--'}</td>
+                            <td>${r.signed ? '<span style="color:var(--green);">✓</span>' : '<span class="d">--</span>'}</td>
+                            <td class="d" style="font-size:11px;">${r.medium||''}</td>
+                            <td class="d" style="font-size:10px;">${r.source||''}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+
+                // Year chart
+                if (d.by_year?.length) {
+                    setTimeout(() => {
+                        const ctx = document.getElementById('db-chart');
+                        if (ctx) {
+                            new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: d.by_year.map(y => y.year),
+                                    datasets: [
+                                        {label: 'Median', data: d.by_year.map(y => y.median), borderColor: '#30d158', backgroundColor: 'rgba(48,209,88,0.1)', fill: true, tension: 0.3, pointRadius: 5},
+                                        {label: 'Average', data: d.by_year.map(y => y.avg), borderColor: '#0a84ff', borderDash: [4,4], pointRadius: 3, fill: false},
+                                    ]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: {legend: {labels: {color: '#86868b', font: {size: 10}}}, tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: $${ctx.raw} (${d.by_year[ctx.dataIndex].count} sales)`}}},
+                                    scales: {
+                                        x: {ticks: {color: '#86868b'}, grid: {color: 'rgba(255,255,255,0.04)'}},
+                                        y: {ticks: {color: '#86868b', callback: v => '$' + v}, grid: {color: 'rgba(255,255,255,0.04)'}}
+                                    }
+                                }
+                            });
+                        }
+                    }, 100);
+                }
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);padding:10px;">Failed: ${e.message}</div>`; }
+        }
 
         async function extractFromPhoto(input) {
             const file = input.files[0];

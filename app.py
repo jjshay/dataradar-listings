@@ -11814,6 +11814,123 @@ def send_daily_email(to_email='jjshay@gmail.com'):
         return False
 
 
+@app.route('/api/database/search', methods=['POST'])
+def database_search():
+    """Search 54k+ historical sales by artwork name. Pure database, fast, no eBay calls."""
+    data = request.get_json()
+    query = (data.get('query', '') or '').strip()
+    artist_filter = (data.get('artist', '') or '').strip()
+    min_price = float(data.get('min_price', 0))
+    max_price = float(data.get('max_price', 999999))
+    signed_only = data.get('signed_only', False)
+
+    if not query and not artist_filter:
+        return jsonify({'error': 'Provide query or artist'}), 400
+
+    hist_data = load_historical_clean()
+
+    # Tokenize query
+    noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
+             'new', 'lot', 'rare', 'free', 'shipping', 'print', 'signed', 'numbered', 'hand',
+             'screen', 'edition', 'limited', 'art', 'original', 'obey', 'giant', 'shepard',
+             'fairey', 'death', 'nyc', 'banksy', 'kaws', 'brainwash'}
+    query_words = set(w.lower() for w in re.findall(r'\w+', query) if w.lower() not in noise and len(w) > 2)
+
+    matches = []
+    for rec in hist_data:
+        # Artist filter
+        if artist_filter and rec.get('artist', '').lower() != artist_filter.lower():
+            continue
+
+        # Price filter
+        price = rec.get('price', 0) or 0
+        if not (min_price <= price <= max_price):
+            continue
+
+        # Signed filter
+        if signed_only and not rec.get('signed', False):
+            continue
+
+        # Word match
+        if query_words:
+            rec_words = set(rec.get('title_words', []))
+            overlap = len(query_words & rec_words)
+            if overlap < 1:
+                continue
+            rec['_overlap'] = overlap
+
+        matches.append(rec)
+
+    # Sort by relevance (overlap), then date
+    matches.sort(key=lambda x: (-x.get('_overlap', 0), x.get('date', '')), reverse=False)
+    matches.sort(key=lambda x: -x.get('_overlap', 0))
+
+    # Stats
+    prices = sorted([m['price'] for m in matches if m.get('price', 0) > 0])
+    p25 = prices[len(prices)//4] if len(prices) >= 4 else None
+    p75 = prices[3*len(prices)//4] if len(prices) >= 4 else None
+
+    # Year breakdown
+    by_year = {}
+    for m in matches:
+        date = m.get('date', '')
+        if date and len(date) >= 4:
+            y = date[:4]
+            if y not in by_year:
+                by_year[y] = {'count': 0, 'total': 0, 'prices': []}
+            by_year[y]['count'] += 1
+            by_year[y]['total'] += m.get('price', 0)
+            by_year[y]['prices'].append(m.get('price', 0))
+    year_stats = []
+    for y in sorted(by_year.keys()):
+        prices_y = sorted(by_year[y]['prices'])
+        year_stats.append({
+            'year': y,
+            'count': by_year[y]['count'],
+            'avg': round(by_year[y]['total'] / by_year[y]['count']),
+            'median': prices_y[len(prices_y)//2] if prices_y else 0,
+            'min': prices_y[0] if prices_y else 0,
+            'max': prices_y[-1] if prices_y else 0,
+        })
+
+    # Medium breakdown
+    by_medium = {}
+    for m in matches:
+        med = m.get('medium', 'unknown') or 'unknown'
+        by_medium[med] = by_medium.get(med, 0) + 1
+
+    # Signed vs unsigned
+    signed_count = sum(1 for m in matches if m.get('signed', False))
+
+    return jsonify({
+        'query': query,
+        'artist': artist_filter,
+        'count': len(matches),
+        'records': [{
+            'name': m.get('name', '')[:100],
+            'price': m.get('price', 0),
+            'date': m.get('date', ''),
+            'source': m.get('source', ''),
+            'signed': m.get('signed', False),
+            'medium': m.get('medium', ''),
+            'url': m.get('url', ''),
+        } for m in matches[:500]],
+        'stats': {
+            'count': len(matches),
+            'min': prices[0] if prices else None,
+            'max': prices[-1] if prices else None,
+            'median': prices[len(prices)//2] if prices else None,
+            'avg': round(sum(prices)/len(prices)) if prices else None,
+            'p25': p25,
+            'p75': p75,
+            'signed_count': signed_count,
+            'signed_pct': round(signed_count / max(len(matches), 1) * 100),
+        },
+        'by_year': year_stats,
+        'by_medium': by_medium,
+    })
+
+
 @app.route('/api/lookup', methods=['POST'])
 def artwork_lookup():
     """Look up an artwork by artist + title — pulls from database, eBay sold, eBay active.
