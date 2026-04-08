@@ -11742,6 +11742,33 @@ def artwork_lookup():
 
     results = {'artist': artist, 'query': query}
 
+    # 0. YOUR OWN SOLD HISTORY — the best comp source
+    my_sold = ebay.get_sold_items(days_back=60)
+    query_words = set(w.lower() for w in re.findall(r'\w+', query) if len(w) > 2)
+    my_matches = []
+    for s in my_sold:
+        s_title = (s.get('title', '') or '').lower()
+        s_words = set(re.findall(r'\w+', s_title))
+        overlap = len(query_words & s_words)
+        if overlap >= 1 and (s.get('price', 0) or 0) >= min_price:
+            my_matches.append({
+                'title': s.get('title', '')[:80],
+                'price': s.get('price', 0),
+                'sold_date': s.get('end_time', '')[:10],
+                'days_to_sell': s.get('days_on_market'),
+                'buyer': s.get('buyer', ''),
+            })
+    my_matches.sort(key=lambda x: x.get('sold_date', ''), reverse=True)
+    my_prices = sorted([m['price'] for m in my_matches if m.get('price', 0) > 0])
+    results['my_sales'] = {
+        'records': my_matches[:20],
+        'count': len(my_matches),
+        'median': my_prices[len(my_prices)//2] if my_prices else None,
+        'min': my_prices[0] if my_prices else None,
+        'max': my_prices[-1] if my_prices else None,
+        'avg': round(sum(my_prices)/len(my_prices)) if my_prices else None,
+    }
+
     # 1. Historical database
     hist = lookup_historical_prices(f"{artist} {query}" if artist else query, artist, 50)
     hist_filtered = [h for h in hist if min_price <= (h.get('price', 0) or 0) <= max_price]
@@ -11796,6 +11823,9 @@ def artwork_lookup():
 
     # 4. V2 comp engine pricing (combines all sources)
     all_candidates = []
+    # YOUR own sales get priority weight (most relevant)
+    for m in my_matches:
+        all_candidates.append({'title': m['title'], 'price': m['price'], 'sold_date': m.get('sold_date', ''), 'source': 'My Sales'})
     for h in hist_filtered:
         all_candidates.append({'title': h.get('name', ''), 'price': h.get('price', 0), 'sold_date': h.get('date', ''), 'source': 'Historical'})
     for a in active:

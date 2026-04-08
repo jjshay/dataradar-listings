@@ -3323,6 +3323,7 @@
                 const d = await resp.json();
                 showProgress(progress, 70, 'Building results...', 'Analyzing pricing from all sources');
 
+                const ms = d.my_sales || {};
                 const h = d.historical || {};
                 const a = d.active || {};
                 const s = d.sold || {};
@@ -3357,9 +3358,21 @@
                         </div>
                     </div>
 
-                    <!-- Source comparison -->
+                    <!-- Source comparison — 4 sources -->
                     <div class="section">
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">
+                            <div class="card" style="border-top:4px solid var(--purple);">
+                                <div style="font-size:10px;color:var(--purple);text-transform:uppercase;letter-spacing:0.8px;font-weight:700;margin-bottom:6px;">⭐ MY SALES (BEST COMP)</div>
+                                <div style="font-size:24px;font-weight:800;color:var(--purple);">${ms.median ? '$'+Math.round(ms.median) : '--'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${ms.count||0} of YOUR sales · ${ms.min ? '$'+Math.round(ms.min)+' — $'+Math.round(ms.max) : '--'}</div>
+                            </div>
+                            <div class="card" style="border-top:3px solid var(--green);">
+                                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">eBay Recently Sold</div>
+                                <div style="font-size:22px;font-weight:800;color:var(--green);">${s.median ? '$'+Math.round(s.median) : '--'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${s.count||0} sales · ${s.min ? '$'+Math.round(s.min)+' — $'+Math.round(s.max) : '--'}</div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;">
                             <div class="card" style="border-top:3px solid var(--accent);">
                                 <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Historical Database</div>
                                 <div style="font-size:22px;font-weight:800;color:var(--accent);">${h.median ? '$'+Math.round(h.median) : '--'}</div>
@@ -3369,11 +3382,6 @@
                                 <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">eBay Active</div>
                                 <div style="font-size:22px;font-weight:800;color:var(--orange);">${a.median ? '$'+Math.round(a.median) : '--'}</div>
                                 <div style="font-size:11px;color:var(--dim);">${a.count||0} listings · ${a.min ? '$'+Math.round(a.min)+' — $'+Math.round(a.max) : '--'}</div>
-                            </div>
-                            <div class="card" style="border-top:3px solid var(--green);">
-                                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">eBay Sold</div>
-                                <div style="font-size:22px;font-weight:800;color:var(--green);">${s.median ? '$'+Math.round(s.median) : '--'}</div>
-                                <div style="font-size:11px;color:var(--dim);">${s.count||0} sales · ${s.min ? '$'+Math.round(s.min)+' — $'+Math.round(s.max) : '--'}</div>
                             </div>
                         </div>
                     </div>
@@ -3385,6 +3393,21 @@
 
                     <!-- AI Guidance -->
                     <div class="section" id="lookup-ai"><div class="loading"><div class="spinner"></div><div style="font-size:10px;color:var(--dim);margin-top:4px;">Claude + GPT analyzing pricing...</div></div></div>
+
+                    <!-- MY SALES — most relevant -->
+                    ${ms.records?.length ? `<div class="section">
+                        <div class="section-title" style="color:var(--purple);">⭐ Your Past Sales (${ms.count})</div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Item</th><th class="r">Sold $</th><th>Date</th><th class="r">Days</th><th>Buyer</th></tr></thead>
+                            <tbody>${ms.records.map(r => `<tr>
+                                <td class="trunc">${r.title}</td>
+                                <td class="r g b" style="font-size:14px;">$${Math.round(r.price).toLocaleString()}</td>
+                                <td class="d" style="font-size:11px;">${r.sold_date||'--'}</td>
+                                <td class="r">${r.days_to_sell != null ? r.days_to_sell + 'd' : '--'}</td>
+                                <td class="d" style="font-size:11px;">${r.buyer||''}</td>
+                            </tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>` : ''}
 
                     <!-- Historical Records -->
                     ${h.records?.length ? `<div class="section">
@@ -3430,6 +3453,17 @@
                     const ctx = document.getElementById('lookup-chart');
                     if (!ctx) return;
                     const datasets = [];
+
+                    // MY sales — purple, biggest, most prominent
+                    const myDated = (ms.records||[]).filter(r => r.sold_date).sort((a,b) => (a.sold_date||'').localeCompare(b.sold_date||''));
+                    if (myDated.length) {
+                        datasets.push({
+                            label: '⭐ MY Sales (' + myDated.length + ')',
+                            data: myDated.map(r => ({x: r.sold_date, y: r.price})),
+                            borderColor: '#bf5af2', backgroundColor: 'rgba(191,90,242,0.5)',
+                            pointRadius: 9, pointStyle: 'star', showLine: false,
+                        });
+                    }
 
                     // Historical scatter
                     const histDated = (h.records||[]).filter(r => r.date).sort((a,b) => (a.date||'').localeCompare(b.date||''));
