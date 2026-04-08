@@ -509,6 +509,16 @@
                 </div>
             </div>
 
+            <!-- Photo upload — AI extracts artist/title from photo -->
+            <div class="section">
+                <div class="card" style="border:2px dashed var(--accent);text-align:center;cursor:pointer;" onclick="document.getElementById('photo-upload').click();">
+                    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">📸 Photo Lookup</div>
+                    <div style="font-size:11px;color:var(--dim);">Tap to upload a photo — AI extracts artist, title, edition, medium</div>
+                    <input type="file" id="photo-upload" accept="image/*" style="display:none;" onchange="extractFromPhoto(this)">
+                </div>
+                <div id="photo-result" style="margin-top:8px;"></div>
+            </div>
+
             <div id="lookup-progress"></div>
             <div id="lookup-results"></div>
         </div>
@@ -2269,12 +2279,19 @@
                             ${i.name}
                             <span onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;opacity:0.4;" title="Price history chart">📊</span>
                         </td>
-                        <td onclick="event.stopPropagation();" style="min-width:140px;background:rgba(48,209,88,0.04);border-left:2px solid var(--green);">
-                            <div style="font-size:9px;color:var(--dim);margin-bottom:2px;">Now: $${Math.round(i.your_price||0)} · AI: $${Math.round(i.suggested_price||0)}</div>
-                            <div style="display:flex;gap:4px;align-items:center;">
+                        <td onclick="event.stopPropagation();" style="min-width:200px;background:rgba(48,209,88,0.04);border-left:2px solid var(--green);">
+                            <div style="font-size:9px;color:var(--dim);margin-bottom:2px;">Now: $${Math.round(i.your_price||0)} · AI: $${Math.round(i.suggested_price||0)}${i.market_median ? ' · Comp: $'+Math.round(i.market_median) : ''}</div>
+                            <div style="display:flex;gap:4px;align-items:center;margin-bottom:3px;">
                                 <span style="color:var(--green);font-size:14px;font-weight:700;">$</span>
                                 <input type="number" id="price-${i.id}" value="${Math.round(i.suggested_price||i.your_price||0)}" min="1" step="1" onclick="event.stopPropagation();" onfocus="event.stopPropagation();this.select();" style="width:75px;background:#000;border:2px solid var(--green);border-radius:8px;color:var(--green);padding:6px 8px;font-size:15px;font-weight:800;text-align:right;">
                                 <button onclick="event.stopPropagation();applyCustomPrice('${i.id}')" class="btn" style="background:var(--green);color:#000;padding:6px 12px;font-size:13px;font-weight:800;border:none;border-radius:8px;cursor:pointer;" title="Update price on eBay">GO</button>
+                            </div>
+                            <div style="display:flex;gap:3px;">
+                                <button onclick="event.stopPropagation();quickPrice('${i.id}',${i.your_price||0},-0.10)" class="btn-ghost" style="padding:2px 6px;font-size:9px;" title="-10%">-10%</button>
+                                <button onclick="event.stopPropagation();quickPrice('${i.id}',${i.your_price||0},-0.20)" class="btn-ghost" style="padding:2px 6px;font-size:9px;" title="-20%">-20%</button>
+                                ${i.market_median ? `<button onclick="event.stopPropagation();setExactPrice('${i.id}',${Math.round(i.market_median)})" class="btn-ghost" style="padding:2px 6px;font-size:9px;color:var(--accent);" title="Match comp median $${Math.round(i.market_median)}">Comp</button>` : ''}
+                                ${i.suggested_price ? `<button onclick="event.stopPropagation();setExactPrice('${i.id}',${Math.round(i.suggested_price)})" class="btn-ghost" style="padding:2px 6px;font-size:9px;color:var(--purple);" title="Match AI $${Math.round(i.suggested_price)}">AI</button>` : ''}
+                                <button onclick="event.stopPropagation();showPriceHistory('${i.id}','${esc(i.name)}')" class="btn-ghost" style="padding:2px 6px;font-size:9px;color:var(--orange);" title="Price history">📈</button>
                             </div>
                         </td>
                         <td onclick="event.stopPropagation();invFilter='${i.signal}';document.querySelectorAll('#inv-chips .chip').forEach(c=>c.classList.remove('active'));renderInv();" style="cursor:pointer;" title="Filter by ${i.recommendation}">
@@ -2295,6 +2312,91 @@
                     </tr>`;
                 }).join('')}</tbody></table></div>` +
                 (items.length > 200 ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--dim);">Showing 200 of ${items.length}</div>` : '');
+        }
+
+        function quickPrice(id, currentPrice, pctChange) {
+            const newPrice = Math.round(currentPrice * (1 + pctChange));
+            setExactPrice(id, newPrice);
+        }
+
+        function setExactPrice(id, price) {
+            const input = document.getElementById('price-' + id);
+            if (input) {
+                input.value = price;
+                input.style.borderColor = 'var(--orange)';
+            }
+            // Auto-apply
+            acceptPrice(id, price);
+        }
+
+        async function showPriceHistory(id, name) {
+            const modal = document.getElementById('drill-modal');
+            const title = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            title.textContent = 'Price History — ' + name;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/listing/price-history/' + id);
+                const d = await resp.json();
+                const history = d.history || [];
+
+                if (!history.length) {
+                    content.innerHTML = '<div style="text-align:center;padding:30px;color:var(--dim);">No price changes recorded yet. History is tracked from now forward.</div>';
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div style="display:flex;gap:8px;margin-bottom:16px;">
+                        <div class="card" style="flex:1;text-align:center;"><div class="stat-val">${history.length}</div><div class="stat-lbl">Changes</div></div>
+                        <div class="card" style="flex:1;text-align:center;"><div class="stat-val g">$${history[history.length-1].price}</div><div class="stat-lbl">Current</div></div>
+                        <div class="card" style="flex:1;text-align:center;"><div class="stat-val">$${history[0].price}</div><div class="stat-lbl">Original</div></div>
+                    </div>
+                    <canvas id="price-history-chart" height="200" style="margin-bottom:16px;"></canvas>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Date</th><th class="r">Price</th><th class="r">Change</th></tr></thead>
+                        <tbody>${history.map((h, i) => {
+                            const diff = i > 0 ? h.price - history[i-1].price : 0;
+                            const pct = i > 0 ? Math.round(diff / history[i-1].price * 100) : 0;
+                            return `<tr>
+                                <td class="d">${h.date.substring(0,16).replace('T',' ')}</td>
+                                <td class="r b">$${h.price}</td>
+                                <td class="r ${diff > 0 ? 'g' : diff < 0 ? 'rd' : 'd'}">${i === 0 ? 'Initial' : (diff > 0 ? '+' : '') + '$' + diff + ' (' + (pct > 0 ? '+' : '') + pct + '%)'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                `;
+
+                setTimeout(() => {
+                    const ctx = document.getElementById('price-history-chart');
+                    if (ctx && history.length >= 2) {
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: history.map(h => h.date.substring(5,10)),
+                                datasets: [{
+                                    label: 'Price',
+                                    data: history.map(h => h.price),
+                                    borderColor: '#30d158',
+                                    backgroundColor: 'rgba(48,209,88,0.1)',
+                                    fill: true,
+                                    tension: 0.3,
+                                    pointRadius: 5,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {legend: {display: false}},
+                                scales: {
+                                    x: {ticks: {color: '#86868b'}, grid: {display: false}},
+                                    y: {ticks: {color: '#86868b', callback: v => '$' + v}, grid: {color: 'rgba(255,255,255,0.04)'}}
+                                }
+                            }
+                        });
+                    }
+                }, 100);
+            } catch(e) { content.innerHTML = '<div style="color:var(--red);">Failed to load history</div>'; }
         }
 
         async function applyCustomPrice(id, prefix) {
@@ -3303,6 +3405,43 @@
         // Artwork Lookup
         // ==========================================
         document.getElementById('lookup-query')?.addEventListener('keypress', e => { if (e.key === 'Enter') runLookup(); });
+
+        async function extractFromPhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const el = document.getElementById('photo-result');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:11px;color:var(--dim);margin-top:6px;">Claude analyzing photo...</div></div>';
+
+            // Convert to base64
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const resp = await fetch('/api/photo/extract', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({image: e.target.result})
+                    });
+                    const d = await resp.json();
+                    if (d.error) {
+                        el.innerHTML = `<div style="color:var(--red);padding:10px;">Failed: ${d.error}</div>`;
+                        return;
+                    }
+
+                    el.innerHTML = `<div class="card" style="border-left:3px solid var(--purple);">
+                        <div style="display:flex;gap:12px;align-items:center;">
+                            <img src="${e.target.result}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;">
+                            <div style="flex:1;">
+                                <div style="font-size:14px;font-weight:700;">${d.artist||'Unknown artist'}</div>
+                                <div style="font-size:13px;color:var(--accent);">${d.title||'Unknown title'}</div>
+                                <div style="font-size:11px;color:var(--dim);">${d.medium||''} ${d.edition?'· '+d.edition:''} ${d.year?'· '+d.year:''}</div>
+                                <div style="font-size:10px;color:var(--purple);margin-top:2px;">Confidence: ${d.confidence||'?'} · ${d.notes||''}</div>
+                            </div>
+                            <button class="btn btn-primary" style="padding:8px 14px;font-size:12px;" onclick="document.getElementById('lookup-query').value='${(d.title||'').replace(/'/g,'')}';document.getElementById('lookup-artist').value='${d.artist||''}';runLookup();">Lookup This</button>
+                        </div>
+                    </div>`;
+                } catch(err) { el.innerHTML = '<div style="color:var(--red);">Failed to extract</div>'; }
+            };
+            reader.readAsDataURL(file);
+        }
 
         async function runLookup() {
             const query = document.getElementById('lookup-query').value.trim();

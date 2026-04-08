@@ -10995,6 +10995,7 @@ def apply_price_changes():
         if lid and new_price > 0:
             if ebay.update_price(lid, float(new_price)):
                 applied += 1
+                record_price_change(lid, new_price)
             else:
                 failed += 1
                 errors.append(f'{lid}: update failed')
@@ -11374,6 +11375,107 @@ def manage_cost_basis():
         return jsonify({'success': True})
 
     return jsonify(load_cost_basis())
+
+
+# =============================================================================
+# Price History Tracking
+# =============================================================================
+PRICE_HISTORY_FILE = os.path.join(DATA_DIR, 'price_history.json')
+
+
+def load_price_history():
+    if os.path.exists(PRICE_HISTORY_FILE):
+        try:
+            with open(PRICE_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def record_price_change(listing_id, price):
+    """Record a price change for a listing"""
+    hist = load_price_history()
+    if listing_id not in hist:
+        hist[listing_id] = []
+    # Don't record duplicates
+    if hist[listing_id] and hist[listing_id][-1].get('price') == price:
+        return
+    hist[listing_id].append({
+        'price': float(price),
+        'date': datetime.now().isoformat(),
+    })
+    # Keep last 50 changes per item
+    hist[listing_id] = hist[listing_id][-50:]
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(PRICE_HISTORY_FILE, 'w') as f:
+        json.dump(hist, f)
+
+
+@app.route('/api/listing/price-history/<listing_id>')
+def get_price_history(listing_id):
+    """Get price change history for a listing"""
+    hist = load_price_history()
+    return jsonify({'history': hist.get(listing_id, []), 'listing_id': listing_id})
+
+
+# =============================================================================
+# Photo Upload + AI Extraction
+# =============================================================================
+import base64 as _b64
+
+@app.route('/api/photo/extract', methods=['POST'])
+def extract_from_photo():
+    """Upload a photo, AI extracts artist/title/edition/medium info"""
+    data = request.get_json()
+    image_data = data.get('image', '')  # base64 data URL
+
+    if not image_data:
+        return jsonify({'error': 'No image'}), 400
+
+    # Strip data URL prefix
+    if ',' in image_data:
+        image_data = image_data.split(',', 1)[1]
+
+    claude_key = ENV.get('CLAUDE_API_KEY', '')
+    if not claude_key:
+        return jsonify({'error': 'No Claude API key'}), 500
+
+    prompt = """Look at this photo of artwork and extract:
+1. Artist name (if visible in signature or label)
+2. Title of the work (if visible)
+3. Edition info (numbered like 123/450, AP, signed, etc.)
+4. Medium (screenprint, lithograph, figure, etc.)
+5. Any visible date or year
+6. Estimated category: fine_art, figure, autograph, other
+
+Return ONLY JSON: {"artist": "...", "title": "...", "edition": "...", "medium": "...", "year": "...", "category": "...", "confidence": "high/medium/low", "notes": "brief observation"}"""
+
+    try:
+        resp = requests.post('https://api.anthropic.com/v1/messages',
+            headers={'x-api-key': claude_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            json={
+                'model': 'claude-3-haiku-20240307',
+                'max_tokens': 300,
+                'messages': [{
+                    'role': 'user',
+                    'content': [
+                        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': image_data}},
+                        {'type': 'text', 'text': prompt}
+                    ]
+                }]
+            },
+            timeout=30)
+
+        if resp.status_code == 200:
+            text = resp.json().get('content', [{}])[0].get('text', '')
+            match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+            if match:
+                parsed = json.loads(match.group())
+                return jsonify(parsed)
+        return jsonify({'error': f'API error: {resp.status_code}', 'detail': resp.text[:200]}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/cost-basis/import', methods=['POST'])
