@@ -199,8 +199,9 @@
                 </div>
 
                 <div class="section" style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button class="btn btn-green" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High</button>
-                    <button class="btn btn-primary" style="flex:1;min-width:150px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Scan Competitors</button>
+                    <button class="btn btn-green" style="flex:1;min-width:120px;padding:14px;font-size:14px;justify-content:center;" onclick="applySpeedHigh()">⚡ Speed High</button>
+                    <button class="btn btn-primary" style="flex:1;min-width:120px;padding:14px;font-size:14px;justify-content:center;" onclick="loadSniper()">🎯 Competitors</button>
+                    <button class="btn" style="flex:1;min-width:120px;padding:14px;font-size:14px;justify-content:center;background:var(--orange);color:#000;" onclick="runPriceCheck()">💰 Price Check</button>
                     <div id="speed-status" style="width:100%;"></div>
                 </div>
 
@@ -258,6 +259,11 @@
                     </div>
                     <div id="d-events" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
                 </div>
+            </div>
+
+            <!-- Price Check -->
+            <div class="section" id="price-check-section" style="display:none;">
+                <div id="price-check-results"></div>
             </div>
 
             <!-- TAB: Actions -->
@@ -1222,6 +1228,47 @@
                     </div>
                 `).join('');
             } catch(e) {}
+        }
+
+        async function runPriceCheck() {
+            const section = document.getElementById('price-check-section');
+            const el = document.getElementById('price-check-results');
+            section.style.display = 'block';
+            el.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:11px;color:var(--dim);margin-top:6px;">Comparing your prices vs market comps...</div></div>';
+
+            try {
+                const resp = await fetch('/api/price-check');
+                const d = await resp.json();
+                const items = d.items || [];
+                const s = d.summary || {};
+
+                const statusColor = st => st === 'OVERPRICED' ? 'var(--red)' : st === 'HIGH' ? 'var(--orange)' : st === 'UNDERPRICED' ? 'var(--green)' : st === 'LOW' ? 'var(--accent)' : 'var(--dim)';
+                const statusPill = st => st === 'OVERPRICED' ? 'pill-red' : st === 'HIGH' ? 'pill-orange' : st === 'UNDERPRICED' ? 'pill-green' : st === 'LOW' ? 'pill-blue' : 'pill-dim';
+
+                el.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="section-title" style="margin-bottom:0;">Price vs Market Check</div>
+                        <button class="btn-ghost" onclick="document.getElementById('price-check-section').style.display='none';">Close</button>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);"><div style="font-size:20px;font-weight:700;color:var(--red);">${s.overpriced||0}</div><div class="stat-lbl">Overpriced</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:20px;font-weight:700;color:var(--green);">${s.underpriced||0}</div><div class="stat-lbl">Underpriced</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:20px;font-weight:700;">${s.ok||0}</div><div class="stat-lbl">OK</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:18px;font-weight:700;color:var(--green);">$${Math.abs(s.potential_revenue||0)}</div><div class="stat-lbl">Left on Table</div></div>
+                    </div>
+                    ${items.length ? `<div class="table-wrap"><table>
+                        <thead><tr><th>Item</th><th class="r">Your $</th><th class="r">Market $</th><th class="r">Diff</th><th>Status</th><th>Fix</th></tr></thead>
+                        <tbody>${items.filter(i=>i.status!=='OK').map(i => `<tr onclick="drillItem('${i.id}','${esc(i.title)}','${i.artist}',${i.your_price})" style="cursor:pointer;">
+                            <td class="trunc">${i.title}</td>
+                            <td class="r b">$${i.your_price}</td>
+                            <td class="r" style="color:var(--accent);">$${Math.round(i.comp_median)}</td>
+                            <td class="r ${i.diff_pct>0?'rd':'g'} b">${i.diff_pct>0?'+':''}${i.diff_pct}%</td>
+                            <td><span class="pill ${statusPill(i.status)}">${i.status}</span></td>
+                            <td onclick="event.stopPropagation();"><button onclick="event.stopPropagation();setExactPrice('${i.id}',${Math.round(i.comp_median)})" class="btn-ghost" style="font-size:10px;padding:2px 8px;">Match</button></td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : '<div style="text-align:center;padding:20px;color:var(--dim);">All prices look good!</div>'}
+                `;
+            } catch(e) { el.innerHTML = '<div style="color:var(--red);">Failed</div>'; }
         }
 
         async function loadDailyOps() {

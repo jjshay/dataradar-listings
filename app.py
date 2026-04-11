@@ -12062,6 +12062,72 @@ def artwork_lookup():
     return jsonify(results)
 
 
+@app.route('/api/price-check')
+def price_check_all():
+    """Cross-validate: compare YOUR prices vs comp median. Flags overpriced and underpriced."""
+    listings = ebay.get_all_listings()
+    results = []
+
+    for l in listings:
+        title = l['title']
+        price = l['price']
+        artist = detect_category(title)
+
+        # Quick comp lookup
+        hist = lookup_historical_prices(title, artist, 20)
+        prices = [h['price'] for h in hist if h.get('price', 0) > 0]
+        if not prices:
+            continue
+
+        median = sorted(prices)[len(prices)//2]
+        diff_pct = round((price - median) / max(median, 1) * 100)
+
+        if abs(diff_pct) < 10:
+            status = 'OK'
+        elif diff_pct > 20:
+            status = 'OVERPRICED'
+        elif diff_pct > 10:
+            status = 'HIGH'
+        elif diff_pct < -20:
+            status = 'UNDERPRICED'
+        elif diff_pct < -10:
+            status = 'LOW'
+        else:
+            status = 'OK'
+
+        results.append({
+            'id': l['id'],
+            'title': title[:60],
+            'artist': artist,
+            'your_price': price,
+            'comp_median': median,
+            'diff_pct': diff_pct,
+            'diff_dollars': round(price - median),
+            'status': status,
+            'comp_count': len(prices),
+            'url': l.get('url', ''),
+        })
+
+    # Sort: biggest problems first
+    results.sort(key=lambda x: -abs(x['diff_pct']))
+
+    overpriced = [r for r in results if r['status'] in ('OVERPRICED', 'HIGH')]
+    underpriced = [r for r in results if r['status'] in ('UNDERPRICED', 'LOW')]
+    ok = [r for r in results if r['status'] == 'OK']
+
+    return jsonify({
+        'items': results,
+        'summary': {
+            'total': len(results),
+            'overpriced': len(overpriced),
+            'underpriced': len(underpriced),
+            'ok': len(ok),
+            'potential_revenue': sum(r['diff_dollars'] for r in underpriced),  # Money left on table
+            'potential_savings': sum(r['diff_dollars'] for r in overpriced),  # Might not sell
+        }
+    })
+
+
 @app.route('/api/email/preview')
 def email_preview():
     """Preview the daily email in browser"""

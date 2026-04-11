@@ -407,7 +407,22 @@ def normalize_record(title, artist='', description='', price=0, sold_date='', so
     edition_size = int(ed.group(1)) if ed else None
 
     # Framed
-    framed = 'framed' in full_text and 'unframed' not in full_text
+    framed = None
+    if 'unframed' in full_text:
+        framed = False
+    elif 'framed' in full_text:
+        framed = True
+
+    # Condition
+    condition = ''
+    if any(w in full_text for w in ['mint', 'pristine', 'perfect', 'flawless']):
+        condition = 'mint'
+    elif any(w in full_text for w in ['excellent', 'near mint', 'nm']):
+        condition = 'excellent'
+    elif any(w in full_text for w in ['good', 'very good', 'vg']):
+        condition = 'good'
+    elif any(w in full_text for w in ['fair', 'poor', 'damaged', 'crease', 'tear', 'foxing', 'stain']):
+        condition = 'fair'
 
     # Year
     yr = re.search(r'\b(19[5-9]\d|20[0-2]\d)\b', title)
@@ -429,6 +444,7 @@ def normalize_record(title, artist='', description='', price=0, sold_date='', so
         'height': height,
         'edition_size': edition_size,
         'framed': framed,
+        'condition': condition,
         'year': year,
         'price': price,
         'sold_date': sold_date,
@@ -477,12 +493,40 @@ def hard_filter(target, comp, config, mode='pricing'):
 
     # 6. Medium hard rejects (print vs figure, etc.)
     if target.get('medium') and comp.get('medium'):
-        prints = {'screenprint', 'lithograph', 'giclee', 'letterpress', 'stencil'}
-        objects = {'vinyl', 'plush', 'resin', 'metal'}
+        prints = {'screenprint', 'lithograph', 'giclee', 'letterpress', 'stencil', 'print'}
+        objects = {'vinyl', 'plush', 'resin', 'metal', 'figure'}
         if target['medium'] in prints and comp['medium'] in objects:
             return False, f'type_mismatch: print vs object'
         if target['medium'] in objects and comp['medium'] in prints:
             return False, f'type_mismatch: object vs print'
+        # Poster vs screenprint — different price tiers
+        if target['medium'] == 'screenprint' and comp['medium'] == 'poster':
+            return False, 'medium_mismatch: screenprint vs poster'
+        if target['medium'] == 'poster' and comp['medium'] == 'screenprint':
+            return False, 'medium_mismatch: poster vs screenprint'
+
+    # 6b. Dimensions gating — same artwork in different sizes = different price
+    if target.get('width') and comp.get('width') and target.get('height') and comp.get('height'):
+        tw, th = sorted([target['width'], target['height']])
+        cw, ch = sorted([comp['width'], comp['height']])
+        size_diff_w = abs(tw - cw) / max(tw, 1)
+        size_diff_h = abs(th - ch) / max(th, 1)
+        if size_diff_w > 0.30 or size_diff_h > 0.30:
+            return False, f'dimensions_mismatch: {tw}x{th} vs {cw}x{ch}'
+
+    # 6c. Edition size gating — /50 AP vs /450 open = very different value
+    if target.get('edition_size') and comp.get('edition_size'):
+        size_ratio = max(target['edition_size'], comp['edition_size']) / max(min(target['edition_size'], comp['edition_size']), 1)
+        if size_ratio > 3:
+            return False, f'edition_mismatch: /{target["edition_size"]} vs /{comp["edition_size"]}'
+
+    # 6d. Framed vs unframed (soft — penalize in pricing, don't hard reject)
+    # Handled in scoring instead
+
+    # 6e. Condition — reject damaged comps for mint items in pricing mode
+    if mode == 'pricing':
+        if target.get('condition') in ('mint', 'excellent') and comp.get('condition') == 'fair':
+            return False, 'condition_mismatch: mint vs damaged'
 
     # 7. Title similarity threshold — skip if work_id already matches
     work_id_match = target.get('work_id') and comp.get('work_id') and target['work_id'] == comp['work_id']
@@ -544,13 +588,40 @@ def score_comp(target, comp, config):
         if diff < 0.1:
             score += weights.get('edition_size', 5)
 
+    # Framed match (penalize mismatch, don't block)
+    if target.get('framed') is not None and comp.get('framed') is not None:
+        if target['framed'] == comp['framed']:
+            score += 3
+        else:
+            score -= 5  # Framed adds $50-200, mixing skews pricing
+
+    # Condition match
+    cond_order = {'mint': 4, 'excellent': 3, 'good': 2, 'fair': 1, '': 0}
+    t_cond = cond_order.get(target.get('condition', ''), 0)
+    c_cond = cond_order.get(comp.get('condition', ''), 0)
+    if t_cond and c_cond:
+        if t_cond == c_cond:
+            score += 3
+        elif abs(t_cond - c_cond) >= 2:
+            score -= 5  # Big condition gap
+
+    # Phrase matching bonus — "Peace Goddess" as phrase, not just overlapping words
+    target_title = target.get('title_normalized', '').lower()
+    comp_title = comp.get('title_normalized', '').lower()
+    # Check 2-3 word phrases
+    target_words_list = target_title.split()
+    for i in range(len(target_words_list) - 1):
+        phrase = f"{target_words_list[i]} {target_words_list[i+1]}"
+        if len(phrase) > 5 and phrase in comp_title:
+            score += 8  # Strong phrase match
+            break
+
     # Year match bonus
     if target.get('year') and comp.get('year'):
         year_diff = abs(target['year'] - comp['year'])
         if year_diff == 0: score += 5
         elif year_diff <= 2: score += 3
         elif year_diff <= 5: score += 1
-        # Penalize very different years
         if year_diff > 10: score -= 5
 
     # Recency bonus
@@ -608,7 +679,14 @@ def compute_pricing(comps):
         in_band = comps  # Don't discard everything
 
     # Step 3: Recency + source weighted pricing
-    pw = [(c['price'], recency_weight(c.get('sold_date')) * source_weight(c.get('source', ''))) for c in in_band if c.get('price', 0) > 0]
+    # Discount eBay active prices by 12% (asking price ≠ sold price)
+    def adjusted_price(c):
+        p = c['price']
+        if 'active' in (c.get('source', '') or '').lower():
+            p = p * 0.88  # ~12% discount for asking vs selling
+        return p
+
+    pw = [(adjusted_price(c), recency_weight(c.get('sold_date')) * source_weight(c.get('source', ''))) for c in in_band if c.get('price', 0) > 0]
     wm = weighted_median(pw)
     wa = sum(p * w for p, w in pw) / max(sum(w for _, w in pw), 0.01) if pw else None
 
