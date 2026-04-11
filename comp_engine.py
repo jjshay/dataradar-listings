@@ -305,6 +305,20 @@ def recency_weight(date_str):
     return 0.20
 
 
+def source_weight(source):
+    """Weight by data source — YOUR sales are most reliable."""
+    s = (source or '').lower()
+    if 'my sale' in s or 'your sale' in s or 'my sales' in s:
+        return 2.0  # Your own sales = best comp
+    elif 'ebay sold' in s:
+        return 1.5  # Confirmed sold prices
+    elif 'worthpoint' in s or 'historical' in s:
+        return 1.0  # Database records
+    elif 'ebay active' in s:
+        return 0.7  # Asking prices, not sold
+    return 0.8
+
+
 def weighted_median(price_weight_pairs):
     pairs = sorted([(p, w) for p, w in price_weight_pairs if p and p > 0 and w > 0])
     if not pairs:
@@ -444,9 +458,13 @@ def hard_filter(target, comp, config, mode='pricing'):
     if comp.get('price', 0) > 0 and comp['price'] < min_p:
         return False, f'below_min_${min_p}'
 
-    # 3. Signed match (pricing mode)
-    if mode_config.get('require_signed_match') and target.get('signed') and not comp.get('signed'):
-        return False, 'unsigned'
+    # 3. Signed match — critical for pricing accuracy
+    # Signed items should NOT comp against unsigned (and vice versa)
+    if mode_config.get('require_signed_match'):
+        if target.get('signed') and not comp.get('signed'):
+            return False, 'unsigned_comp_for_signed_item'
+        if not target.get('signed') and comp.get('signed'):
+            return False, 'signed_comp_for_unsigned_item'
 
     # 4. Numbered match (pricing mode)
     if mode_config.get('require_numbered_match') and target.get('numbered') and not comp.get('numbered'):
@@ -526,12 +544,25 @@ def score_comp(target, comp, config):
         if diff < 0.1:
             score += weights.get('edition_size', 5)
 
+    # Year match bonus
+    if target.get('year') and comp.get('year'):
+        year_diff = abs(target['year'] - comp['year'])
+        if year_diff == 0: score += 5
+        elif year_diff <= 2: score += 3
+        elif year_diff <= 5: score += 1
+        # Penalize very different years
+        if year_diff > 10: score -= 5
+
     # Recency bonus
     age = days_since(comp.get('sold_date'))
     if age is not None:
         if age <= 30: score += weights.get('recency', 15)
         elif age <= 90: score += weights.get('recency', 15) * 0.7
         elif age <= 180: score += weights.get('recency', 15) * 0.4
+
+    # Source bonus (your own sales most valuable)
+    sw = source_weight(comp.get('source', ''))
+    if sw > 1.0: score += 10  # Bonus for your own sales
 
     return round(score, 1)
 
@@ -576,8 +607,8 @@ def compute_pricing(comps):
     if not in_band:
         in_band = comps  # Don't discard everything
 
-    # Step 3: Recency-weighted pricing
-    pw = [(c['price'], recency_weight(c.get('sold_date'))) for c in in_band if c.get('price', 0) > 0]
+    # Step 3: Recency + source weighted pricing
+    pw = [(c['price'], recency_weight(c.get('sold_date')) * source_weight(c.get('source', ''))) for c in in_band if c.get('price', 0) > 0]
     wm = weighted_median(pw)
     wa = sum(p * w for p, w in pw) / max(sum(w for _, w in pw), 0.01) if pw else None
 
@@ -724,9 +755,12 @@ def find_comps(target_title, target_artist, target_price, candidate_records,
             'signed': c['signed'],
             'numbered': c['numbered'],
             'medium': c['medium'],
+            'year': c.get('year'),
+            'work_id': c.get('work_id', ''),
             'sold_date': c.get('sold_date', ''),
             'source': c.get('source', ''),
             'url': c.get('url', ''),
+            'source_weight': source_weight(c.get('source', '')),
         } for c in accepted[:20]],
         'rejected': [{
             'title': r.get('title_raw', '')[:80],
