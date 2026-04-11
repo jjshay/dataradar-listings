@@ -332,6 +332,27 @@ def get_category(artist):
 # Record normalization — extract structured fields from raw text
 # =============================================================================
 
+WORK_ID_STRIP = {
+    'red', 'blue', 'black', 'white', 'gold', 'silver', 'green', 'pink',
+    'orange', 'purple', 'grey', 'gray', 'cream', 'brown', 'yellow',
+    'burgundy', 'teal', 'blush', 'bronze', 'copper', 'moss', 'rose', 'mono',
+    'variant', 'version', 'colorway', 'open', 'closed', 'flayed', 'dissected',
+    'small', 'large', 'mini', 'xl', 'set', 'pair', 'lot',
+    'i', 'ii', 'iii', 'iv', 'v', 'vi', 'le', 'ed', 'ap',
+    'new', 'rare', 'exclusive', 'special', 'confirmed', 'order', 'preorder', 'pre',
+    'moma', 'brooklyn', 'museum', 'gallery',
+    '100', '200', '250', '300', '350', '400', '450', '500', '550', '600', '750', '1000',
+}
+
+
+def make_work_id(title_clean, artist):
+    """Create a universal work identifier — strips colors/variants for matching."""
+    words = title_clean.lower().split()
+    clean = [w for w in words if w not in WORK_ID_STRIP and len(w) > 1 and not w.isdigit()]
+    wid = ' '.join(sorted(clean))
+    return f"{artist}::{wid}" if wid else ''
+
+
 def normalize_record(title, artist='', description='', price=0, sold_date='', source='', url='', **extra):
     """Parse raw listing into structured fields using category-specific rules."""
     config = get_config(artist)
@@ -378,9 +399,13 @@ def normalize_record(title, artist='', description='', price=0, sold_date='', so
     yr = re.search(r'\b(19[5-9]\d|20[0-2]\d)\b', title)
     year = int(yr.group(1)) if yr else None
 
+    # Generate work_id for matching
+    work_id = make_work_id(title_clean, artist_norm or artist)
+
     return {
         'title_raw': title[:120],
         'title_normalized': title_clean,
+        'work_id': work_id,
         'artist_raw': artist,
         'artist_normalized': artist_norm,
         'signed': signed,
@@ -441,11 +466,13 @@ def hard_filter(target, comp, config, mode='pricing'):
         if target['medium'] in objects and comp['medium'] in prints:
             return False, f'type_mismatch: object vs print'
 
-    # 7. Title similarity threshold
-    sim = jaccard(target.get('title_normalized', ''), comp.get('title_normalized', ''))
-    threshold = mode_config.get('title_threshold', 0.15)
-    if sim < threshold:
-        return False, f'title_sim_{sim:.2f}_below_{threshold}'
+    # 7. Title similarity threshold — skip if work_id already matches
+    work_id_match = target.get('work_id') and comp.get('work_id') and target['work_id'] == comp['work_id']
+    if not work_id_match:
+        sim = jaccard(target.get('title_normalized', ''), comp.get('title_normalized', ''))
+        threshold = mode_config.get('title_threshold', 0.15)
+        if sim < threshold:
+            return False, f'title_sim_{sim:.2f}_below_{threshold}'
 
     # 8. Age limit (soft — only for very old)
     age = days_since(comp.get('sold_date'))
@@ -463,6 +490,10 @@ def score_comp(target, comp, config):
     """Score a comp 0-100 based on category-specific weighted similarity."""
     weights = config.get('scoring_weights', {})
     score = 0
+
+    # Work ID match — strongest signal (same artwork regardless of color variant)
+    if target.get('work_id') and comp.get('work_id') and target['work_id'] == comp['work_id']:
+        score += 25  # Big bonus for same work
 
     # Title (0-30 typically)
     sim = jaccard(target.get('title_normalized', ''), comp.get('title_normalized', ''))
