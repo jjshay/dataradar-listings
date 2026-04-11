@@ -424,6 +424,19 @@ def normalize_record(title, artist='', description='', price=0, sold_date='', so
     elif any(w in full_text for w in ['fair', 'poor', 'damaged', 'crease', 'tear', 'foxing', 'stain']):
         condition = 'fair'
 
+    # AP detection
+    is_ap = bool(re.search(r'\bap\b|\bartist\s*proof\b|\ba\.p\.?\b', full_text))
+
+    # Edition band
+    edition_band = ''
+    if edition_size:
+        if edition_size <= 50: edition_band = 'micro'
+        elif edition_size <= 100: edition_band = 'small'
+        elif edition_size <= 200: edition_band = 'medium'
+        elif edition_size <= 350: edition_band = 'standard'
+        elif edition_size <= 500: edition_band = 'large'
+        else: edition_band = 'mass'
+
     # Year
     yr = re.search(r'\b(19[5-9]\d|20[0-2]\d)\b', title)
     year = int(yr.group(1)) if yr else None
@@ -445,6 +458,8 @@ def normalize_record(title, artist='', description='', price=0, sold_date='', so
         'edition_size': edition_size,
         'framed': framed,
         'condition': condition,
+        'is_ap': is_ap,
+        'edition_band': edition_band,
         'year': year,
         'price': price,
         'sold_date': sold_date,
@@ -520,6 +535,16 @@ def hard_filter(target, comp, config, mode='pricing'):
         if size_ratio > 3:
             return False, f'edition_mismatch: /{target["edition_size"]} vs /{comp["edition_size"]}'
 
+    # 6c2. Edition BAND gating — micro (/50) should not comp against mass (/600+)
+    t_band = target.get('edition_band', '')
+    c_band = comp.get('edition_band', '')
+    if t_band and c_band:
+        band_order = {'micro': 0, 'small': 1, 'medium': 2, 'standard': 3, 'large': 4, 'mass': 5}
+        t_idx = band_order.get(t_band, 3)
+        c_idx = band_order.get(c_band, 3)
+        if abs(t_idx - c_idx) >= 3:
+            return False, f'edition_band_mismatch: {t_band} vs {c_band}'
+
     # 6d. Framed vs unframed (soft — penalize in pricing, don't hard reject)
     # Handled in scoring instead
 
@@ -587,6 +612,21 @@ def score_comp(target, comp, config):
         diff = abs(target['edition_size'] - comp['edition_size']) / max(target['edition_size'], 1)
         if diff < 0.1:
             score += weights.get('edition_size', 5)
+        elif diff < 0.3:
+            score += weights.get('edition_size', 5) * 0.5
+
+    # Edition band match
+    if target.get('edition_band') and comp.get('edition_band'):
+        if target['edition_band'] == comp['edition_band']:
+            score += 5  # Same scarcity tier
+        elif abs({'micro':0,'small':1,'medium':2,'standard':3,'large':4,'mass':5}.get(target['edition_band'],3) - {'micro':0,'small':1,'medium':2,'standard':3,'large':4,'mass':5}.get(comp['edition_band'],3)) == 1:
+            score += 2  # Adjacent tier
+
+    # AP bonus/match
+    if target.get('is_ap') and comp.get('is_ap'):
+        score += 8  # Both APs — strong match
+    elif target.get('is_ap') != comp.get('is_ap') and (target.get('is_ap') or comp.get('is_ap')):
+        score -= 5  # One is AP, other isn't — different price tier
 
     # Framed match (penalize mismatch, don't block)
     if target.get('framed') is not None and comp.get('framed') is not None:
