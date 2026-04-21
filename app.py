@@ -13637,6 +13637,166 @@ def listing_quality_report():
 
 
 # =============================================================================
+# Historical Price Database — Standalone Lookup UI (mobile-friendly)
+# =============================================================================
+
+@app.route('/prices')
+def prices_page():
+    return render_template('prices.html')
+
+
+@app.route('/api/prices/artists')
+def api_prices_artists():
+    data = load_historical_clean()
+    counts = {}
+    for r in data:
+        a = (r.get('artist') or '').strip()
+        if not a:
+            continue
+        counts[a] = counts.get(a, 0) + 1
+    artists = sorted(counts.items(), key=lambda x: -x[1])
+    return jsonify([{'artist': a, 'count': c} for a, c in artists if c >= 10])
+
+
+def _stats(prices):
+    if not prices:
+        return {}
+    s = sorted(prices)
+    n = len(s)
+    def pct(p):
+        return s[min(n - 1, int(n * p))]
+    return {
+        'count': n,
+        'min': round(s[0], 2),
+        'max': round(s[-1], 2),
+        'median': round(pct(0.5), 2),
+        'p25': round(pct(0.25), 2),
+        'p75': round(pct(0.75), 2),
+        'avg': round(sum(s) / n, 2),
+    }
+
+
+@app.route('/api/prices/search')
+def api_prices_search():
+    """Search historical prices. Returns stats + sample comps + per-year trend."""
+    title = request.args.get('title', '').strip()
+    artist = request.args.get('artist', '').strip()
+    signed_only = request.args.get('signed', '').lower() in ('1', 'true', 'yes')
+    limit = request.args.get('limit', 100, type=int)
+
+    if not title and not artist:
+        return jsonify({'error': 'Provide title and/or artist'}), 400
+
+    data = load_historical_clean()
+
+    if title:
+        comps = lookup_historical_prices(title, artist, limit=5000)
+        # lookup_historical_prices drops artist, re-attach for display
+        by_key = {(r.get('name',''), r.get('price',0), r.get('date','')): r for r in data}
+        for c in comps:
+            full = by_key.get((c.get('name',''), c.get('price',0), c.get('date','')))
+            if full:
+                c['artist'] = full.get('artist', '')
+                c['work_id'] = full.get('work_id', '')
+                c['medium'] = full.get('medium', '')
+                c['colorway'] = full.get('colorway', '')
+                c['numbered'] = full.get('numbered', False)
+    else:
+        comps = [
+            {
+                'name': r.get('name', ''),
+                'price': r.get('price', 0),
+                'date': r.get('date', ''),
+                'source': r.get('source', ''),
+                'url': r.get('url', ''),
+                'signed': r.get('signed', False),
+                'medium': r.get('medium', ''),
+                'artist': r.get('artist', ''),
+                'work_id': r.get('work_id', ''),
+                'colorway': r.get('colorway', ''),
+                'numbered': r.get('numbered', False),
+            }
+            for r in data if artist.lower() in (r.get('artist', '') or '').lower()
+        ]
+
+    if signed_only:
+        comps = [c for c in comps if c.get('signed')]
+
+    prices = [c['price'] for c in comps if c.get('price', 0) > 0]
+    stats = _stats(prices)
+
+    # Per-year trend
+    by_year = {}
+    for c in comps:
+        d = c.get('date', '') or ''
+        if len(d) >= 4 and d[:4].isdigit():
+            y = d[:4]
+            by_year.setdefault(y, []).append(c['price'])
+    trend = [
+        {'year': y, 'count': len(v), 'median': round(sorted(v)[len(v)//2], 2)}
+        for y, v in sorted(by_year.items()) if v
+    ]
+
+    # Top related works (by work_id)
+    wid_counts = {}
+    for c in comps:
+        w = c.get('work_id', '')
+        if not w:
+            continue
+        wid_counts.setdefault(w, []).append(c['price'])
+    top_works = sorted(
+        [
+            {'work_id': w, 'count': len(ps), 'median': round(sorted(ps)[len(ps)//2], 2)}
+            for w, ps in wid_counts.items() if len(ps) >= 2
+        ],
+        key=lambda x: -x['count'],
+    )[:10]
+
+    # Sort comps by date desc then limit for display
+    comps.sort(key=lambda c: c.get('date', '') or '', reverse=True)
+    return jsonify({
+        'stats': stats,
+        'trend': trend,
+        'top_works': top_works,
+        'comps': comps[:limit],
+        'total_matches': len(comps),
+    })
+
+
+@app.route('/api/prices/work/<path:work_id>')
+def api_prices_work(work_id):
+    data = load_historical_clean()
+    matches = [r for r in data if r.get('work_id') == work_id]
+    prices = [r['price'] for r in matches if r.get('price', 0) > 0]
+    stats = _stats(prices)
+    by_color = {}
+    for r in matches:
+        c = (r.get('colorway') or '').strip() or 'unspecified'
+        by_color.setdefault(c, []).append(r.get('price', 0))
+    colors = [
+        {'colorway': k, 'count': len(v), 'median': round(sorted(v)[len(v)//2], 2)}
+        for k, v in sorted(by_color.items(), key=lambda x: -len(x[1]))
+    ]
+    sales = sorted(
+        [
+            {
+                'name': r.get('name', ''),
+                'price': r.get('price', 0),
+                'date': r.get('date', ''),
+                'source': r.get('source', ''),
+                'url': r.get('url', ''),
+                'signed': r.get('signed', False),
+                'colorway': r.get('colorway', ''),
+            }
+            for r in matches
+        ],
+        key=lambda x: x.get('date', '') or '',
+        reverse=True,
+    )
+    return jsonify({'work_id': work_id, 'stats': stats, 'colors': colors, 'sales': sales})
+
+
+# =============================================================================
 # Main
 # =============================================================================
 

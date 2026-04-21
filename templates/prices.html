@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>Price Radar</title>
+<style>
+:root{
+  --bg:#0a0a0a; --panel:#141414; --card:#1a1a1a; --border:#262626;
+  --text:#f5f5f5; --dim:#8a8a8a; --muted:#b0b0b0;
+  --accent:#3b82f6; --green:#22c55e; --red:#ef4444; --orange:#f59e0b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+input,select,button{font:inherit;color:inherit}
+.container{max-width:820px;margin:0 auto;padding:12px 12px 80px}
+header{display:flex;align-items:center;justify-content:space-between;padding:6px 0 14px}
+header h1{font-size:18px;margin:0;letter-spacing:.5px;font-weight:700}
+header .tag{color:var(--dim);font-size:11px}
+.search{display:grid;grid-template-columns:1fr;gap:8px;background:var(--panel);padding:12px;border-radius:12px;border:1px solid var(--border)}
+.search input,.search select{background:var(--card);border:1px solid var(--border);color:var(--text);padding:12px 12px;border-radius:10px;width:100%;font-size:15px}
+.search .row{display:flex;gap:8px}
+.search .row > *{flex:1}
+.search .chks{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}
+.search button{background:var(--accent);border:0;color:#fff;padding:12px;border-radius:10px;font-weight:600;font-size:15px;cursor:pointer}
+.search button:active{opacity:.8}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.stats .s{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+.stats .s .v{font-size:17px;font-weight:700}
+.stats .s .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.section{margin-top:18px}
+.section h2{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;margin:0 0 8px;font-weight:600}
+.works{display:flex;gap:6px;flex-wrap:wrap}
+.work-chip{background:var(--card);border:1px solid var(--border);padding:6px 10px;border-radius:100px;font-size:12px;cursor:pointer;display:flex;gap:6px;align-items:center}
+.work-chip .c{color:var(--dim);font-size:11px}
+.work-chip:hover{border-color:var(--accent)}
+.trend{display:flex;gap:4px;align-items:flex-end;height:60px;padding:4px 0}
+.trend .bar{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:3px;position:relative;cursor:pointer;opacity:.85}
+.trend .bar:hover{opacity:1}
+.trend .bar .lbl{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--dim)}
+.trend .bar .amt{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap}
+.comps{display:flex;flex-direction:column;gap:6px}
+.comp{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.comp .t{font-size:13px;font-weight:500;line-height:1.3}
+.comp .meta{font-size:11px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-top:3px}
+.comp .p{font-size:16px;font-weight:700;color:var(--green);text-align:right;white-space:nowrap}
+.comp .d{font-size:11px;color:var(--dim);text-align:right}
+.comp .pill{background:var(--panel);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-size:10px}
+.empty{text-align:center;padding:40px 20px;color:var(--dim)}
+.loading{text-align:center;padding:30px;color:var(--dim);font-size:12px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tabs{display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--border)}
+.tab{padding:8px 14px;cursor:pointer;color:var(--dim);font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tag-row .q{background:var(--card);border:1px solid var(--border);padding:5px 10px;border-radius:100px;font-size:12px;cursor:pointer;color:var(--muted)}
+.tag-row .q:hover{border-color:var(--accent);color:var(--text)}
+@media (max-width:500px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  header h1{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>⚡ PRICE RADAR</h1>
+    <span class="tag" id="db-count">loading…</span>
+  </header>
+
+  <div class="search">
+    <select id="artist">
+      <option value="">All artists</option>
+    </select>
+    <input id="title" placeholder="Title / keywords (e.g. Peace Goddess)" autocomplete="off">
+    <div class="row">
+      <label class="chks"><input type="checkbox" id="signed-only"> Signed only</label>
+      <button onclick="runSearch()">Search</button>
+    </div>
+  </div>
+
+  <div class="tag-row" id="quick-tags"></div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => '$' + Math.round(n).toLocaleString();
+
+let ARTISTS = [];
+
+async function loadArtists(){
+  try{
+    const r = await fetch('/api/prices/artists');
+    ARTISTS = await r.json();
+    const sel = $('artist');
+    ARTISTS.forEach(a => {
+      const o = document.createElement('option');
+      o.value = a.artist;
+      o.textContent = `${a.artist} (${a.count.toLocaleString()})`;
+      sel.appendChild(o);
+    });
+    const total = ARTISTS.reduce((s,a)=>s+a.count,0);
+    $('db-count').textContent = total.toLocaleString() + ' records';
+    // Quick tags for top 5 artists
+    const qt = $('quick-tags');
+    ARTISTS.slice(0,5).forEach(a => {
+      const q = document.createElement('div');
+      q.className = 'q';
+      q.textContent = a.artist;
+      q.onclick = () => { $('artist').value = a.artist; $('title').value=''; runSearch(); };
+      qt.appendChild(q);
+    });
+  }catch(e){ console.error(e); }
+}
+
+async function runSearch(){
+  const title = $('title').value.trim();
+  const artist = $('artist').value;
+  const signed = $('signed-only').checked;
+  if(!title && !artist){ $('results').innerHTML = '<div class="empty">Type a title or pick an artist</div>'; return; }
+
+  $('results').innerHTML = '<div class="loading"><span class="spinner"></span>searching…</div>';
+
+  const params = new URLSearchParams();
+  if(title) params.set('title', title);
+  if(artist) params.set('artist', artist);
+  if(signed) params.set('signed', '1');
+  params.set('limit', '100');
+
+  try{
+    const r = await fetch('/api/prices/search?' + params);
+    const d = await r.json();
+    renderResults(d);
+  }catch(e){
+    $('results').innerHTML = '<div class="empty">Search failed</div>';
+  }
+}
+
+function renderResults(d){
+  const s = d.stats || {};
+  const comps = d.comps || [];
+  const trend = d.trend || [];
+  const works = d.top_works || [];
+
+  if(!s.count){
+    $('results').innerHTML = '<div class="empty">No matches. Try different keywords.</div>';
+    return;
+  }
+
+  const statsHtml = `
+    <div class="stats">
+      <div class="s"><div class="v">${money(s.median)}</div><div class="l">Median</div></div>
+      <div class="s"><div class="v">${money(s.p25)}</div><div class="l">P25 (buy)</div></div>
+      <div class="s"><div class="v">${money(s.p75)}</div><div class="l">P75 (sell)</div></div>
+      <div class="s"><div class="v">${s.count.toLocaleString()}</div><div class="l">Sales</div></div>
+    </div>`;
+
+  let trendHtml = '';
+  if(trend.length > 1){
+    const maxM = Math.max(...trend.map(t=>t.median));
+    trendHtml = `
+      <div class="section">
+        <h2>Price trend by year</h2>
+        <div class="trend">
+          ${trend.map(t=>`
+            <div class="bar" style="height:${Math.max(3, (t.median/maxM)*100)}%" title="${t.year}: ${money(t.median)} (${t.count} sales)">
+              <div class="amt">${money(t.median)}</div>
+              <div class="lbl">${t.year}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  let worksHtml = '';
+  if(works.length){
+    worksHtml = `
+      <div class="section">
+        <h2>Top matching works</h2>
+        <div class="works">
+          ${works.map(w => `
+            <div class="work-chip" onclick="drillWork('${esc(w.work_id)}')">
+              <span>${esc(w.work_id.split('::').pop())}</span>
+              <span class="c">${w.count} · ${money(w.median)}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  const compsHtml = `
+    <div class="section">
+      <h2>Recent sales (${d.total_matches.toLocaleString()} total)</h2>
+      <div class="comps">
+        ${comps.map(c=>`
+          <div class="comp">
+            <div>
+              <div class="t">${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}</div>
+              <div class="meta">
+                ${c.artist ? `<span class="pill">${esc(c.artist)}</span>` : ''}
+                ${c.signed ? `<span class="pill" style="color:var(--green)">signed</span>` : ''}
+                ${c.numbered ? `<span class="pill">#</span>` : ''}
+                ${c.medium ? `<span>${esc(c.medium)}</span>` : ''}
+                ${c.colorway ? `<span>${esc(c.colorway)}</span>` : ''}
+                <span>${esc(c.source||'')}</span>
+              </div>
+            </div>
+            <div>
+              <div class="p">${money(c.price)}</div>
+              <div class="d">${esc(c.date||'—')}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  $('results').innerHTML = statsHtml + worksHtml + trendHtml + compsHtml;
+}
+
+async function drillWork(workId){
+  $('results').innerHTML = '<div class="loading"><span class="spinner"></span>loading work…</div>';
+  try{
+    const r = await fetch('/api/prices/work/' + encodeURIComponent(workId));
+    const d = await r.json();
+    const s = d.stats || {};
+    const name = workId.split('::').pop();
+    const statsHtml = `
+      <div style="margin-bottom:8px"><a href="#" onclick="runSearch();return false;" style="font-size:12px">← back</a></div>
+      <div class="section" style="margin-top:0"><h2>${esc(name)}</h2></div>
+      <div class="stats">
+        <div class="s"><div class="v">${money(s.median)}</div><div class="l">Median</div></div>
+        <div class="s"><div class="v">${money(s.p25)}</div><div class="l">P25</div></div>
+        <div class="s"><div class="v">${money(s.p75)}</div><div class="l">P75</div></div>
+        <div class="s"><div class="v">${s.count}</div><div class="l">Sales</div></div>
+      </div>`;
+    const colorsHtml = d.colors.length > 1 ? `
+      <div class="section"><h2>By colorway</h2>
+        <div class="works">
+          ${d.colors.map(c=>`<div class="work-chip"><span>${esc(c.colorway)}</span><span class="c">${c.count} · ${money(c.median)}</span></div>`).join('')}
+        </div>
+      </div>` : '';
+    const salesHtml = `
+      <div class="section"><h2>All sales</h2>
+        <div class="comps">
+          ${d.sales.slice(0,200).map(c=>`
+            <div class="comp">
+              <div>
+                <div class="t">${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>`:esc(c.name)}</div>
+                <div class="meta">
+                  ${c.signed?'<span class="pill" style="color:var(--green)">signed</span>':''}
+                  ${c.colorway?`<span>${esc(c.colorway)}</span>`:''}
+                  <span>${esc(c.source||'')}</span>
+                </div>
+              </div>
+              <div>
+                <div class="p">${money(c.price)}</div>
+                <div class="d">${esc(c.date||'—')}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    $('results').innerHTML = statsHtml + colorsHtml + salesHtml;
+    window.scrollTo(0,0);
+  }catch(e){ $('results').innerHTML = '<div class="empty">Failed to load</div>'; }
+}
+
+$('title').addEventListener('keydown', e => { if(e.key==='Enter') runSearch(); });
+$('artist').addEventListener('change', () => { if(!$('title').value.trim()) runSearch(); });
+
+loadArtists();
+</script>
+</body>
+</html>
