@@ -4715,7 +4715,7 @@ def _llm_gemini(prompt, listing_id=''):
     print(f"[LLM] gemini start for {listing_id}")
     try:
         resp = requests.post(
-            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}',
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}',
             headers={'Content-Type': 'application/json'},
             json={'contents': [{'parts': [{'text': prompt}]}]},
             timeout=20,
@@ -5415,7 +5415,7 @@ Respond in this exact JSON format:
     gemini_key = ENV.get('GEMINI_API_KEY', '')
     if gemini_key:
         try:
-            resp = requests.post(f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}',
+            resp = requests.post(f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}',
                 headers={'Content-Type': 'application/json'},
                 json={'contents': [{'parts': [{'text': prompt}]}]},
                 timeout=15)
