@@ -4532,6 +4532,399 @@ def get_full_inventory_analytics():
 
 
 # =============================================================================
+# LLM Price Review — 4-model consensus (Claude / GPT / Gemini / Grok)
+# =============================================================================
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+LLM_PRICE_CACHE_FILE = os.path.join(DATA_DIR, 'llm_price_cache.json')
+_LLM_PRICE_CACHE = None  # lazy-loaded module-level dict
+
+
+def _load_llm_cache():
+    """Lazy-load the LLM price review cache from disk."""
+    global _LLM_PRICE_CACHE
+    if _LLM_PRICE_CACHE is not None:
+        return _LLM_PRICE_CACHE
+    try:
+        if os.path.exists(LLM_PRICE_CACHE_FILE):
+            with open(LLM_PRICE_CACHE_FILE, 'r') as f:
+                _LLM_PRICE_CACHE = json.load(f)
+        else:
+            _LLM_PRICE_CACHE = {}
+    except Exception as e:
+        print(f"[LLM] cache load error: {e}")
+        _LLM_PRICE_CACHE = {}
+    return _LLM_PRICE_CACHE
+
+
+def _save_llm_cache(cache):
+    """Persist the LLM price review cache to disk."""
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(LLM_PRICE_CACHE_FILE, 'w') as f:
+            json.dump(cache, f)
+    except Exception as e:
+        print(f"[LLM] cache save error: {e}")
+
+
+def _parse_llm_json(text):
+    """Extract {price, reason} JSON from an LLM response text."""
+    if not text:
+        return {'price': None, 'reason': 'empty response', 'status': 'parse_error'}
+    try:
+        m = re.search(r'\{[^{}]*"price"[^{}]*\}', text, re.DOTALL)
+        if m:
+            parsed = json.loads(m.group(0))
+            raw_price = parsed.get('price', None)
+            try:
+                price_int = int(round(float(raw_price))) if raw_price is not None else None
+                if price_int == 0:
+                    price_int = None
+            except Exception:
+                price_int = None
+            return {
+                'price': price_int,
+                'reason': str(parsed.get('reason', ''))[:300],
+                'status': 'ok',
+            }
+        return {'price': None, 'reason': f'parse_error: {text[:150]}', 'status': 'parse_error'}
+    except Exception as e:
+        return {'price': None, 'reason': f'parse_error: {str(e)[:120]}', 'status': 'parse_error'}
+
+
+def _build_llm_prompt(listing, comp_stats, recent_comps, supply_count):
+    """Build the shared LLM prompt used by all 4 models."""
+    title = listing.get('title', '') or listing.get('name', '')
+    artist = listing.get('_artist', 'Unknown')
+    your_price = listing.get('price', 0) or 0
+
+    if comp_stats:
+        trailing_raw = comp_stats.get('trailing_12mo_median')
+        trailing_text = f"${trailing_raw}" if trailing_raw else 'n/a'
+        comp_section = (
+            f"Historical comp data from 54,000+ past sales:\n"
+            f"  Count: {comp_stats.get('count', 0)} matching comps\n"
+            f"  Median: ${comp_stats.get('median', 0)}\n"
+            f"  p25-p75 range: ${comp_stats.get('p25', 0)}-${comp_stats.get('p75', 0)}\n"
+            f"  Trailing 12mo median: {trailing_text}\n"
+            f"  Signed-only filter: {comp_stats.get('signed_only', False)}\n"
+        )
+    else:
+        comp_section = "No historical comps in DB, use your own knowledge of this artist/work.\n"
+
+    if recent_comps:
+        bullets = []
+        for c in recent_comps[:5]:
+            bullets.append(
+                f"  - ${c.get('price', 0):.0f} "
+                f"{(c.get('name', '') or '')[:60]} "
+                f"({c.get('date', '?')})"
+            )
+        bullet_text = '\n'.join(bullets)
+    else:
+        bullet_text = "  (none)"
+
+    return (
+        "You are pricing an eBay listing for an authenticated art reseller.\n\n"
+        f"Artist: {artist}\n"
+        f"Title: {title}\n"
+        f"Current listing price: ${your_price}\n\n"
+        f"{comp_section}\n"
+        f"Recent comparable sales (top 5):\n{bullet_text}\n\n"
+        f"eBay supply: {supply_count} active competing listings right now\n\n"
+        "What eBay price maximizes speed-to-sale without leaving money on the table? "
+        "Consider the comp distribution, recency, and current supply.\n\n"
+        "Respond in STRICT JSON only, no prose, no markdown code fences:\n"
+        '{"price": <integer dollars>, "reason": "<1-2 sentences, max 30 words>"}'
+    )
+
+
+def _llm_claude(prompt, listing_id=''):
+    """Call Claude (Anthropic) and return {price, reason, status}."""
+    key = ENV.get('ANTHROPIC_API_KEY', '') or ENV.get('CLAUDE_API_KEY', '')
+    if not key:
+        return {'price': None, 'reason': '', 'status': 'not_configured'}
+    print(f"[LLM] claude start for {listing_id}")
+    try:
+        resp = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            json={
+                'model': 'claude-sonnet-4-6',
+                'max_tokens': 500,
+                'messages': [{'role': 'user', 'content': prompt}],
+            },
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            msg = f"http_{resp.status_code}: {resp.text[:120]}"
+            print(f"[LLM] claude error: {msg}")
+            return {'price': None, 'reason': f'error: {msg}', 'status': 'error'}
+        text = resp.json()['content'][0]['text']
+        parsed = _parse_llm_json(text)
+        print(f"[LLM] claude done: ${parsed.get('price')}")
+        return parsed
+    except Exception as e:
+        print(f"[LLM] claude exception: {e}")
+        return {'price': None, 'reason': f'error: {str(e)[:120]}', 'status': 'error'}
+
+
+def _llm_openai(prompt, listing_id=''):
+    """Call OpenAI GPT-4o and return {price, reason, status}."""
+    key = ENV.get('OPENAI_API_KEY', '')
+    if not key:
+        return {'price': None, 'reason': '', 'status': 'not_configured'}
+    print(f"[LLM] gpt start for {listing_id}")
+    try:
+        resp = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'model': 'gpt-4o',
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.3,
+            },
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            msg = f"http_{resp.status_code}: {resp.text[:120]}"
+            print(f"[LLM] gpt error: {msg}")
+            return {'price': None, 'reason': f'error: {msg}', 'status': 'error'}
+        text = resp.json()['choices'][0]['message']['content']
+        parsed = _parse_llm_json(text)
+        print(f"[LLM] gpt done: ${parsed.get('price')}")
+        return parsed
+    except Exception as e:
+        print(f"[LLM] gpt exception: {e}")
+        return {'price': None, 'reason': f'error: {str(e)[:120]}', 'status': 'error'}
+
+
+def _llm_gemini(prompt, listing_id=''):
+    """Call Gemini 2.0 Flash and return {price, reason, status}."""
+    key = ENV.get('GEMINI_API_KEY', '')
+    if not key:
+        return {'price': None, 'reason': '', 'status': 'not_configured'}
+    print(f"[LLM] gemini start for {listing_id}")
+    try:
+        resp = requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}',
+            headers={'Content-Type': 'application/json'},
+            json={'contents': [{'parts': [{'text': prompt}]}]},
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            msg = f"http_{resp.status_code}: {resp.text[:120]}"
+            print(f"[LLM] gemini error: {msg}")
+            return {'price': None, 'reason': f'error: {msg}', 'status': 'error'}
+        text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+        parsed = _parse_llm_json(text)
+        print(f"[LLM] gemini done: ${parsed.get('price')}")
+        return parsed
+    except Exception as e:
+        print(f"[LLM] gemini exception: {e}")
+        return {'price': None, 'reason': f'error: {str(e)[:120]}', 'status': 'error'}
+
+
+def _llm_grok(prompt, listing_id=''):
+    """Call xAI Grok (OpenAI-compatible) and return {price, reason, status}."""
+    key = ENV.get('XAI_API_KEY', '')
+    if not key:
+        return {'price': None, 'reason': '', 'status': 'not_configured'}
+    print(f"[LLM] grok start for {listing_id}")
+    try:
+        resp = requests.post(
+            'https://api.x.ai/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'model': 'grok-2-latest',
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.3,
+            },
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            msg = f"http_{resp.status_code}: {resp.text[:120]}"
+            print(f"[LLM] grok error: {msg}")
+            return {'price': None, 'reason': f'error: {msg}', 'status': 'error'}
+        text = resp.json()['choices'][0]['message']['content']
+        parsed = _parse_llm_json(text)
+        print(f"[LLM] grok done: ${parsed.get('price')}")
+        return parsed
+    except Exception as e:
+        print(f"[LLM] grok exception: {e}")
+        return {'price': None, 'reason': f'error: {str(e)[:120]}', 'status': 'error'}
+
+
+def _detect_artist(title):
+    """Mirror the artist-detection used in get_full_inventory_analytics."""
+    title_lower = (title or '').lower()
+    if 'shepard fairey' in title_lower or 'obey' in title_lower:
+        return 'Shepard Fairey'
+    elif 'death nyc' in title_lower:
+        return 'Death NYC'
+    elif 'bearbrick' in title_lower or 'be@rbrick' in title_lower:
+        return 'Bearbrick'
+    elif 'kaws' in title_lower:
+        return 'KAWS'
+    elif 'banksy' in title_lower:
+        return 'Banksy'
+    elif 'brainwash' in title_lower or 'mbw' in title_lower:
+        return 'Mr. Brainwash'
+    elif 'apollo' in title_lower or 'nasa' in title_lower or 'astronaut' in title_lower:
+        return 'Space/NASA'
+    elif 'pickguard' in title_lower:
+        return 'Pickguard'
+    elif ('vinyl' in title_lower or 'record' in title_lower or 'album' in title_lower) and 'signed' in title_lower:
+        return 'Signed Music'
+    return 'Other'
+
+
+@app.route('/api/inventory/llm-price-review/<listing_id>')
+def llm_price_review(listing_id):
+    """4-LLM consensus price review for a single eBay listing.
+
+    Queries Claude, GPT-4o, Gemini 2.0 Flash, and Grok 2 in parallel.
+    Each returns an integer price + 1-2 sentence reasoning.
+    Consensus = median of valid prices. Cached per (listing_id, comp_median/10).
+    Pass ?force=1 to bypass cache.
+    """
+    force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
+
+    # 1. Find listing
+    try:
+        listings = ebay.get_all_listings()
+    except Exception as e:
+        return jsonify({'error': f'failed to load listings: {e}'}), 500
+
+    listing = next((l for l in listings if str(l.get('id')) == str(listing_id)), None)
+    if not listing:
+        return jsonify({'error': f'listing {listing_id} not found'}), 404
+
+    title = listing.get('title', '')
+    your_price = listing.get('price', 0) or 0
+    artist = _detect_artist(title)
+    listing['_artist'] = artist
+
+    # 2. Comp anchors
+    try:
+        comp_stats = calculate_comp_anchors(title, artist)
+    except Exception as e:
+        print(f"[LLM] comp_anchors error: {e}")
+        comp_stats = None
+
+    # Add p25 (calculate_comp_anchors doesn't return it) so output JSON includes it
+    if comp_stats and 'p25' not in comp_stats:
+        try:
+            raw_all = lookup_historical_prices(title, artist, limit=500)
+            pool = raw_all
+            if comp_stats.get('signed_only'):
+                pool = [c for c in raw_all if c.get('signed')] or raw_all
+            prices = sorted([c['price'] for c in pool if c.get('price', 0) > 0])
+            if prices:
+                comp_stats['p25'] = round(prices[max(0, int(len(prices) * 0.25))], 2)
+            else:
+                comp_stats['p25'] = None
+        except Exception:
+            comp_stats['p25'] = None
+
+    comp_median = (comp_stats or {}).get('median', 0) or 0
+    cache_bucket = int(round(comp_median / 10)) * 10
+    cache_key = f"{listing_id}:{cache_bucket}"
+
+    # 3. Cache hit?
+    cache = _load_llm_cache()
+    if not force and cache_key in cache:
+        cached = cache[cache_key]
+        print(f"[LLM] cache hit for {cache_key}")
+        return jsonify(cached)
+
+    # 4. Recent comps (top 5)
+    try:
+        recent_comps = lookup_historical_prices(title, artist, limit=5)
+    except Exception as e:
+        print(f"[LLM] recent_comps error: {e}")
+        recent_comps = []
+
+    # 5. Supply count — complex to extract cheaply, default to 0 per spec fallback
+    supply_count = 0
+
+    # 6. Build prompt + fan out to 4 LLMs in parallel
+    prompt = _build_llm_prompt(listing, comp_stats, recent_comps, supply_count)
+
+    model_callers = {
+        'claude': _llm_claude,
+        'gpt': _llm_openai,
+        'gemini': _llm_gemini,
+        'grok': _llm_grok,
+    }
+    models_out = {name: {'price': None, 'reason': '', 'status': 'error'} for name in model_callers}
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        future_to_name = {
+            ex.submit(fn, prompt, listing_id): name
+            for name, fn in model_callers.items()
+        }
+        for fut in as_completed(future_to_name, timeout=25):
+            name = future_to_name[fut]
+            try:
+                models_out[name] = fut.result(timeout=1)
+            except Exception as e:
+                print(f"[LLM] {name} future error: {e}")
+                models_out[name] = {
+                    'price': None,
+                    'reason': f'error: {str(e)[:120]}',
+                    'status': 'error',
+                }
+
+    # 7. Consensus median over valid integer prices
+    valid_prices = sorted([
+        m['price'] for m in models_out.values()
+        if m.get('status') == 'ok' and isinstance(m.get('price'), int) and m['price'] > 0
+    ])
+    if valid_prices:
+        mid = len(valid_prices) // 2
+        if len(valid_prices) % 2 == 1:
+            consensus_median = valid_prices[mid]
+        else:
+            consensus_median = int(round((valid_prices[mid - 1] + valid_prices[mid]) / 2))
+    else:
+        consensus_median = None
+
+    response = {
+        'listing_id': listing_id,
+        'title': title,
+        'artist': artist,
+        'your_price': your_price,
+        'comp_stats': comp_stats,
+        'models': models_out,
+        'consensus_median': consensus_median,
+        'consensus_count': len(valid_prices),
+        'cached_at': None,
+    }
+
+    # 8. Save to cache with ISO timestamp for future reads
+    try:
+        cache[cache_key] = dict(response)
+        cache[cache_key]['cached_at'] = datetime.utcnow().isoformat()
+        _save_llm_cache(cache)
+    except Exception as e:
+        print(f"[LLM] cache write error: {e}")
+
+    return jsonify(response)
+
+
+# =============================================================================
 # eBay OAuth Authorization Flow
 # =============================================================================
 
