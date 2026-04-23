@@ -4735,7 +4735,7 @@ def _llm_gemini(prompt, listing_id=''):
 
 def _llm_grok(prompt, listing_id=''):
     """Call xAI Grok (OpenAI-compatible) and return {price, reason, status}."""
-    key = ENV.get('XAI_API_KEY', '')
+    key = ENV.get('XAI_API_KEY', '') or ENV.get('GROK_API_KEY', '')
     if not key:
         return {'price': None, 'reason': '', 'status': 'not_configured'}
     print(f"[LLM] grok start for {listing_id}")
@@ -4747,7 +4747,7 @@ def _llm_grok(prompt, listing_id=''):
                 'Content-Type': 'application/json',
             },
             json={
-                'model': 'grok-2-latest',
+                'model': 'grok-3',
                 'messages': [{'role': 'user', 'content': prompt}],
                 'temperature': 0.3,
             },
