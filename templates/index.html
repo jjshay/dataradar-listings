@@ -429,6 +429,9 @@
                         <option value="watchers">Watchers</option>
                         <option value="roi">ROI High</option>
                         <option value="stale">Most Stale</option>
+                        <option value="comp_upside">Comp Upside ↑</option>
+                        <option value="comp_overpriced">Overpriced vs Comps</option>
+                        <option value="comp_count">Most Comps</option>
                     </select>
                     <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
                     <button class="btn-ghost" onclick="showCostBasis()">Set Costs</button>
@@ -2304,6 +2307,9 @@
             else if (sort === 'watchers') items.sort((a,b) => (b.watchers||0) - (a.watchers||0));
             else if (sort === 'roi') items.sort((a,b) => (b.roi_est||0) - (a.roi_est||0));
             else if (sort === 'stale') items.sort((a,b) => (b.days_listed||0) - (a.days_listed||0));
+            else if (sort === 'comp_upside') items.sort((a,b) => (a.comp_delta_pct ?? 999) - (b.comp_delta_pct ?? 999));
+            else if (sort === 'comp_overpriced') items.sort((a,b) => (b.comp_delta_pct ?? -999) - (a.comp_delta_pct ?? -999));
+            else if (sort === 'comp_count') items.sort((a,b) => (b.comp_count||0) - (a.comp_count||0));
 
             document.getElementById('inv-count').textContent = `${items.length} items`;
             document.getElementById('inv-sub').textContent = `${invData?.total||0} listings · $${Math.round((invData?.total_value||0)/1000)}k value`;
@@ -2316,6 +2322,7 @@
             // Action summary cards
             const acts = invData?.action_summary || {};
             const cap = invData?.capital_efficiency || {};
+            const cs = invData?.comp_summary || {};
             const actBar = `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
                 <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--accent);"><div style="font-size:18px;font-weight:700;color:var(--accent);">${acts.PROMOTE||0}</div><div class="stat-lbl">Promote</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);"><div style="font-size:18px;font-weight:700;color:var(--orange);">${acts.DISCOUNT||0}</div><div class="stat-lbl">Discount</div></div>
@@ -2324,12 +2331,32 @@
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">$${Math.round(cap.total_locked||0).toLocaleString()}</div><div class="stat-lbl">Capital</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.inventory_turnover||0}x</div><div class="stat-lbl">Turns/Yr</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.avg_days_listed||0}d</div><div class="stat-lbl">Avg Age</div></div>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;" title="Comparison against the 54k-record historical price database. Click Comp Upside sort to see biggest underpriced items first.">
+                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--green);cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_upside';renderInv();" title="Items listed below comp median — click to sort by biggest upside">
+                    <div style="font-size:18px;font-weight:700;color:var(--green);">${cs.under_median||0}</div><div class="stat-lbl">Under Comp</div>
+                </div>
+                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--accent);">
+                    <div style="font-size:18px;font-weight:700;color:var(--accent);">${cs.at_median||0}</div><div class="stat-lbl">At Median</div>
+                </div>
+                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--orange);cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_overpriced';renderInv();" title="Items listed above comp p75 — click to sort">
+                    <div style="font-size:18px;font-weight:700;color:var(--orange);">${cs.over_p75||0}</div><div class="stat-lbl">Over p75</div>
+                </div>
+                <div class="card" style="flex:1;text-align:center;min-width:80px;">
+                    <div style="font-size:18px;font-weight:700;color:var(--green);">$${Math.round(cs.total_upside_to_median||0).toLocaleString()}</div><div class="stat-lbl">Upside to Median</div>
+                </div>
+                <div class="card" style="flex:1;text-align:center;min-width:80px;" title="Listings with ≥3 matching comps in the 54k DB">
+                    <div style="font-size:18px;font-weight:700;">${cs.coverage||0}</div><div class="stat-lbl">With Comps</div>
+                </div>
+                <div class="card" style="flex:1;text-align:center;min-width:80px;" title="Listings with no matching comps — title may be too unique">
+                    <div style="font-size:18px;font-weight:700;color:var(--dim);">${cs.no_comps||0}</div><div class="stat-lbl">No Comps</div>
+                </div>
             </div>`;
 
             el.innerHTML = actBar + `<div class="table-wrap"><table>
                 <thead><tr>
                     <th>Item</th><th style="min-width:140px;background:rgba(48,209,88,0.05);">Set Price ✏️</th><th>Signal</th><th>Next Move</th><th>Velocity</th><th class="r">Smart $</th><th class="r">Last Sale</th>
-                    <th class="r">Median</th><th class="r">Supply</th><th class="r">Ad%</th>
+                    <th class="r">Median</th><th class="r" title="Historical comp median · count · position vs your price">Comps</th><th class="r">Supply</th><th class="r">Ad%</th>
                     <th class="r">Margin</th><th>Season</th><th>Why</th>
                 </tr></thead>
                 <tbody>${items.slice(0, 200).map(i => {
@@ -2365,6 +2392,7 @@
                         <td class="r b g" onclick="event.stopPropagation();showChart('${i.id}',event)" style="cursor:pointer;" title="Click for price history. Components: ${Object.entries(i.pricing_components||{}).map(([k,v])=>k+': $'+Math.round(v.price||0)).join(', ')}">$${Math.round(i.suggested_price||0)}</td>
                         <td class="r" style="color:var(--accent);cursor:help;" title="Last sale: $${i.last_sale||'--'} on ${i.last_sale_date||'unknown'}. ${i.price_confidence||'?'} confidence.">${i.last_sale ? '$'+Math.round(i.last_sale) : '--'}</td>
                         <td class="r d" onclick="event.stopPropagation();drill('competing',{title:'${esc(i.name)}'})" style="cursor:pointer;" title="Click to see market comps">${i.market_median ? '$'+Math.round(i.market_median) : '--'}</td>
+                        <td class="r" onclick="event.stopPropagation();showCompDetail('${i.id}','${esc(i.name)}','${i.artist}')" style="cursor:pointer;" title="${i.comp_count ? `${i.comp_count} comps · median $${Math.round(i.comp_median)} · p75 $${Math.round(i.comp_p75)}${i.comp_12mo_median?' · 12mo $'+Math.round(i.comp_12mo_median):''}${i.comp_signed_only?' · signed-only':''}${i.comp_delta_pct!=null?' · your price '+(i.comp_delta_pct>0?'+':'')+i.comp_delta_pct+'% vs median':''}\nClick for distribution chart.` : 'No comps found in 54k DB'}">${i.comp_count ? `<span style="color:${i.comp_position==='under'?'var(--green)':i.comp_position==='over'?'var(--orange)':'var(--accent)'};font-weight:700;">$${Math.round(i.comp_median)}</span><span style="font-size:9px;color:var(--dim);margin-left:3px;">n=${i.comp_count}</span>${i.comp_delta_pct!=null?`<div style="font-size:9px;color:${i.comp_delta_pct<-5?'var(--green)':i.comp_delta_pct>10?'var(--orange)':'var(--dim)'};">${i.comp_delta_pct>0?'+':''}${i.comp_delta_pct}%</div>`:''}` : '<span style="color:var(--dim);">--</span>'}</td>
                         <td class="r" onclick="event.stopPropagation();drill('competing',{title:'${esc(i.name)}',id:'${i.id}'})" style="cursor:pointer;color:var(--accent);text-decoration:underline;" title="${i.ebay_supply||0} competing listings — click to view">${i.ebay_supply||0}</td>
                         <td class="r ${(i.ad_rate||0)>8?'rd b':''}" onclick="event.stopPropagation();showTab('promos')" style="cursor:pointer;" title="Ad rate: ${i.ad_rate||0}%. Click to manage promotions.">${i.ad_rate ? i.ad_rate+'%' : '--'}</td>
                         <td class="r ${mc}" title="Revenue: $${Math.round(i.suggested_price||0)} — Cost est: $${Math.round((i.suggested_price||0)*0.4)} — Fee: $${Math.round((i.suggested_price||0)*0.13)} — Ad: $${Math.round(i.ad_cost||0)} — Profit: $${Math.round(i.net_profit||0)} (${i.margin_pct||0}%)">${i.net_profit ? '$'+Math.round(i.net_profit) : '--'} <span style="font-size:9px;">${i.margin_pct?i.margin_pct+'%':''}</span></td>
@@ -4252,6 +4280,102 @@
         // ==========================================
         // Price chart popup
         // ==========================================
+        async function showCompDetail(listingId, name, artist) {
+            // Comp detail modal: hits /api/prices/search with listing title → shows distribution vs your price
+            const modal = document.getElementById('drill-modal');
+            const titleEl = document.getElementById('drill-title');
+            const content = document.getElementById('drill-content');
+            titleEl.textContent = 'Comp Comparison — ' + name;
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            modal.classList.add('show');
+
+            // Find the listing to pull your_price and cached comp_evidence
+            const item = (invData?.items || []).find(x => x.id === listingId) || {};
+            const yourPrice = item.your_price || 0;
+
+            try {
+                const params = new URLSearchParams({title: name, artist: artist || '', limit: 100});
+                if ((name || '').toLowerCase().includes('signed')) params.set('signed', '1');
+                const resp = await fetch('/api/prices/search?' + params.toString());
+                const d = await resp.json();
+                const stats = d.stats || {};
+                const comps = d.comps || [];
+                const trend = d.trend || [];
+
+                if (!stats.count) {
+                    content.innerHTML = `<div style="padding:24px;text-align:center;color:var(--dim);">No comps found in the 54k historical DB for this title.<br><br>Try searching more broadly in <a href="/prices?title=${encodeURIComponent(name)}" target="_blank" style="color:var(--accent);">Price Radar</a>.</div>`;
+                    return;
+                }
+
+                const delta = yourPrice > 0 && stats.median > 0 ? Math.round((yourPrice - stats.median) / stats.median * 100) : null;
+                const deltaColor = delta == null ? 'var(--dim)' : delta < -5 ? 'var(--green)' : delta > 10 ? 'var(--orange)' : 'var(--accent)';
+
+                content.innerHTML = `
+                    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:18px;font-weight:700;">$${Math.round(yourPrice)}</div><div class="stat-lbl">Your Price</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:18px;font-weight:700;">${stats.count}</div><div class="stat-lbl">Comps</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:18px;font-weight:700;color:var(--accent);">$${stats.median}</div><div class="stat-lbl">Median</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:18px;font-weight:700;">$${stats.p25} – $${stats.p75}</div><div class="stat-lbl">p25–p75</div></div>
+                        <div class="card" style="flex:1;text-align:center;min-width:80px;"><div style="font-size:18px;font-weight:700;color:${deltaColor};">${delta != null ? (delta > 0 ? '+' : '') + delta + '%' : '--'}</div><div class="stat-lbl">vs Median</div></div>
+                    </div>
+                    <canvas id="comp-dist-chart" height="180" style="margin-bottom:14px;"></canvas>
+                    ${trend.length ? `<div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Median by year:</div>
+                    <div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;">
+                        ${trend.map(t => `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;"><b>${t.year}</b> · $${t.median} <span style="color:var(--dim);">(n=${t.count})</span></div>`).join('')}
+                    </div>` : ''}
+                    <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Recent sales (top 15):</div>
+                    <div class="table-wrap"><table style="font-size:11px;">
+                        <thead><tr><th>Title</th><th class="r">Price</th><th>Date</th><th>Signed</th><th>Source</th></tr></thead>
+                        <tbody>${comps.slice(0,15).map(c => `
+                            <tr>
+                                <td class="trunc" title="${(c.name||'').replace(/"/g,'&quot;')}">${(c.name||'').substring(0,50)}</td>
+                                <td class="r b">$${Math.round(c.price||0)}</td>
+                                <td class="d">${(c.date||'').substring(0,10)}</td>
+                                <td>${c.signed ? '✓' : ''}</td>
+                                <td class="d">${c.source||''}</td>
+                            </tr>`).join('')}</tbody>
+                    </table></div>
+                    <div style="margin-top:12px;text-align:right;">
+                        <button class="btn" onclick="setExactPrice('${listingId}',${stats.median});toast('Price set to comp median $${stats.median}');" style="background:var(--accent);color:#fff;">Match Median $${stats.median}</button>
+                        <button class="btn" onclick="setExactPrice('${listingId}',${stats.p75});toast('Price set to p75 $${stats.p75}');" style="background:var(--green);color:#000;">Match p75 $${stats.p75}</button>
+                        <a href="/prices?title=${encodeURIComponent(name)}" target="_blank" class="btn-ghost" style="margin-left:8px;">Open in Price Radar ↗</a>
+                    </div>
+                `;
+
+                // Histogram
+                const buckets = 12;
+                const prices = comps.map(c => c.price).filter(p => p > 0);
+                if (prices.length) {
+                    const lo = Math.min(...prices), hi = Math.max(...prices);
+                    const step = (hi - lo) / buckets || 1;
+                    const counts = new Array(buckets).fill(0);
+                    const labels = [];
+                    for (let i = 0; i < buckets; i++) {
+                        labels.push('$' + Math.round(lo + step * i));
+                    }
+                    prices.forEach(p => {
+                        const idx = Math.min(buckets - 1, Math.floor((p - lo) / step));
+                        counts[idx]++;
+                    });
+                    const yourBucket = yourPrice > 0 ? Math.min(buckets - 1, Math.max(0, Math.floor((yourPrice - lo) / step))) : -1;
+                    const bg = counts.map((_, i) => i === yourBucket ? 'rgba(48,209,88,0.9)' : 'rgba(100,150,255,0.4)');
+                    new Chart(document.getElementById('comp-dist-chart'), {
+                        type: 'bar',
+                        data: { labels, datasets: [{ label: 'Comps', data: counts, backgroundColor: bg, borderWidth: 0 }] },
+                        options: {
+                            plugins: { legend: { display: false }, tooltip: { callbacks: { title: (c) => c[0].label + '+' } } },
+                            scales: {
+                                x: { ticks: { color: '#888', font: { size: 10 } }, grid: { display: false } },
+                                y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                content.innerHTML = `<div style="padding:20px;color:var(--red);">Failed to load comps: ${e.message}</div>`;
+            }
+        }
+
         async function showChart(listingId, event) {
             // Open in drill modal with chart
             const modal = document.getElementById('drill-modal');

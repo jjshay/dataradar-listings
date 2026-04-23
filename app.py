@@ -1402,23 +1402,118 @@ def get_active_events(date=None):
     return active
 
 
-def calculate_suggested_price(base_price, title):
-    """Calculate suggested price based on active events and item title"""
+def calculate_comp_anchors(title, artist=''):
+    """Pull historical comps and return pricing anchors.
+
+    Returns None if fewer than 3 usable comps. Otherwise:
+      {count, median, p75, trailing_12mo_median, signed_only, source_count_all}
+
+    Signed gate: if title contains "signed", comps are restricted to signed=True.
+    Falls back to the full pool (signed_only=False) if <3 signed comps exist.
+    """
+    raw = lookup_historical_prices(title, artist, limit=500)
+    if not raw:
+        return None
+
+    signed_only = 'signed' in title.lower()
+    pool = raw
+    if signed_only:
+        signed_pool = [c for c in raw if c.get('signed')]
+        if len(signed_pool) >= 3:
+            pool = signed_pool
+        else:
+            signed_only = False
+
+    prices = [c['price'] for c in pool if c.get('price', 0) > 0]
+    if len(prices) < 3:
+        return None
+
+    sp = sorted(prices)
+    n = len(sp)
+    median = sp[n // 2]
+    p75 = sp[min(n - 1, int(n * 0.75))]
+
+    cutoff = (datetime.utcnow() - timedelta(days=365)).strftime('%Y-%m-%d')
+    recent = [c['price'] for c in pool
+              if (c.get('date') or '') >= cutoff and c.get('price', 0) > 0]
+    trailing = None
+    if len(recent) >= 3:
+        rs = sorted(recent)
+        trailing = round(rs[len(rs) // 2], 2)
+
+    return {
+        'count': n,
+        'median': round(median, 2),
+        'p75': round(p75, 2),
+        'trailing_12mo_median': trailing,
+        'signed_only': signed_only,
+        'source_count_all': len(raw),
+    }
+
+
+def _build_comp_summary(items):
+    """Aggregate comp position across inventory — drives 'X items underpriced' card."""
+    with_comps = [i for i in items if i.get('comp_evidence')]
+    under = [i for i in with_comps if i.get('comp_position') == 'under']
+    at = [i for i in with_comps if i.get('comp_position') == 'at']
+    over = [i for i in with_comps if i.get('comp_position') == 'over']
+
+    upside = 0.0
+    for i in under:
+        yp = i.get('your_price') or 0
+        cm = i.get('comp_median') or 0
+        if yp > 0 and cm > 0 and cm > yp:
+            upside += (cm - yp)
+
+    return {
+        'coverage': len(with_comps),
+        'no_comps': len(items) - len(with_comps),
+        'under_median': len(under),
+        'at_median': len(at),
+        'over_p75': len(over),
+        'total_upside_to_median': round(upside, 2),
+    }
+
+
+def _event_multiplier(title):
+    """Return (multiplier, max_boost_pct) for active calendar events matching title."""
     active_events = get_active_events()
     max_boost = 0
-
     title_lower = title.lower()
-
     for event in active_events:
         keywords = event.get('keywords', [])
         if any(kw.lower() in title_lower for kw in keywords):
             boost = TIER_BOOSTS.get(event.get('tier', 'MINOR'), 0)
             max_boost = max(max_boost, boost)
+    return 1 + max_boost / 100, max_boost
 
-    if max_boost > 0:
-        return base_price * (1 + max_boost / 100)
 
-    return base_price
+def calculate_suggested_price(base_price, title, artist=''):
+    """Suggested price = comp_p75 × event_multiplier when ≥3 comps exist.
+    Falls back to base_price × event_multiplier otherwise."""
+    multiplier, _ = _event_multiplier(title)
+    anchors = calculate_comp_anchors(title, artist)
+    if anchors and anchors['count'] >= 3:
+        return round(anchors['p75'] * multiplier, 2)
+    return base_price * multiplier
+
+
+def calculate_suggested_price_detailed(base_price, title, artist=''):
+    """Same as calculate_suggested_price but returns full evidence payload."""
+    multiplier, max_boost = _event_multiplier(title)
+    anchors = calculate_comp_anchors(title, artist)
+    if anchors and anchors['count'] >= 3:
+        suggested = round(anchors['p75'] * multiplier, 2)
+        source = 'comp_p75'
+    else:
+        suggested = round(base_price * multiplier, 2)
+        source = 'base_price_fallback'
+    return {
+        'suggested': suggested,
+        'event_boost_pct': max_boost,
+        'source': source,
+        'comps': anchors,
+    }
 
 
 def get_matching_events(title):
@@ -2003,12 +2098,18 @@ def get_listings():
     if search:
         listings = [l for l in listings if search in l['title'].lower()]
 
-    # Add suggested prices and market data
+    # Add suggested prices, comp evidence, and market data
     for listing in listings:
-        listing['suggested_price'] = calculate_suggested_price(
+        detail = calculate_suggested_price_detailed(
             listing['price'],
-            listing['title']
+            listing['title'],
+            listing.get('artist', '')
         )
+        listing['suggested_price'] = detail['suggested']
+        listing['suggested_source'] = detail['source']
+        listing['event_boost_pct'] = detail['event_boost_pct']
+        if detail['comps']:
+            listing['comp_evidence'] = detail['comps']
         listing['matching_events'] = get_matching_events(listing['title'])
 
         # Add market pricing data
@@ -2148,16 +2249,26 @@ def get_underpriced():
     underpriced = []
 
     for listing in listings:
-        suggested = calculate_suggested_price(listing['price'], listing['title'])
+        detail = calculate_suggested_price_detailed(
+            listing['price'],
+            listing['title'],
+            listing.get('artist', '')
+        )
+        suggested = detail['suggested']
         if suggested > listing['price'] * 1.01:
             events = get_matching_events(listing['title'])
             boost = int((suggested / listing['price'] - 1) * 100)
-            underpriced.append({
+            entry = {
                 **listing,
                 'suggested_price': suggested,
+                'suggested_source': detail['source'],
+                'event_boost_pct': detail['event_boost_pct'],
                 'boost_percent': boost,
-                'matching_events': events
-            })
+                'matching_events': events,
+            }
+            if detail['comps']:
+                entry['comp_evidence'] = detail['comps']
+            underpriced.append(entry)
 
     return jsonify(underpriced)
 
@@ -4051,6 +4162,28 @@ def get_full_inventory_analytics():
             recent = 0
             price_range = ''
 
+        # Comp evidence from the 54k historical DB (Price Radar source)
+        comp_evidence = None
+        comp_position = None
+        comp_delta_pct = None
+        try:
+            comp_evidence = calculate_comp_anchors(listing['title'], artist)
+        except Exception:
+            comp_evidence = None
+
+        your_price = listing['price'] or 0
+        if comp_evidence and your_price > 0:
+            cm = comp_evidence['median']
+            cp = comp_evidence['p75']
+            if cm > 0:
+                comp_delta_pct = round((your_price - cm) / cm * 100, 1)
+            if your_price >= cp:
+                comp_position = 'over'
+            elif your_price >= cm:
+                comp_position = 'at'
+            else:
+                comp_position = 'under'
+
         inventory.append({
             'id': listing['id'],
             'name': listing['title'],
@@ -4066,6 +4199,14 @@ def get_full_inventory_analytics():
             'recommendation_reason': reason,
             'comparable_sales': comp_count,
             'recent_sales': recent,
+            'comp_evidence': comp_evidence,
+            'comp_median': comp_evidence['median'] if comp_evidence else None,
+            'comp_p75': comp_evidence['p75'] if comp_evidence else None,
+            'comp_12mo_median': comp_evidence['trailing_12mo_median'] if comp_evidence else None,
+            'comp_count': comp_evidence['count'] if comp_evidence else 0,
+            'comp_signed_only': comp_evidence['signed_only'] if comp_evidence else False,
+            'comp_position': comp_position,
+            'comp_delta_pct': comp_delta_pct,
             '_ebay_listing': listing,
         })
 
@@ -4386,6 +4527,7 @@ def get_full_inventory_analytics():
         'margin_warnings': len([i for i in enhanced if i['ad_eats_margin']]),
         'organic_performers': len([i for i in enhanced if i['promo_status'] == 'organic']),
         'seasonal_suggestions': seasonal,
+        'comp_summary': _build_comp_summary(enhanced),
     })
 
 
