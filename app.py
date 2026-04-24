@@ -2019,6 +2019,160 @@ def is_likely_fake(title, price, category=''):
     return False, ''
 
 
+# =============================================================================
+# Comp Curation — manual approve/reject signals per item+comp
+# =============================================================================
+#
+# Design:
+# - Two files: COMP_CURATION_REJECTIONS_FILE and COMP_CURATION_APPROVALS_FILE.
+#   New filenames (not comp_rejections.json) because that file already exists
+#   with a different schema used by the older auto-reject rules pipeline.
+# - Each file: {"<item_signature>": ["<comp_key>", ...]}
+# - item_signature = "<artist>|<title_first_40_chars>" normalized
+#   (lowercased, non-alnum -> '_').
+# - comp_key = sha1(name|price|date)[:12] — stable across runs, 12 hex chars
+#   gives ~6e14 keyspace which is comfortably collision-free for 54k comps.
+# =============================================================================
+
+import hashlib
+
+COMP_CURATION_REJECTIONS_FILE = os.path.join(DATA_DIR, 'comp_curation_rejections.json')
+COMP_CURATION_APPROVALS_FILE = os.path.join(DATA_DIR, 'comp_curation_approvals.json')
+
+# Lazy-loaded module index keyed by (signature, comp_key) -> 'reject' | 'approve'.
+# Refreshed any time _save_curation is called so subsequent reads see fresh state.
+_CURATION_INDEX = None
+
+
+def _item_signature(title, artist):
+    """Normalized signature: '<artist>|<title_first_40>' lowercased,
+    non-alphanumeric runs collapsed to underscores."""
+    a = (artist or '').strip().lower()
+    t = (title or '').strip().lower()[:40]
+    a_norm = re.sub(r'[^a-z0-9]+', '_', a).strip('_')
+    t_norm = re.sub(r'[^a-z0-9]+', '_', t).strip('_')
+    return f"{a_norm}|{t_norm}"
+
+
+def _comp_key(rec):
+    """Stable 12-char sha1 of name|price|date."""
+    try:
+        name = str(rec.get('name', '') or '')
+        price = rec.get('price', 0) or 0
+        date = str(rec.get('date', '') or '')
+        raw = f"{name}|{price}|{date}".encode('utf-8', errors='replace')
+        return hashlib.sha1(raw).hexdigest()[:12]
+    except Exception:
+        return hashlib.sha1(b'').hexdigest()[:12]
+
+
+def _load_curation_file(path):
+    """Load a single curation file, returning {} on any error."""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+            return {}
+    except Exception as e:
+        print(f"[curation] load error {path}: {e}")
+        return {}
+
+
+def _write_curation_file(path, data):
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"[curation] write error {path}: {e}")
+
+
+def _load_curation():
+    """Load both files as a merged dict:
+      {<sig>: {'rejected': [comp_keys], 'approved': [comp_keys]}}
+    """
+    rej = _load_curation_file(COMP_CURATION_REJECTIONS_FILE)
+    appr = _load_curation_file(COMP_CURATION_APPROVALS_FILE)
+    merged = {}
+    for sig, keys in rej.items():
+        if not isinstance(keys, list):
+            continue
+        merged.setdefault(sig, {'rejected': [], 'approved': []})['rejected'] = list(keys)
+    for sig, keys in appr.items():
+        if not isinstance(keys, list):
+            continue
+        merged.setdefault(sig, {'rejected': [], 'approved': []})['approved'] = list(keys)
+    return merged
+
+
+def _rebuild_curation_index():
+    """Refresh the module-level (sig, comp_key) -> action index."""
+    global _CURATION_INDEX
+    idx = {}
+    merged = _load_curation()
+    for sig, entry in merged.items():
+        for ck in entry.get('rejected', []):
+            idx[(sig, ck)] = 'reject'
+        for ck in entry.get('approved', []):
+            # Reject wins on collision (more conservative)
+            idx.setdefault((sig, ck), 'approve')
+    _CURATION_INDEX = idx
+    return idx
+
+
+def _get_curation_index():
+    if _CURATION_INDEX is None:
+        return _rebuild_curation_index()
+    return _CURATION_INDEX
+
+
+def _save_curation(sig, action, comp_key):
+    """Persist (sig, comp_key) with action in ('reject','approve','unmark').
+    'unmark' removes the comp_key from BOTH files.
+    """
+    if not sig or not comp_key:
+        return
+    rej = _load_curation_file(COMP_CURATION_REJECTIONS_FILE)
+    appr = _load_curation_file(COMP_CURATION_APPROVALS_FILE)
+
+    def _remove(store, sig, ck):
+        if sig in store and isinstance(store[sig], list) and ck in store[sig]:
+            store[sig] = [k for k in store[sig] if k != ck]
+            if not store[sig]:
+                store.pop(sig, None)
+
+    # Always remove from opposite (or both for unmark) before applying
+    if action == 'reject':
+        _remove(appr, sig, comp_key)
+        bucket = rej.setdefault(sig, [])
+        if not isinstance(bucket, list):
+            bucket = []
+            rej[sig] = bucket
+        if comp_key not in bucket:
+            bucket.append(comp_key)
+    elif action == 'approve':
+        _remove(rej, sig, comp_key)
+        bucket = appr.setdefault(sig, [])
+        if not isinstance(bucket, list):
+            bucket = []
+            appr[sig] = bucket
+        if comp_key not in bucket:
+            bucket.append(comp_key)
+    elif action == 'unmark':
+        _remove(rej, sig, comp_key)
+        _remove(appr, sig, comp_key)
+    else:
+        print(f"[curation] unknown action: {action}")
+        return
+
+    _write_curation_file(COMP_CURATION_REJECTIONS_FILE, rej)
+    _write_curation_file(COMP_CURATION_APPROVALS_FILE, appr)
+    _rebuild_curation_index()
+
+
 def lookup_historical_prices(title, artist='', limit=50):
     """Fast lookup using cleaned historical data — pre-filtered, pre-indexed."""
     noise = {'the', 'a', 'an', 'and', 'or', 'for', 'in', 'on', 'at', 'to', 'of', 'is', 'by', 'with',
@@ -2032,6 +2186,15 @@ def lookup_historical_prices(title, artist='', limit=50):
 
     if len(title_words) < 1:
         return []
+
+    # Pre-compute curation for this item signature once per call.
+    try:
+        sig = _item_signature(title, artist)
+        cur_index = _get_curation_index()
+    except Exception as e:
+        print(f"[curation] lookup pre-compute failed: {e}")
+        sig = ''
+        cur_index = {}
 
     data = load_historical_clean()
     results = []
@@ -2055,6 +2218,13 @@ def lookup_historical_prices(title, artist='', limit=50):
         if overlap < 1:
             continue
 
+        # Manual curation — skip rejections, flag approvals.
+        ck = _comp_key(rec) if sig else ''
+        action = cur_index.get((sig, ck)) if sig and ck else None
+        if action == 'reject':
+            continue
+        approved = (action == 'approve')
+
         results.append({
             'name': rec.get('name', ''),
             'price': rec.get('price', 0),
@@ -2063,6 +2233,8 @@ def lookup_historical_prices(title, artist='', limit=50):
             'url': rec.get('url', ''),
             'signed': rec.get('signed', False),
             'medium': rec.get('medium', ''),
+            'approved': approved,
+            'comp_key': ck,
             '_overlap': overlap,
         })
 
@@ -2312,16 +2484,61 @@ def get_alerts():
 
 @app.route('/api/update-price', methods=['POST'])
 def update_price():
-    """Update item price on eBay"""
-    data = request.get_json()
+    """Update item price on eBay. Logs every successful push to
+    data/price_history.json via _append_price_change().
+
+    Request body:
+      item_id: str          (required)
+      price:   float|int    (required)
+      source:  str          (optional, default 'user_manual')
+                            Accepted: 'user_manual', 'bulk_consensus',
+                            'match_median', and any free-form label.
+      prev_price: optional  — if caller already knows the previous price,
+                              pass it and we skip a fetch.
+    """
+    print("[update-price] entry")
+    data = request.get_json(silent=True) or {}
     item_id = data.get('item_id')
     new_price = data.get('price')
+    source = (data.get('source') or 'user_manual').strip() or 'user_manual'
+    prev_price_in = data.get('prev_price')
 
-    if not item_id or not new_price:
+    if not item_id or new_price is None:
+        print("[update-price] exit: missing params")
         return jsonify({'success': False, 'error': 'Missing parameters'})
 
-    success = ebay.update_price(item_id, float(new_price))
+    try:
+        price_f = float(new_price)
+    except Exception:
+        print("[update-price] exit: price not numeric")
+        return jsonify({'success': False, 'error': 'price not numeric'})
 
+    # Resolve previous price for history. Caller-supplied wins; otherwise scan
+    # current listings. On any failure we still log with prev_price=None.
+    prev_price = None
+    if prev_price_in is not None:
+        try:
+            prev_price = float(prev_price_in)
+        except Exception:
+            prev_price = None
+    if prev_price is None:
+        try:
+            for l in ebay.get_all_listings():
+                if str(l.get('id')) == str(item_id):
+                    prev_price = l.get('price')
+                    break
+        except Exception as e:
+            print(f"[update-price] prev_price lookup failed: {e}")
+
+    success = ebay.update_price(item_id, price_f)
+
+    if success:
+        try:
+            _append_price_change(str(item_id), prev_price, price_f, source)
+        except Exception as e:
+            print(f"[update-price] history append failed: {e}")
+
+    print(f"[update-price] exit: {item_id} -> ${price_f:.2f} success={success} source={source}")
     return jsonify({'success': success})
 
 
@@ -4631,6 +4848,83 @@ def _parse_llm_json(text):
         return {**blank, 'reason': f'parse_error: {str(e)[:120]}'}
 
 
+# Per-artist expert context blocks — injected into the LLM pricing prompt.
+# Keyed by the artist label produced by the detect logic in
+# get_full_inventory_analytics (see ~line 4117). 'default' is the safe fallback
+# used for anything not explicitly mapped, including 'Unknown' / 'Other'.
+_ARTIST_PROMPT_FRAGMENTS = {
+    'Shepard Fairey': (
+        "Edition context: Fairey editions range 200-500 typically; numbered/signed "
+        "(e.g. 123/450) commands 2-3x unsigned premium. 'HPM' (hand-painted multiples) "
+        "are one-of-a-kind and price 5-10x standard editions. Timestamp a watermark when "
+        "stored in OBEY Giant's archives. Watch for series: Peace, Power, We The People, "
+        "Obey Giant classic."
+    ),
+    'Death NYC': (
+        "Edition context: Death NYC is prolific — editions of 100 are common, often "
+        "signed and numbered. HPMs (hand-painted multiples) are rare one-of-ones. "
+        "Signed/numbered is non-negotiable; unsigned comps are often knockoffs. Series "
+        "to watch: Mona variants, celebrity mashups, Simpsons, LV handbags."
+    ),
+    'KAWS': (
+        "Edition context: KAWS figures are the headline (BFF, Companion, Chum). "
+        "Colorway affects price dramatically — OG colorways (black, grey, brown) "
+        "typically price lowest; rarer (pink, purple, mint) 1.5-3x. Original "
+        "MedicomToy boxes required for full value. Watch for counterfeits — "
+        "authentication matters."
+    ),
+    'Banksy': (
+        "Edition context: Banksy is the apex of authentication risk. Pest Control "
+        "certificate of authenticity REQUIRED for real value — without it, assume a "
+        "print is a repro. 'Signed' claims are highly suspect without Pest Control. "
+        "Genuine authenticated Banksy editions 50-500, signed 3-5x unsigned."
+    ),
+    'Mr. Brainwash': (
+        "Edition context: MBW is prolific with large editions (often 500+). Signed "
+        "and dated pieces carry premium; HPMs are one-of-a-kind. Watch for series: "
+        "Einstein, Life is Beautiful, Love is the Answer."
+    ),
+    'MBW': (
+        "Edition context: MBW is prolific with large editions (often 500+). Signed "
+        "and dated pieces carry premium; HPMs are one-of-a-kind. Watch for series: "
+        "Einstein, Life is Beautiful, Love is the Answer."
+    ),
+    'Bearbrick': (
+        "Edition context: Bearbricks priced by size (400%, 1000%) and series. Collab "
+        "pieces (Sorayama, KAWS, Chanel) command multiples. MIB/sealed box is "
+        "non-negotiable for high-end pricing."
+    ),
+    'BE@RBRICK': (
+        "Edition context: Bearbricks priced by size (400%, 1000%) and series. Collab "
+        "pieces (Sorayama, KAWS, Chanel) command multiples. MIB/sealed box is "
+        "non-negotiable for high-end pricing."
+    ),
+    'default': (
+        "Edition context: confirm signed/numbered status and condition from the title. "
+        "Signed editions typically 2-3x unsigned comps."
+    ),
+}
+
+
+def _artist_fragment(artist):
+    """Return the per-artist prompt fragment, falling back to 'default'.
+
+    Matches via exact key first, then case-insensitive substring fallback so
+    labels like 'Mr. Brainwash / MBW' or 'Bearbrick 400%' still resolve.
+    """
+    if not artist:
+        return _ARTIST_PROMPT_FRAGMENTS['default']
+    if artist in _ARTIST_PROMPT_FRAGMENTS:
+        return _ARTIST_PROMPT_FRAGMENTS[artist]
+    a_lower = str(artist).lower()
+    for key, frag in _ARTIST_PROMPT_FRAGMENTS.items():
+        if key == 'default':
+            continue
+        if key.lower() in a_lower or a_lower in key.lower():
+            return frag
+    return _ARTIST_PROMPT_FRAGMENTS['default']
+
+
 def _build_llm_prompt(listing, comp_stats, recent_comps, active_comps):
     """Build the shared LLM prompt used by all 4 models.
 
@@ -4690,6 +4984,8 @@ def _build_llm_prompt(listing, comp_stats, recent_comps, active_comps):
     else:
         active_section = "Current eBay competition: none visible right now (low supply or narrow match)."
 
+    artist_fragment = _artist_fragment(artist)
+
     return (
         "You are pricing an eBay listing for an authenticated art reseller. "
         "Your job is to return a PRICE RANGE — floor (fast-sale), recommended (best balance), "
@@ -4700,6 +4996,7 @@ def _build_llm_prompt(listing, comp_stats, recent_comps, active_comps):
         f"{comp_section}\n"
         f"Recent closed sales (top 5):\n{recent_text}\n\n"
         f"{active_section}\n\n"
+        f"Artist-specific context:\n  {artist_fragment}\n\n"
         "Considering (a) historical comp distribution, (b) recency/trend, "
         "(c) current live competition and their pricing, and (d) the signed/edition nature of this piece, "
         "what range of eBay prices makes sense?\n\n"
@@ -5381,6 +5678,24 @@ def bulk_consensus_apply():
                 failed += 1
                 continue
 
+            # Best-effort previous-price lookup for history log. Scan once per
+            # item; failure is non-fatal (we log with prev_price=None).
+            prev_price = entry.get('prev_price')
+            if prev_price is None:
+                try:
+                    for l in ebay.get_all_listings():
+                        if str(l.get('id')) == str(item_id):
+                            prev_price = l.get('price')
+                            break
+                except Exception as e:
+                    print(f"[bulk-apply] prev_price lookup failed for {item_id}: {e}")
+                    prev_price = None
+            else:
+                try:
+                    prev_price = float(prev_price)
+                except Exception:
+                    prev_price = None
+
             if local_dev:
                 print(f"[bulk-apply] local_dev: would set {item_id} -> ${price_f:.2f}")
                 results.append({
@@ -5391,6 +5706,10 @@ def bulk_consensus_apply():
                 })
                 # Count for revenue projection so the UI can preview impact
                 total_new_revenue += price_f
+                try:
+                    _append_price_change(str(item_id), prev_price, price_f, 'bulk_consensus_local_dev')
+                except Exception as e:
+                    print(f"[bulk-apply] history append (local_dev) failed: {e}")
                 continue
 
             try:
@@ -5409,6 +5728,10 @@ def bulk_consensus_apply():
             if ok:
                 applied += 1
                 total_new_revenue += price_f
+                try:
+                    _append_price_change(str(item_id), prev_price, price_f, 'bulk_consensus')
+                except Exception as e:
+                    print(f"[bulk-apply] history append failed: {e}")
                 results.append({
                     'id': item_id,
                     'price': price_f,
@@ -5439,6 +5762,298 @@ def bulk_consensus_apply():
         'total_new_revenue': round(total_new_revenue, 2),
         'results': results,
         'local_dev': local_dev,
+    })
+
+
+# =============================================================================
+# Price History Log + Drift Alerts (Feature B)
+# =============================================================================
+
+PRICE_HISTORY_FILE = os.path.join(DATA_DIR, 'price_history.json')
+
+
+def _load_price_history():
+    """Load price_history.json. Returns {} on any error or missing file."""
+    if not os.path.exists(PRICE_HISTORY_FILE):
+        return {}
+    try:
+        with open(PRICE_HISTORY_FILE, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+            return {}
+    except Exception as e:
+        print(f"[price-history] load error: {e}")
+        return {}
+
+
+def _save_price_history(hist):
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(PRICE_HISTORY_FILE, 'w') as f:
+            json.dump(hist, f, indent=2)
+    except Exception as e:
+        print(f"[price-history] save error: {e}")
+
+
+def _append_price_change(listing_id, prev_price, new_price, source):
+    """Append one price change event to price_history.json.
+
+    Schema: {<listing_id>: [{price, prev_price, at, source}, ...]}
+    Never raises — all errors get logged.
+    """
+    if not listing_id:
+        return
+    try:
+        hist = _load_price_history()
+        entries = hist.setdefault(str(listing_id), [])
+        if not isinstance(entries, list):
+            entries = []
+            hist[str(listing_id)] = entries
+        entries.append({
+            'price': float(new_price) if new_price is not None else None,
+            'prev_price': float(prev_price) if prev_price is not None else None,
+            'at': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'source': str(source or 'user_manual'),
+        })
+        _save_price_history(hist)
+        print(f"[price-history] logged {listing_id}: {prev_price} -> {new_price} ({source})")
+    except Exception as e:
+        print(f"[price-history] append error {listing_id}: {e}")
+
+
+@app.route('/api/drift-alerts')
+def drift_alerts():
+    """Surface inventory items whose comp_median has diverged >=10% from
+    your_price — these are candidates for a manual reprice.
+
+    Simplification: we don't store historical comp_median, so we approximate
+    drift as (comp_median - your_price) / your_price. This conflates
+    'I listed too high' with 'the market has moved' but it's still actionable.
+    """
+    print("[drift-alerts] entry")
+    try:
+        hist = _load_price_history()
+    except Exception as e:
+        print(f"[drift-alerts] history load failed: {e}")
+        hist = {}
+
+    try:
+        items = _fetch_analytics_items()
+    except Exception as e:
+        print(f"[drift-alerts] items fetch failed: {e}")
+        return jsonify({'alerts': [], 'total': 0, 'error': str(e)[:200]})
+
+    now = datetime.utcnow()
+    alerts = []
+
+    for it in items or []:
+        try:
+            comp_evidence = it.get('comp_evidence')
+            if not comp_evidence:
+                continue
+            comp_median = it.get('comp_median') or 0
+            your_price = it.get('your_price') or 0
+            if not comp_median or not your_price or float(your_price) <= 0:
+                continue
+
+            drift_pct = (float(comp_median) - float(your_price)) / float(your_price) * 100.0
+            if abs(drift_pct) < 10.0:
+                continue
+
+            lid = str(it.get('id') or '')
+            entries = hist.get(lid, []) if isinstance(hist.get(lid, []), list) else []
+            last_change = None
+            days_since_change = None
+            if entries:
+                # Latest by 'at' timestamp (stringly comparable since ISO8601 Z)
+                try:
+                    last_entry = max(entries, key=lambda e: e.get('at', ''))
+                    last_change = last_entry.get('at')
+                    if last_change:
+                        try:
+                            dt = datetime.strptime(last_change, '%Y-%m-%dT%H:%M:%SZ')
+                            days_since_change = (now - dt).days
+                        except Exception:
+                            days_since_change = None
+                except Exception:
+                    pass
+
+            alerts.append({
+                'id': it.get('id'),
+                'name': it.get('name') or it.get('title') or '',
+                'artist': it.get('artist') or '',
+                'your_price': round(float(your_price), 2),
+                'comp_median': round(float(comp_median), 2),
+                'comp_count': it.get('comp_count') or 0,
+                'drift_pct': round(drift_pct, 1),
+                'direction': 'up' if comp_median > your_price else 'down',
+                'last_price_change': last_change,
+                'days_since_change': days_since_change,
+                '_abs_drift': abs(drift_pct),
+            })
+        except Exception as e:
+            print(f"[drift-alerts] skip {it.get('id')}: {e}")
+            continue
+
+    alerts.sort(key=lambda a: a['_abs_drift'], reverse=True)
+    top = alerts[:20]
+    for a in top:
+        a.pop('_abs_drift', None)
+
+    print(f"[drift-alerts] exit: {len(alerts)} total, top={len(top)}")
+    return jsonify({'alerts': top, 'total': len(alerts)})
+
+
+# =============================================================================
+# Comp Curation Endpoints (Feature C)
+# =============================================================================
+
+@app.route('/api/comps/train', methods=['POST'])
+def comps_train():
+    """Record a reject/approve/unmark signal on a single comp.
+
+    Body: {title, artist, action: 'reject'|'approve'|'unmark',
+           comp: {name, price, date, source}}
+    """
+    print("[comps-train] entry")
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+
+    title = data.get('title') or ''
+    artist = data.get('artist') or ''
+    action = (data.get('action') or '').strip().lower()
+    comp = data.get('comp') or {}
+
+    if action not in ('reject', 'approve', 'unmark'):
+        print(f"[comps-train] exit: bad action '{action}'")
+        return jsonify({'ok': False, 'error': 'action must be reject|approve|unmark'}), 400
+    if not title or not isinstance(comp, dict):
+        print("[comps-train] exit: missing title or comp")
+        return jsonify({'ok': False, 'error': 'missing title or comp object'}), 400
+
+    try:
+        sig = _item_signature(title, artist)
+        ck = _comp_key(comp)
+        _save_curation(sig, action, ck)
+    except Exception as e:
+        print(f"[comps-train] save error: {e}")
+        return jsonify({'ok': False, 'error': str(e)[:200]}), 500
+
+    print(f"[comps-train] exit: {action} sig={sig} ck={ck}")
+    return jsonify({'ok': True, 'signature': sig, 'comp_key': ck, 'action': action})
+
+
+@app.route('/api/comps/train-queue')
+def comps_train_queue():
+    """Return unreviewed comps for this item (not yet approved or rejected).
+
+    Query: title, artist, limit (default 50)
+    """
+    print("[comps-train-queue] entry")
+    title = request.args.get('title', '') or ''
+    artist = request.args.get('artist', '') or ''
+    try:
+        limit = int(request.args.get('limit', 50))
+    except Exception:
+        limit = 50
+
+    if not title:
+        print("[comps-train-queue] exit: missing title")
+        return jsonify({'comps': [], 'total_available': 0, 'approved_count': 0,
+                        'rejected_count': 0, 'remaining_count': 0,
+                        'error': 'missing title'}), 400
+
+    try:
+        comps = lookup_historical_prices(title, artist, limit=max(limit * 4, 200))
+    except Exception as e:
+        print(f"[comps-train-queue] lookup failed: {e}")
+        comps = []
+
+    try:
+        sig = _item_signature(title, artist)
+        merged = _load_curation()
+        entry = merged.get(sig, {'rejected': [], 'approved': []})
+        approved_keys = set(entry.get('approved') or [])
+        rejected_keys = set(entry.get('rejected') or [])
+    except Exception as e:
+        print(f"[comps-train-queue] curation load failed: {e}")
+        approved_keys, rejected_keys = set(), set()
+
+    # lookup_historical_prices already filters rejections, so the queue is
+    # everything returned minus approved (already reviewed).
+    unreviewed = []
+    for c in comps:
+        ck = c.get('comp_key') or _comp_key(c)
+        if ck in approved_keys:
+            continue
+        unreviewed.append({
+            'name': c.get('name', ''),
+            'price': c.get('price', 0),
+            'date': c.get('date', ''),
+            'source': c.get('source', ''),
+            'signed': c.get('signed', False),
+            'medium': c.get('medium', ''),
+            'url': c.get('url', ''),
+            'comp_key': ck,
+        })
+        if len(unreviewed) >= limit:
+            break
+
+    resp = {
+        'comps': unreviewed,
+        'total_available': len(comps),
+        'approved_count': len(approved_keys),
+        'rejected_count': len(rejected_keys),
+        'remaining_count': len(unreviewed),
+    }
+    print(f"[comps-train-queue] exit: remaining={len(unreviewed)} approved={len(approved_keys)} rejected={len(rejected_keys)}")
+    return jsonify(resp)
+
+
+@app.route('/api/comps/train-status')
+def comps_train_status():
+    """Return curation counts for an item: approved/rejected/unreviewed."""
+    print("[comps-train-status] entry")
+    title = request.args.get('title', '') or ''
+    artist = request.args.get('artist', '') or ''
+
+    if not title:
+        print("[comps-train-status] exit: missing title")
+        return jsonify({'approved': 0, 'rejected': 0, 'unreviewed': 0,
+                        'error': 'missing title'}), 400
+
+    try:
+        sig = _item_signature(title, artist)
+        merged = _load_curation()
+        entry = merged.get(sig, {'rejected': [], 'approved': []})
+        approved_keys = set(entry.get('approved') or [])
+        rejected_keys = set(entry.get('rejected') or [])
+    except Exception as e:
+        print(f"[comps-train-status] curation load failed: {e}")
+        approved_keys, rejected_keys = set(), set()
+
+    # Unreviewed count requires a lookup to enumerate candidate comps.
+    try:
+        comps = lookup_historical_prices(title, artist, limit=500)
+    except Exception as e:
+        print(f"[comps-train-status] lookup failed: {e}")
+        comps = []
+
+    unreviewed = 0
+    for c in comps:
+        ck = c.get('comp_key') or _comp_key(c)
+        if ck in approved_keys:
+            continue
+        unreviewed += 1
+
+    print(f"[comps-train-status] exit: approved={len(approved_keys)} rejected={len(rejected_keys)} unreviewed={unreviewed}")
+    return jsonify({
+        'approved': len(approved_keys),
+        'rejected': len(rejected_keys),
+        'unreviewed': unreviewed,
     })
 
 

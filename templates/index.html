@@ -172,6 +172,50 @@
         .btn-like { background:rgba(48,209,88,0.15); color:var(--green); border:1px solid rgba(48,209,88,0.3); border-radius:8px; padding:4px 12px; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s; }
         .btn-like:hover { background:rgba(48,209,88,0.3); }
         .btn-pass { background:rgba(255,69,58,0.1); color:var(--red); border:1px solid rgba(255,69,58,0.2); border-radius:8px; padding:4px 12px; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+
+        /* Drift alerts (Dashboard) */
+        .drift-card { border-left:3px solid var(--orange); }
+        .drift-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(255,159,10,0.15); color:var(--orange); font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:0.3px; }
+        .drift-badge.zero { background:rgba(48,209,88,0.15); color:var(--green); }
+        .drift-row td { padding:8px 8px; }
+        .drift-arrow-up { color:var(--red); }
+        .drift-arrow-down { color:var(--green); }
+
+        /* Train Comps tab (Swipe Mode) */
+        .train-stats { display:flex; gap:8px; align-items:center; margin-bottom:10px; font-size:12px; color:var(--dim); flex-wrap:wrap; }
+        .train-stats b { color:var(--text); font-weight:700; }
+        .train-stats .sep { color:var(--border); }
+        .train-progress-bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:14px; }
+        .train-progress-fill { height:100%; background:linear-gradient(90deg,var(--green),var(--accent)); border-radius:3px; transition:width 0.25s ease; }
+        .train-stack { position:relative; min-height:240px; margin-bottom:14px; user-select:none; touch-action:pan-y; }
+        .train-comp-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; transition:transform 0.2s ease, opacity 0.2s ease, background 0.2s ease; }
+        .train-comp-card .tc-title { font-size:15px; font-weight:700; letter-spacing:-0.2px; line-height:1.3; margin-bottom:8px; }
+        .train-comp-card .tc-meta { font-size:12px; color:var(--dim); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .train-comp-card .tc-meta b { color:var(--text); font-weight:700; font-variant-numeric:tabular-nums; }
+        .train-comp-card .tc-pills { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+        .train-comp-card .tc-link { margin-top:10px; display:inline-block; font-size:11px; color:var(--accent); text-decoration:none; }
+        .train-comp-card .tc-link:hover { text-decoration:underline; }
+        .train-comp-card.peek { position:absolute; inset:0; transform:scale(0.96) translateY(10px); opacity:0.55; z-index:0; pointer-events:none; }
+        .train-comp-card.top { position:relative; z-index:1; }
+        .train-comp-card.out-left { transform:translateX(-120%) rotate(-6deg); opacity:0; }
+        .train-comp-card.out-right { transform:translateX(120%) rotate(6deg); opacity:0; }
+        .train-comp-card.flash-approve { background:rgba(48,209,88,0.18); border-color:var(--green); }
+        .train-comp-card.flash-reject { background:rgba(255,69,58,0.18); border-color:var(--red); }
+        .train-actions { display:flex; gap:10px; margin-top:8px; }
+        .train-btn { flex:1; font-size:14px; font-weight:800; padding:14px 10px; border-radius:12px; cursor:pointer; border:1px solid var(--border); transition:transform 0.1s, background 0.15s; letter-spacing:0.4px; }
+        .train-btn:hover { transform:scale(1.02); }
+        .train-btn:active { transform:scale(0.98); }
+        .train-btn.reject { background:rgba(255,69,58,0.12); color:var(--red); border-color:rgba(255,69,58,0.35); }
+        .train-btn.reject:hover { background:rgba(255,69,58,0.22); }
+        .train-btn.approve { background:rgba(48,209,88,0.12); color:var(--green); border-color:rgba(48,209,88,0.35); }
+        .train-btn.approve:hover { background:rgba(48,209,88,0.22); }
+        .train-btn.undo { flex:0 0 auto; background:var(--card2); color:var(--dim); font-size:12px; font-weight:700; padding:14px 14px; }
+        .train-btn.undo:hover { color:var(--text); }
+        .train-done { text-align:center; padding:28px 16px; background:var(--card); border:1px solid var(--border); border-radius:14px; }
+        .train-done .tdc-check { font-size:32px; color:var(--green); margin-bottom:8px; }
+        .train-done .tdc-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+        .train-done .tdc-sub { font-size:12px; color:var(--dim); margin-bottom:14px; }
+        .train-hint { font-size:10px; color:var(--dim); text-align:center; margin-top:6px; letter-spacing:0.3px; }
         .btn-pass:hover { background:rgba(255,69,58,0.25); }
         .pref-badge { font-size:9px; font-weight:700; padding:2px 6px; border-radius:10px; }
         .pref-up { background:rgba(48,209,88,0.15); color:var(--green); }
@@ -295,6 +339,26 @@
                             <button class="btn-ghost" onclick="loadOpportunities(true)" style="font-size:11px;">Refresh</button>
                         </div>
                         <div id="opp-content"><div class="loading"><div class="spinner"></div></div></div>
+                    </div>
+                </div>
+
+                <!-- Drift alerts card -->
+                <div class="section" id="drift-alerts-section">
+                    <div class="card drift-card" style="padding:14px 16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px;flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="font-size:16px;line-height:1;" aria-hidden="true">&#9888;</span>
+                                <div>
+                                    <div style="font-size:15px;font-weight:700;letter-spacing:-0.2px;display:flex;align-items:center;gap:8px;">
+                                        Price drift alerts
+                                        <span id="drift-badge" class="drift-badge">--</span>
+                                    </div>
+                                    <div id="drift-sub" style="font-size:11px;color:var(--dim);margin-top:2px;">Loading…</div>
+                                </div>
+                            </div>
+                            <button class="btn-ghost" onclick="loadDriftAlerts(true)" style="font-size:11px;">Refresh</button>
+                        </div>
+                        <div id="drift-content"><div class="loading"><div class="spinner"></div></div></div>
                     </div>
                 </div>
 
@@ -4601,8 +4665,15 @@
 
             // Keyboard navigation
             swipeKeyHandler = (e) => {
-                if (e.key === 'Escape') { closeSwipeMode(); }
-                else if (e.key === 'ArrowLeft') { swipePrev(); }
+                if (e.key === 'Escape') { closeSwipeMode(); return; }
+                // When Train Comps tab is active, arrow/J/L/U route to comp-swipe
+                if (swipeTab === 'train') {
+                    if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') { e.preventDefault(); trainSwipeAction('reject'); }
+                    else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') { e.preventDefault(); trainSwipeAction('approve'); }
+                    else if (e.key === 'u' || e.key === 'U') { e.preventDefault(); trainUndo(); }
+                    return;
+                }
+                if (e.key === 'ArrowLeft') { swipePrev(); }
                 else if (e.key === 'ArrowRight') { swipeNext(); }
             };
             document.addEventListener('keydown', swipeKeyHandler);
@@ -4629,12 +4700,15 @@
         }
 
         function swipePointerDown(e) {
+            // Train Comps tab owns its own pointer handling
+            if (swipeTab === 'train') return;
             // Ignore drags initiated on interactive elements
             const tag = (e.target.tagName || '').toLowerCase();
             if (['button','input','a','select','textarea','canvas'].includes(tag)) return;
             swipePointerState = { x: e.clientX, y: e.clientY, t: Date.now() };
         }
         function swipePointerUp(e) {
+            if (swipeTab === 'train') { swipePointerState = null; return; }
             if (!swipePointerState) return;
             const dx = e.clientX - swipePointerState.x;
             const dy = e.clientY - swipePointerState.y;
@@ -4694,6 +4768,7 @@
                     <div class="swipe-tabs">
                         <button class="swipe-tab ${swipeTab==='comps'?'active':''}" onclick="swipeSwitchTab('comps')">Comps</button>
                         <button class="swipe-tab ${swipeTab==='llm'?'active':''}" onclick="swipeSwitchTab('llm')">LLM Consensus</button>
+                        <button class="swipe-tab ${swipeTab==='train'?'active':''}" onclick="swipeSwitchTab('train')">Train Comps</button>
                     </div>
                     <div class="swipe-tab-content" id="swipe-tab-content">
                         <div class="loading"><div class="spinner"></div></div>
@@ -4707,6 +4782,7 @@
             matchBtn.textContent = 'Match Consensus';
 
             if (swipeTab === 'comps') renderSwipeCompsTab(item);
+            else if (swipeTab === 'train') renderSwipeTrainTab(item);
             else renderSwipeLLMTab(item);
         }
 
@@ -4714,8 +4790,10 @@
             if (tab === swipeTab) return;
             swipeTab = tab;
             // Update active tab button classes without full re-render
+            const labelMap = { comps: 'Comps', llm: 'LLM', train: 'Train' };
+            const want = labelMap[tab] || 'Comps';
             document.querySelectorAll('#swipe-body .swipe-tab').forEach(btn => {
-                btn.classList.toggle('active', btn.textContent.trim().startsWith(tab === 'comps' ? 'Comps' : 'LLM'));
+                btn.classList.toggle('active', btn.textContent.trim().startsWith(want));
             });
             const item = swipeItems[swipeIdx];
             const matchBtn = document.getElementById('swipe-match');
@@ -4723,6 +4801,10 @@
                 matchBtn.disabled = true;
                 matchBtn.textContent = 'Match Consensus';
                 renderSwipeCompsTab(item);
+            } else if (tab === 'train') {
+                matchBtn.disabled = true;
+                matchBtn.textContent = 'Match Consensus';
+                renderSwipeTrainTab(item);
             } else {
                 renderSwipeLLMTab(item);
             }
@@ -5124,9 +5206,356 @@
             const origShowTab = window.showTab;
             window.showTab = function(tab) {
                 origShowTab(tab);
-                if (tab === 'dash') loadOpportunities(false);
+                if (tab === 'dash') { loadOpportunities(false); loadDriftAlerts(false); }
             };
         })();
+
+        // ==========================================
+        // FEATURE: Drift Alerts (Dashboard)
+        // ==========================================
+        let driftAlertsData = null;
+
+        async function loadDriftAlerts(force) {
+            const el = document.getElementById('drift-content');
+            const sub = document.getElementById('drift-sub');
+            if (!el) return;
+            if (driftAlertsData && !force) { renderDriftAlerts(); return; }
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            if (sub) sub.textContent = 'Loading…';
+            try {
+                const resp = await fetch('/api/drift-alerts');
+                driftAlertsData = await resp.json();
+            } catch (e) {
+                el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px;">Failed to load drift alerts</div>';
+                if (sub) sub.textContent = 'Error';
+                return;
+            }
+            renderDriftAlerts();
+        }
+
+        function renderDriftAlerts() {
+            const el = document.getElementById('drift-content');
+            const sub = document.getElementById('drift-sub');
+            const badge = document.getElementById('drift-badge');
+            if (!el || !driftAlertsData) return;
+            const alerts = driftAlertsData.alerts || [];
+            const total = (typeof driftAlertsData.total === 'number') ? driftAlertsData.total : alerts.length;
+            if (badge) {
+                badge.textContent = total > 0 ? `${total}` : '0';
+                badge.classList.toggle('zero', total === 0);
+            }
+            if (sub) {
+                sub.textContent = total > 0
+                    ? `${total} listing${total === 1 ? '' : 's'} drifting vs comp median`
+                    : 'Everything in range';
+            }
+            if (!alerts.length) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:18px;text-align:center;"><span style="color:var(--green);">&#10003;</span> All listings in range — no drift alerts.</div>';
+                return;
+            }
+            const rowsHTML = alerts.slice(0, 15).map((a, idx) => {
+                const name = (a.name || '').length > 42 ? (a.name || '').substring(0, 42) + '…' : (a.name || '');
+                const artist = a.artist || '—';
+                const yp = Math.round(a.your_price || 0);
+                const cm = Math.round(a.comp_median || 0);
+                const cn = a.comp_count || 0;
+                const dir = a.direction || 'up';
+                const drift = (a.drift_pct != null) ? Number(a.drift_pct).toFixed(1) : '--';
+                const driftLabel = dir === 'up' ? `+${drift}%` : `-${drift}%`;
+                const driftCls = dir === 'up' ? 'drift-arrow-up' : 'drift-arrow-down';
+                const days = a.days_since_change;
+                const daysLabel = (days == null) ? 'never' : `${days} day${days === 1 ? '' : 's'}`;
+                const idRaw = (a.id || '').replace(/'/g,'');
+                return `<tr class="drift-row" onclick="jumpToOpportunity('${idRaw}')" style="cursor:pointer;" title="Open in Swipe Mode">
+                    <td style="color:var(--dim);font-variant-numeric:tabular-nums;width:24px;">${idx+1}</td>
+                    <td class="trunc" title="${(a.name||'').replace(/"/g,'&quot;')}">${name.replace(/</g,'&lt;')}</td>
+                    <td><span class="pill pill-blue">${artist.replace(/</g,'&lt;')}</span></td>
+                    <td class="r"><span style="color:var(--dim);">$${yp}</span> <span class="${driftCls}" style="margin:0 2px;">${dir === 'up' ? '&uarr;' : '&darr;'}</span> <b style="color:var(--text);">$${cm}</b> <span style="color:var(--dim);font-size:10px;">(n=${cn})</span></td>
+                    <td class="r"><span class="${driftCls} b">${driftLabel}</span></td>
+                    <td class="r" style="color:var(--dim);font-size:11px;">${daysLabel}</td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `<div class="table-wrap" style="border:none;background:transparent;">
+                <table>
+                    <thead><tr>
+                        <th style="width:24px;">#</th>
+                        <th>Item</th>
+                        <th>Artist</th>
+                        <th class="r">Your &harr; Comp</th>
+                        <th class="r">Drift</th>
+                        <th class="r">Last change</th>
+                    </tr></thead>
+                    <tbody>${rowsHTML}</tbody>
+                </table>
+            </div>`;
+        }
+
+        // ==========================================
+        // FEATURE: Train Comps (Swipe Mode tab)
+        // ==========================================
+        // Per-item cache: { queue:[], approved:[], rejected:[], history:[], total_available, loaded }
+        const comp_train_state = {};
+        const TRAIN_HISTORY_MAX = 10;
+
+        function trainState(itemId) {
+            if (!comp_train_state[itemId]) {
+                comp_train_state[itemId] = {
+                    queue: [], approved: [], rejected: [], history: [],
+                    total_available: 0, loaded: false, loading: false
+                };
+            }
+            return comp_train_state[itemId];
+        }
+
+        async function renderSwipeTrainTab(item) {
+            const el = document.getElementById('swipe-tab-content');
+            if (!el || !item) return;
+            const st = trainState(item.id);
+            if (!st.loaded && !st.loading) {
+                el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                await loadTrainQueue(item, false);
+            }
+            paintTrainTab(item);
+        }
+
+        async function loadTrainQueue(item, append) {
+            const st = trainState(item.id);
+            st.loading = true;
+            try {
+                const params = new URLSearchParams({
+                    title: item.name || '', artist: item.artist || '', limit: 50
+                });
+                const resp = await fetch('/api/comps/train-queue?' + params.toString());
+                const d = await resp.json();
+                const newComps = d.comps || [];
+                if (append) {
+                    st.queue = st.queue.concat(newComps);
+                } else {
+                    st.queue = newComps;
+                    st.approved = [];
+                    st.rejected = [];
+                    st.history = [];
+                }
+                st.total_available = d.total_available || newComps.length;
+                // Seed approved/rejected counts from server (for accurate stats pre-swipe)
+                if (!append) {
+                    st.approved_seed = d.approved_count || 0;
+                    st.rejected_seed = d.rejected_count || 0;
+                }
+                st.loaded = true;
+            } catch (e) {
+                const el = document.getElementById('swipe-tab-content');
+                if (el) el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:16px;">Failed to load training queue</div>';
+            } finally {
+                st.loading = false;
+            }
+        }
+
+        function paintTrainTab(item) {
+            const el = document.getElementById('swipe-tab-content');
+            if (!el) return;
+            const st = trainState(item.id);
+            const approvedN = (st.approved_seed || 0) + st.approved.length;
+            const rejectedN = (st.rejected_seed || 0) + st.rejected.length;
+            const remaining = st.queue.length;
+            const reviewed = approvedN + rejectedN;
+            const denom = Math.max(1, reviewed + remaining);
+            const pct = Math.round((reviewed / denom) * 100);
+
+            const statsHTML = `
+                <div class="train-stats">
+                    <span><b>${approvedN}</b> approved</span>
+                    <span class="sep">&middot;</span>
+                    <span><b>${rejectedN}</b> rejected</span>
+                    <span class="sep">&middot;</span>
+                    <span><b>${remaining}</b> remaining</span>
+                </div>
+                <div class="train-progress-bar"><div class="train-progress-fill" style="width:${pct}%;"></div></div>
+            `;
+
+            if (!remaining) {
+                el.innerHTML = statsHTML + `
+                    <div class="train-done">
+                        <div class="tdc-check">&#10003;</div>
+                        <div class="tdc-title">Comp curation complete for this item</div>
+                        <div class="tdc-sub">${reviewed} reviewed &middot; ${approvedN} approved &middot; ${rejectedN} rejected</div>
+                        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                            <button class="btn-ghost" onclick="trainReset()">Reset all</button>
+                            <button class="btn-ghost" onclick="trainFetchMore()" style="color:var(--accent);border-color:var(--accent);">Fetch 50 more</button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const top = st.queue[0];
+            const peek = st.queue[1];
+            el.innerHTML = statsHTML + `
+                <div class="train-stack" id="train-stack">
+                    ${peek ? `<div class="train-comp-card peek">${renderTrainCompInner(peek)}</div>` : ''}
+                    <div class="train-comp-card top" id="train-top-card">${renderTrainCompInner(top)}</div>
+                </div>
+                <div class="train-actions">
+                    <button class="train-btn reject" onclick="trainSwipeAction('reject')" title="&larr; or J">&times; REJECT</button>
+                    <button class="train-btn undo" onclick="trainUndo()" ${st.history.length ? '' : 'disabled'} title="U">&#8630; Undo</button>
+                    <button class="train-btn approve" onclick="trainSwipeAction('approve')" title="&rarr; or L">&#10003; APPROVE</button>
+                </div>
+                <div class="train-hint">&larr;/J reject &middot; &rarr;/L approve &middot; U undo &middot; drag to swipe</div>
+            `;
+            attachTrainPointerHandlers();
+        }
+
+        function renderTrainCompInner(c) {
+            if (!c) return '';
+            const name = (c.name || '(untitled)').replace(/</g,'&lt;');
+            const price = c.price != null ? `$${Math.round(c.price)}` : '--';
+            const date = (c.date || '').substring(0,10) || '—';
+            const source = (c.source || '').replace(/</g,'&lt;');
+            const pills = [];
+            if (c.signed) pills.push('<span class="pill pill-green">SIGNED</span>');
+            if (c.medium) pills.push(`<span class="pill pill-dim">${String(c.medium).replace(/</g,'&lt;')}</span>`);
+            const linkHTML = c.url ? `<a class="tc-link" href="${String(c.url).replace(/"/g,'&quot;')}" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open eBay &#8599;</a>` : '';
+            return `
+                <div class="tc-title">${name}</div>
+                <div class="tc-meta">
+                    <b>${price}</b>
+                    <span class="sep">&middot;</span>
+                    <span>${date}</span>
+                    ${source ? `<span class="sep">&middot;</span><span>${source}</span>` : ''}
+                </div>
+                ${pills.length ? `<div class="tc-pills">${pills.join('')}</div>` : ''}
+                ${linkHTML}
+            `;
+        }
+
+        let _trainPointer = null;
+        function attachTrainPointerHandlers() {
+            const card = document.getElementById('train-top-card');
+            if (!card) return;
+            card.addEventListener('pointerdown', trainPointerDown);
+            card.addEventListener('pointermove', trainPointerMove);
+            card.addEventListener('pointerup', trainPointerUp);
+            card.addEventListener('pointercancel', trainPointerUp);
+        }
+        function trainPointerDown(e) {
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (['a','button','input','select','textarea'].includes(tag)) return;
+            _trainPointer = { x: e.clientX, y: e.clientY, t: Date.now(), el: e.currentTarget };
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_){}
+        }
+        function trainPointerMove(e) {
+            if (!_trainPointer) return;
+            const dx = e.clientX - _trainPointer.x;
+            const el = _trainPointer.el;
+            if (!el) return;
+            el.style.transform = `translateX(${dx}px) rotate(${dx/30}deg)`;
+            el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx)/400));
+        }
+        function trainPointerUp(e) {
+            if (!_trainPointer) return;
+            const dx = e.clientX - _trainPointer.x;
+            const dy = e.clientY - _trainPointer.y;
+            const el = _trainPointer.el;
+            _trainPointer = null;
+            if (!el) return;
+            if (Math.abs(dx) >= 80 && Math.abs(dx) > Math.abs(dy)) {
+                trainSwipeAction(dx > 0 ? 'approve' : 'reject');
+            } else {
+                el.style.transform = '';
+                el.style.opacity = '';
+            }
+        }
+
+        async function trainSwipeAction(action) {
+            const item = swipeItems[swipeIdx];
+            if (!item) return;
+            const st = trainState(item.id);
+            if (!st.queue.length) return;
+            const comp = st.queue[0];
+            // Visual flash + slide-out
+            const topCard = document.getElementById('train-top-card');
+            if (topCard) {
+                topCard.classList.add(action === 'approve' ? 'flash-approve' : 'flash-reject');
+                // Force out animation direction
+                topCard.style.transform = '';
+                topCard.style.opacity = '';
+                requestAnimationFrame(() => {
+                    topCard.classList.add(action === 'approve' ? 'out-right' : 'out-left');
+                });
+            }
+            // Persist state
+            st.queue = st.queue.slice(1);
+            if (action === 'approve') st.approved.push(comp);
+            else st.rejected.push(comp);
+            st.history.push({ action, comp });
+            if (st.history.length > TRAIN_HISTORY_MAX) st.history.shift();
+
+            // Fire API in background
+            trainPostAction(item, action, comp).catch(() => {});
+
+            // Repaint after animation
+            setTimeout(() => paintTrainTab(item), 210);
+        }
+
+        async function trainPostAction(item, action, comp) {
+            try {
+                await fetch('/api/comps/train', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: item.name || '',
+                        artist: item.artist || '',
+                        action: action,
+                        comp: {
+                            name: comp.name, price: comp.price,
+                            date: comp.date, source: comp.source,
+                            comp_key: comp.comp_key
+                        }
+                    })
+                });
+            } catch (e) {
+                toast('Training signal saved locally');
+            }
+        }
+
+        async function trainUndo() {
+            const item = swipeItems[swipeIdx];
+            if (!item) return;
+            const st = trainState(item.id);
+            const last = st.history.pop();
+            if (!last) { toast('Nothing to undo'); return; }
+            // Remove from approved/rejected arrays
+            if (last.action === 'approve') {
+                const idx = st.approved.lastIndexOf(last.comp);
+                if (idx >= 0) st.approved.splice(idx, 1);
+            } else {
+                const idx = st.rejected.lastIndexOf(last.comp);
+                if (idx >= 0) st.rejected.splice(idx, 1);
+            }
+            st.queue.unshift(last.comp);
+            trainPostAction(item, 'unmark', last.comp).catch(() => {});
+            paintTrainTab(item);
+        }
+
+        async function trainReset() {
+            const item = swipeItems[swipeIdx];
+            if (!item) return;
+            delete comp_train_state[item.id];
+            const el = document.getElementById('swipe-tab-content');
+            if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            await loadTrainQueue(item, false);
+            paintTrainTab(item);
+            toast('Training queue reset');
+        }
+
+        async function trainFetchMore() {
+            const item = swipeItems[swipeIdx];
+            if (!item) return;
+            const el = document.getElementById('swipe-tab-content');
+            if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            await loadTrainQueue(item, true);
+            paintTrainTab(item);
+        }
 
         // ==========================================
         // FEATURE 2: Bulk Consensus Reprice
@@ -5342,6 +5771,7 @@
         // ==========================================
         loadDash();
         loadOpportunities(false);
+        loadDriftAlerts(false);
     </script>
 </body>
 </html>
