@@ -284,6 +284,20 @@
                     <div class="card card-click" style="text-align:center;" onclick="showTab('promos')"><div style="font-size:18px;font-weight:700;" id="d-promoted">--</div><div class="stat-lbl">Promoted %</div></div>
                 </div>
 
+                <!-- Opportunities card -->
+                <div class="section" id="opportunities-section">
+                    <div class="card" style="padding:14px 16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:15px;font-weight:700;letter-spacing:-0.2px;">Top pricing opportunities</div>
+                                <div id="opp-sub" style="font-size:11px;color:var(--dim);margin-top:2px;">Loading…</div>
+                            </div>
+                            <button class="btn-ghost" onclick="loadOpportunities(true)" style="font-size:11px;">Refresh</button>
+                        </div>
+                        <div id="opp-content"><div class="loading"><div class="spinner"></div></div></div>
+                    </div>
+                </div>
+
                 <div class="section">
                     <div class="section-title">Today's Brief</div>
                     <div id="d-brief" class="card"><div class="loading"><div class="spinner"></div></div></div>
@@ -476,6 +490,7 @@
                         <option value="comp_count">Most Comps</option>
                     </select>
                     <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;background:var(--purple);" onclick="openSwipeMode()">🃏 Swipe</button>
+                    <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;background:var(--green);color:#000;" onclick="openBulkRepriceModal()">💰 Bulk Reprice</button>
                     <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
                     <button class="btn-ghost" onclick="showCostBasis()">Set Costs</button>
                     <button class="btn-ghost" onclick="exportInv()">Export</button>
@@ -698,6 +713,46 @@
                 <button class="swipe-nav-btn" id="swipe-prev" onclick="swipePrev()">← Prev</button>
                 <button class="swipe-match-btn" id="swipe-match" disabled onclick="swipeMatchConsensus()">Match Consensus</button>
                 <button class="swipe-nav-btn" id="swipe-next" onclick="swipeNext()">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Consensus Reprice Modal -->
+    <div class="modal-bg" id="bulk-reprice-modal">
+        <div class="modal" style="max-width:960px;max-height:92vh;">
+            <div class="modal-head">
+                <h2>Bulk Consensus Reprice</h2>
+                <button class="modal-x" onclick="closeBulkRepriceModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="bulk-reprice-body">
+                <!-- Filters -->
+                <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+                    <div style="flex:1;min-width:180px;">
+                        <label style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Min upside % · <span id="brp-upside-val">10</span>%</label>
+                        <input type="range" id="brp-upside" min="0" max="50" value="10" step="1" oninput="document.getElementById('brp-upside-val').textContent=this.value;" style="width:100%;margin-top:4px;">
+                    </div>
+                    <div style="flex:1;min-width:180px;">
+                        <label style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Min comp count · <span id="brp-comps-val">5</span></label>
+                        <input type="range" id="brp-comps" min="0" max="50" value="5" step="1" oninput="document.getElementById('brp-comps-val').textContent=this.value;" style="width:100%;margin-top:4px;">
+                    </div>
+                    <div style="flex:1;min-width:160px;">
+                        <label style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;display:block;margin-bottom:4px;">Artist</label>
+                        <select id="brp-artist" style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 10px;">
+                            <option value="">All artists</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" style="padding:8px 18px;font-size:12px;" onclick="previewBulkReprice()">Preview</button>
+                </div>
+
+                <!-- Results -->
+                <div id="brp-results"><div style="color:var(--dim);font-size:12px;padding:20px;text-align:center;">Set your filters and click Preview to see candidates.</div></div>
+            </div>
+            <div id="brp-footer" style="display:none;padding:12px 20px;border-top:1px solid var(--border);justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div id="brp-footer-summary" style="font-size:12px;color:var(--dim);"></div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-ghost" onclick="closeBulkRepriceModal()">Cancel</button>
+                    <button class="btn btn-green" id="brp-apply-btn" onclick="applyBulkReprice()" style="padding:10px 18px;font-size:13px;">Apply</button>
+                </div>
             </div>
         </div>
     </div>
@@ -4883,7 +4938,35 @@
                     median <b style="color:var(--text);">$${Math.round(ac.median)}</b>
                 </div>` : `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:11px;color:var(--dim);">No live competition data (eBay Browse API unavailable in local dev)</div>`;
 
+            // Confidence badge + Why? panel (Feature 3)
+            const confScore = data.confidence_score;
+            const confLevel = (data.confidence_level || '').toUpperCase();
+            const reasoningChain = Array.isArray(data.reasoning_chain) ? data.reasoning_chain : [];
+            let confidenceHTML = '';
+            if (confScore != null || confLevel) {
+                let badgeBg = 'rgba(255,69,58,0.15)', badgeColor = 'var(--red)', badgeBorder = 'rgba(255,69,58,0.35)';
+                if (confLevel === 'HIGH') { badgeBg = 'rgba(48,209,88,0.15)'; badgeColor = 'var(--green)'; badgeBorder = 'rgba(48,209,88,0.35)'; }
+                else if (confLevel === 'MEDIUM') { badgeBg = 'rgba(255,159,10,0.18)'; badgeColor = 'var(--orange)'; badgeBorder = 'rgba(255,159,10,0.35)'; }
+                const panelId = 'conf-why-' + (item.id || 'x').replace(/[^a-zA-Z0-9_-]/g, '_');
+                const whyItems = reasoningChain.map(r => `<li style="padding:4px 0;border-bottom:1px dashed rgba(255,255,255,0.06);color:var(--text);">${String(r).replace(/</g,'&lt;')}</li>`).join('');
+                confidenceHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;padding:8px 10px;background:${badgeBg};border:1px solid ${badgeBorder};border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:11px;font-weight:700;color:${badgeColor};letter-spacing:0.5px;">${confLevel || 'N/A'}${confScore != null ? ' ' + Math.round(confScore) + ' / 100' : ''}</span>
+                        <span style="font-size:10px;color:var(--dim);">consensus confidence</span>
+                    </div>
+                    ${reasoningChain.length ? `<a href="#" onclick="event.preventDefault();toggleConfidenceWhy('${panelId}');" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">Why?</a>` : ''}
+                </div>
+                ${reasoningChain.length ? `<div id="${panelId}" data-open="0" style="max-height:0;opacity:0;overflow:hidden;transition:max-height 0.25s ease, opacity 0.25s ease;margin-bottom:8px;">
+                    <div style="padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+                        <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:6px;">Reasoning chain</div>
+                        <ul style="list-style:none;padding:0;margin:0;font-size:11px;">${whyItems}</ul>
+                    </div>
+                </div>` : ''}`;
+            }
+
             el.innerHTML = `
+                ${confidenceHTML}
                 ${activeHTML}
                 <div class="llm-grid">${cardHTML}</div>
                 <div class="llm-consensus-row" style="align-items:flex-start;">
@@ -4935,9 +5018,313 @@
         });
 
         // ==========================================
+        // FEATURE 1: Opportunities card (Dashboard)
+        // ==========================================
+        let opportunitiesData = null;
+
+        async function loadOpportunities(force) {
+            const el = document.getElementById('opp-content');
+            const sub = document.getElementById('opp-sub');
+            if (!el) return;
+            if (opportunitiesData && !force) { renderOpportunities(); return; }
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            if (sub) sub.textContent = 'Loading…';
+            try {
+                const resp = await fetch('/api/opportunities');
+                opportunitiesData = await resp.json();
+            } catch (e) {
+                el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px;">Failed to load opportunities</div>';
+                return;
+            }
+            renderOpportunities();
+        }
+
+        function renderOpportunities() {
+            const el = document.getElementById('opp-content');
+            const sub = document.getElementById('opp-sub');
+            if (!el || !opportunitiesData) return;
+            const opps = opportunitiesData.opportunities || [];
+            const total = opportunitiesData.total_candidates || opps.length;
+            const totalUp = opportunitiesData.total_potential_upside || 0;
+            if (sub) {
+                sub.textContent = total > 0
+                    ? `${total} candidates · projected upside $${Math.round(totalUp).toLocaleString()}`
+                    : 'No upside right now';
+            }
+            if (!opps.length) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:20px;text-align:center;">No opportunities right now — your inventory is priced at or above comp median. Nice.</div>';
+                return;
+            }
+            const rowsHTML = opps.slice(0, 10).map((o, idx) => {
+                const name = (o.name || '').length > 40 ? (o.name || '').substring(0, 40) + '…' : (o.name || '');
+                const artist = o.artist || '—';
+                const yp = Math.round(o.your_price || 0);
+                const cm = Math.round(o.comp_median || 0);
+                const up = Math.round(o.upside_dollars || 0);
+                const upPct = (o.upside_pct != null) ? (o.upside_pct).toFixed(1) : '--';
+                const cn = o.comp_count || 0;
+                return `<tr onclick="jumpToOpportunity('${(o.id||'').replace(/'/g,'')}')" style="cursor:pointer;" title="Open in Swipe Mode">
+                    <td style="color:var(--dim);font-variant-numeric:tabular-nums;width:28px;">${idx+1}</td>
+                    <td class="trunc" title="${(o.name||'').replace(/"/g,'&quot;')}">${name.replace(/</g,'&lt;')}</td>
+                    <td><span class="pill pill-blue">${artist.replace(/</g,'&lt;')}</span></td>
+                    <td class="r"><span style="color:var(--dim);">$${yp}</span> <span style="color:var(--dim);margin:0 2px;">→</span> <b style="color:var(--text);">$${cm}</b></td>
+                    <td class="r"><span class="g b">+$${up}</span> <span style="color:var(--green);font-size:10px;">+${upPct}%</span></td>
+                    <td class="r"><span class="pill pill-dim">n=${cn}</span></td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `<div class="table-wrap" style="border:none;background:transparent;">
+                <table>
+                    <thead><tr>
+                        <th style="width:28px;">#</th>
+                        <th>Item</th>
+                        <th>Artist</th>
+                        <th class="r">Your → Comp</th>
+                        <th class="r">Upside</th>
+                        <th class="r">Comps</th>
+                    </tr></thead>
+                    <tbody>${rowsHTML}</tbody>
+                </table>
+            </div>`;
+        }
+
+        function jumpToOpportunity(id) {
+            // Ensure inventory loaded first. If not, load it then open.
+            if (!invData || !invData.items) {
+                toast('Loading inventory…');
+                loadInv().then(() => { setTimeout(() => jumpToOpportunity(id), 300); });
+                return;
+            }
+            // Reset filter to 'all' so every item is in the swipe list
+            invFilter = 'all';
+            const searchEl = document.getElementById('inv-search');
+            if (searchEl) searchEl.value = '';
+            openSwipeMode();
+            // After openSwipeMode, swipeItems is populated; advance to the matching id
+            const idx = (swipeItems || []).findIndex(i => i.id === id);
+            if (idx >= 0) {
+                swipeIdx = idx;
+                swipeTab = 'comps';
+                renderSwipeCard();
+            } else {
+                toast('Item not found in current inventory');
+            }
+        }
+
+        // Hook into showTab — fetch opportunities on Dashboard activation
+        (function hookDashboardOpportunities() {
+            const origShowTab = window.showTab;
+            window.showTab = function(tab) {
+                origShowTab(tab);
+                if (tab === 'dash') loadOpportunities(false);
+            };
+        })();
+
+        // ==========================================
+        // FEATURE 2: Bulk Consensus Reprice
+        // ==========================================
+        let bulkRepriceCandidates = [];
+
+        function openBulkRepriceModal() {
+            if (!invData || !invData.items) {
+                toast('Load inventory first.');
+                return;
+            }
+            // Populate artist dropdown
+            const artists = Array.from(new Set((invData.items || []).map(i => i.artist).filter(Boolean))).sort();
+            const sel = document.getElementById('brp-artist');
+            sel.innerHTML = '<option value="">All artists</option>' +
+                artists.map(a => `<option value="${a.replace(/"/g,'&quot;')}">${a.replace(/</g,'&lt;')}</option>`).join('');
+            document.getElementById('brp-results').innerHTML = '<div style="color:var(--dim);font-size:12px;padding:20px;text-align:center;">Set your filters and click Preview to see candidates.</div>';
+            document.getElementById('brp-footer').style.display = 'none';
+            bulkRepriceCandidates = [];
+            document.getElementById('bulk-reprice-modal').classList.add('show');
+            document.addEventListener('keydown', bulkRepriceKeyHandler);
+        }
+
+        function closeBulkRepriceModal() {
+            document.getElementById('bulk-reprice-modal').classList.remove('show');
+            document.removeEventListener('keydown', bulkRepriceKeyHandler);
+        }
+
+        function bulkRepriceKeyHandler(e) {
+            if (e.key === 'Escape') closeBulkRepriceModal();
+        }
+
+        // Click outside closes modal
+        document.getElementById('bulk-reprice-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'bulk-reprice-modal') closeBulkRepriceModal();
+        });
+
+        async function previewBulkReprice() {
+            const upside = document.getElementById('brp-upside').value;
+            const comps = document.getElementById('brp-comps').value;
+            const artist = document.getElementById('brp-artist').value;
+            const el = document.getElementById('brp-results');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            document.getElementById('brp-footer').style.display = 'none';
+            const params = new URLSearchParams({ min_upside_pct: upside, min_comp_count: comps });
+            if (artist) params.append('artist', artist);
+            try {
+                const resp = await fetch('/api/inventory/bulk-consensus-preview?' + params.toString());
+                const data = await resp.json();
+                bulkRepriceCandidates = (data.candidates || []).map(c => ({ ...c, _selected: true }));
+                renderBulkRepriceResults(data);
+            } catch (e) {
+                el.innerHTML = '<div style="color:var(--red);padding:20px;text-align:center;font-size:12px;">Failed to fetch preview</div>';
+            }
+        }
+
+        function renderBulkRepriceResults(data) {
+            const el = document.getElementById('brp-results');
+            const cands = bulkRepriceCandidates;
+            if (!cands.length) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:20px;text-align:center;">No candidates match these filters. Try loosening thresholds.</div>';
+                document.getElementById('brp-footer').style.display = 'none';
+                return;
+            }
+            const rowsHTML = cands.map((c, idx) => {
+                const name = (c.name || '').length > 45 ? (c.name || '').substring(0, 45) + '…' : (c.name || '');
+                const up = Math.round(c.upside_dollars || 0);
+                const upPct = (c.upside_pct != null) ? (c.upside_pct).toFixed(1) : '--';
+                const conf = c.confidence_score || 0;
+                let confClass = 'pill-red', confLbl = 'LOW';
+                if (conf >= 70) { confClass = 'pill-green'; confLbl = 'HIGH'; }
+                else if (conf >= 40) { confClass = 'pill-orange'; confLbl = 'MEDIUM'; }
+                const models = c.models_agreed || 0;
+                return `<tr data-brp-idx="${idx}">
+                    <td style="width:24px;"><input type="checkbox" ${c._selected?'checked':''} onchange="toggleBrpRow(${idx}, this.checked)"></td>
+                    <td class="trunc" title="${(c.name||'').replace(/"/g,'&quot;')}">${name.replace(/</g,'&lt;')}</td>
+                    <td><span class="pill pill-blue">${(c.artist||'—').replace(/</g,'&lt;')}</span></td>
+                    <td class="r">$${Math.round(c.your_price||0)}</td>
+                    <td class="r">
+                        <b style="color:var(--text);">$${Math.round(c.suggested_price||0)}</b>
+                        <div style="font-size:9px;color:var(--dim);">$${Math.round(c.consensus_low||0)}–$${Math.round(c.consensus_high||0)}</div>
+                    </td>
+                    <td class="r"><span class="g b">+$${up}</span> <span style="color:var(--green);font-size:10px;">+${upPct}%</span></td>
+                    <td class="r"><span class="pill ${confClass}">${confLbl} ${conf}</span></td>
+                    <td class="r"><span style="font-size:11px;color:var(--dim);">${models}/4</span></td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `<div class="table-wrap" style="max-height:50vh;overflow:auto;">
+                <table>
+                    <thead><tr>
+                        <th style="width:24px;"><input type="checkbox" id="brp-check-all" checked onchange="toggleAllBrpRows(this.checked)"></th>
+                        <th>Item</th>
+                        <th>Artist</th>
+                        <th class="r">Current</th>
+                        <th class="r">Suggested</th>
+                        <th class="r">Upside</th>
+                        <th class="r">Confidence</th>
+                        <th class="r">Models</th>
+                    </tr></thead>
+                    <tbody>${rowsHTML}</tbody>
+                </table>
+            </div>`;
+            document.getElementById('brp-footer').style.display = 'flex';
+            updateBrpFooter();
+        }
+
+        function toggleBrpRow(idx, checked) {
+            if (bulkRepriceCandidates[idx]) bulkRepriceCandidates[idx]._selected = checked;
+            updateBrpFooter();
+        }
+
+        function toggleAllBrpRows(checked) {
+            bulkRepriceCandidates.forEach(c => c._selected = checked);
+            document.querySelectorAll('#brp-results tbody input[type=checkbox]').forEach(cb => cb.checked = checked);
+            updateBrpFooter();
+        }
+
+        function updateBrpFooter() {
+            const selected = bulkRepriceCandidates.filter(c => c._selected);
+            const total = bulkRepriceCandidates.length;
+            const upside = selected.reduce((s, c) => s + (c.upside_dollars || 0), 0);
+            const sumEl = document.getElementById('brp-footer-summary');
+            if (sumEl) sumEl.textContent = `Selected ${selected.length} of ${total} items · Projected upside: $${Math.round(upside).toLocaleString()}`;
+            const btn = document.getElementById('brp-apply-btn');
+            if (btn) {
+                btn.disabled = selected.length === 0;
+                btn.textContent = selected.length === 0
+                    ? 'Apply'
+                    : `Apply ${selected.length} items — $${Math.round(upside).toLocaleString()} upside`;
+            }
+        }
+
+        async function applyBulkReprice() {
+            const selected = bulkRepriceCandidates.filter(c => c._selected);
+            if (!selected.length) { toast('No items selected'); return; }
+            const body = { items: selected.map(c => ({ id: c.id, price: Math.round(c.suggested_price || 0) })) };
+            const el = document.getElementById('brp-results');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const resp = await fetch('/api/inventory/bulk-consensus-apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+                renderBulkRepriceSuccess(data);
+                setTimeout(() => {
+                    closeBulkRepriceModal();
+                    refreshInv();
+                }, 3000);
+            } catch (e) {
+                el.innerHTML = '<div style="color:var(--red);padding:20px;text-align:center;font-size:12px;">Failed to apply — check network and try again.</div>';
+            }
+        }
+
+        function renderBulkRepriceSuccess(data) {
+            const el = document.getElementById('brp-results');
+            const applied = data.applied || 0;
+            const failed = data.failed || 0;
+            const rev = data.total_new_revenue || 0;
+            const results = data.results || [];
+            const rowsHTML = results.map(r => {
+                const ok = r.status === 'ok';
+                return `<tr>
+                    <td style="width:18px;"><span style="color:${ok?'var(--green)':'var(--red)'};font-size:14px;">${ok?'✓':'✗'}</span></td>
+                    <td class="trunc">${(r.id||'').replace(/</g,'&lt;')}</td>
+                    <td class="r">$${Math.round(r.price||0)}</td>
+                    <td><span class="pill ${ok?'pill-green':'pill-red'}">${(r.status||'').toUpperCase()}</span></td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `
+                <div style="padding:14px;background:rgba(48,209,88,0.08);border:1px solid rgba(48,209,88,0.25);border-radius:10px;margin-bottom:12px;">
+                    <div style="font-size:14px;font-weight:700;color:var(--green);">Applied ${applied} · Failed ${failed}</div>
+                    <div style="font-size:11px;color:var(--dim);margin-top:4px;">Projected new revenue: $${Math.round(rev).toLocaleString()}. Closing in 3s…</div>
+                </div>
+                <div class="table-wrap" style="max-height:40vh;overflow:auto;">
+                    <table>
+                        <thead><tr><th></th><th>Item ID</th><th class="r">Price</th><th>Status</th></tr></thead>
+                        <tbody>${rowsHTML}</tbody>
+                    </table>
+                </div>`;
+            document.getElementById('brp-footer').style.display = 'none';
+        }
+
+        // ==========================================
+        // FEATURE 3: Confidence badge + Why? helper (attached to window for reuse)
+        // ==========================================
+        window.toggleConfidenceWhy = function(id) {
+            const panel = document.getElementById(id);
+            if (!panel) return;
+            const isOpen = panel.getAttribute('data-open') === '1';
+            if (isOpen) {
+                panel.style.maxHeight = '0px';
+                panel.style.opacity = '0';
+                panel.setAttribute('data-open', '0');
+            } else {
+                panel.style.maxHeight = panel.scrollHeight + 'px';
+                panel.style.opacity = '1';
+                panel.setAttribute('data-open', '1');
+            }
+        };
+
+        // ==========================================
         // Init
         // ==========================================
         loadDash();
+        loadOpportunities(false);
     </script>
 </body>
 </html>

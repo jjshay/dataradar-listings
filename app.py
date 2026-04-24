@@ -5009,6 +5009,62 @@ def llm_price_review(listing_id):
                 'top5': active_comps[:5],
             }
 
+    # 7b. Confidence score (0-100) with reasoning chain
+    import statistics as _stats_mod
+    comp_count_val = (comp_stats or {}).get('count') or 0
+
+    # Component 1: Comp density (max 40 pts)
+    density_pts = min(40, comp_count_val * 2)
+
+    # Component 2: LLM agreement (max 30 pts)
+    valid_recs = [
+        m['recommended'] for m in models_out.values()
+        if m.get('status') == 'ok' and isinstance(m.get('recommended'), (int, float)) and m.get('recommended')
+    ]
+    stdev_val = 0.0
+    llm_pts = 0.0
+    if len(valid_recs) >= 2 and consensus_median:
+        try:
+            stdev_val = _stats_mod.pstdev(valid_recs)
+        except Exception:
+            stdev_val = 0.0
+        variance_ratio = (stdev_val / consensus_median) if consensus_median else 1
+        llm_pts = max(0, 30 * (1 - min(1, variance_ratio * 3.5)))
+
+    # Component 3: Recency / 12mo trend alignment (max 15 pts)
+    recency_pts = 0.0
+    trend_note = 'n/a'
+    if comp_stats and comp_stats.get('trailing_12mo_median') and comp_stats.get('median'):
+        try:
+            tm = float(comp_stats['trailing_12mo_median'])
+            med = float(comp_stats['median'])
+            delta = abs(tm - med) / med if med else 1
+            recency_pts = max(0, 15 * (1 - min(1, delta * 3)))
+            trend_note = f"12mo=${tm:.0f} vs all-time=${med:.0f} ({delta*100:.1f}% delta)"
+        except Exception:
+            recency_pts = 0.0
+            trend_note = 'parse_error'
+
+    # Component 4: Live competition data (max 15 pts)
+    live_pts = 15 if active_summary else 0
+
+    raw_score = density_pts + llm_pts + recency_pts + live_pts
+    confidence_score = int(round(min(100, max(0, raw_score))))
+    if confidence_score >= 70:
+        confidence_level = 'HIGH'
+    elif confidence_score >= 40:
+        confidence_level = 'MEDIUM'
+    else:
+        confidence_level = 'LOW'
+
+    reasoning_chain = [
+        f"Comp density: {comp_count_val} comps -> +{int(round(density_pts))} pts",
+        f"LLM agreement: sigma=${stdev_val:.0f} across {len(valid_recs)} models -> +{int(round(llm_pts))} pts",
+        f"12mo trend: {trend_note} -> +{int(round(recency_pts))} pts",
+        f"Live competition: {'yes (' + str(active_summary['count']) + ' active)' if active_summary else 'none'} -> +{int(round(live_pts))} pts",
+    ]
+    print(f"[LLM] confidence for {listing_id}: {confidence_score} ({confidence_level})")
+
     response = {
         'listing_id': listing_id,
         'title': title,
@@ -5020,6 +5076,9 @@ def llm_price_review(listing_id):
         'consensus': consensus,
         'consensus_median': consensus_median,  # back-compat
         'consensus_count': len(ok_models),
+        'confidence_score': confidence_score,
+        'confidence_level': confidence_level,
+        'reasoning_chain': reasoning_chain,
         'cached_at': None,
     }
 
@@ -5032,6 +5091,355 @@ def llm_price_review(listing_id):
         print(f"[LLM] cache write error: {e}")
 
     return jsonify(response)
+
+
+# =============================================================================
+# Opportunities Dashboard + Bulk Consensus Reprice
+# =============================================================================
+
+
+def _fetch_analytics_items():
+    """Call get_full_inventory_analytics view function and return its items list.
+
+    Uses Flask's test_client so we reuse the existing enrichment logic without
+    duplicating ~500 lines. Returns [] on any failure so callers can no-op.
+    """
+    try:
+        with app.test_client() as client:
+            resp = client.get('/api/inventory/full-analytics')
+            if resp.status_code != 200:
+                print(f"[opportunities] full-analytics returned {resp.status_code}")
+                return []
+            data = resp.get_json() or {}
+            return data.get('items', []) or []
+    except Exception as e:
+        print(f"[opportunities] fetch_analytics_items error: {e}")
+        return []
+
+
+@app.route('/api/inventory/opportunities')
+def inventory_opportunities():
+    """Top-ranked pricing opportunities across the inventory.
+
+    Scores each item where comp_median > your_price AND comp_count >= 5.
+    Returns top 10 sorted desc by score.
+    """
+    print("[opportunities] entry")
+    try:
+        items = _fetch_analytics_items()
+    except Exception as e:
+        print(f"[opportunities] fatal: {e}")
+        return jsonify({
+            'opportunities': [],
+            'total_candidates': 0,
+            'total_potential_upside': 0.0,
+            'error': str(e)[:200],
+        })
+
+    candidates = []
+    for it in items:
+        try:
+            comp_count = it.get('comp_count') or 0
+            comp_median = it.get('comp_median') or 0
+            your_price = it.get('your_price') or 0
+            if comp_count < 5:
+                continue
+            if not comp_median or not your_price:
+                continue
+            if comp_median <= your_price:
+                continue
+
+            upside_dollars = round(float(comp_median) - float(your_price), 2)
+            upside_pct = round(((float(comp_median) - float(your_price)) / float(your_price)) * 100, 2)
+            confidence_pts = min(40, comp_count * 2)
+            score = round(upside_dollars * (1 + comp_count / 20.0), 2)
+
+            candidates.append({
+                'id': it.get('id'),
+                'name': it.get('name') or it.get('title') or '',
+                'artist': it.get('artist') or '',
+                'your_price': round(float(your_price), 2),
+                'comp_median': round(float(comp_median), 2),
+                'comp_p75': it.get('comp_p75'),
+                'comp_count': comp_count,
+                'upside_dollars': upside_dollars,
+                'upside_pct': upside_pct,
+                'confidence_pts': confidence_pts,
+                'score': score,
+            })
+        except Exception as e:
+            print(f"[opportunities] skip item {it.get('id')}: {e}")
+            continue
+
+    candidates.sort(key=lambda x: x['score'], reverse=True)
+    top = candidates[:10]
+    total_upside = round(sum(c['upside_dollars'] for c in candidates), 2)
+
+    print(f"[opportunities] exit: {len(candidates)} candidates, top10 total_score={sum(c['score'] for c in top):.1f}")
+    return jsonify({
+        'opportunities': top,
+        'total_candidates': len(candidates),
+        'total_potential_upside': total_upside,
+    })
+
+
+@app.route('/api/inventory/bulk-consensus-preview')
+def bulk_consensus_preview():
+    """Preview items where cached LLM consensus recommends a meaningful price bump.
+
+    Query params:
+      min_upside_pct (default 10) — consensus.recommended must exceed price by this %
+      min_comp_count (default 5)
+      artist — optional substring match on artist
+      force_llm (default 0) — if 1, run fresh /api/inventory/llm-price-review for
+        items without a cache hit (expensive).
+    """
+    print("[bulk-preview] entry")
+    try:
+        min_upside_pct = float(request.args.get('min_upside_pct', 10))
+    except Exception:
+        min_upside_pct = 10.0
+    try:
+        min_comp_count = int(request.args.get('min_comp_count', 5))
+    except Exception:
+        min_comp_count = 5
+    artist_filter = (request.args.get('artist') or '').strip() or None
+    force_llm = request.args.get('force_llm', '0').lower() in ('1', 'true', 'yes')
+
+    filters = {
+        'min_upside_pct': min_upside_pct,
+        'min_comp_count': min_comp_count,
+        'artist': artist_filter,
+    }
+
+    try:
+        items = _fetch_analytics_items()
+    except Exception as e:
+        print(f"[bulk-preview] fatal: {e}")
+        return jsonify({
+            'candidates': [],
+            'total_candidates': 0,
+            'total_upside': 0.0,
+            'filters_applied': filters,
+            'error': str(e)[:200],
+        })
+
+    cache = _load_llm_cache()
+    threshold = 1.0 + (min_upside_pct / 100.0)
+    candidates = []
+
+    def _extract_consensus(cached):
+        """Normalize a cache entry to (recommended, low, high, models_ok_count, confidence_score)."""
+        if not isinstance(cached, dict):
+            return None, None, None, 0, None
+        cons = cached.get('consensus') or {}
+        rec = cons.get('recommended')
+        low = cons.get('low')
+        high = cons.get('high')
+        if rec is None:
+            # Legacy scalar fallback
+            rec = cached.get('consensus_median')
+        models = cached.get('models') or {}
+        ok_count = sum(1 for m in models.values() if isinstance(m, dict) and m.get('status') == 'ok')
+        if not ok_count:
+            ok_count = cached.get('consensus_count') or 0
+        conf = cached.get('confidence_score')
+        return rec, low, high, ok_count, conf
+
+    for it in items:
+        try:
+            comp_count = it.get('comp_count') or 0
+            if comp_count < min_comp_count:
+                continue
+            if artist_filter and artist_filter.lower() not in (it.get('artist') or '').lower():
+                continue
+            your_price = float(it.get('your_price') or 0)
+            if your_price <= 0:
+                continue
+            comp_median = float(it.get('comp_median') or 0)
+            cache_bucket = int(round(comp_median / 10)) * 10 if comp_median else 0
+            cache_key = f"{it.get('id')}:{cache_bucket}"
+            cached = cache.get(cache_key)
+
+            if not cached and force_llm:
+                # Run the full LLM review inline via the existing route handler
+                try:
+                    with app.test_client() as client:
+                        r = client.get(f"/api/inventory/llm-price-review/{it.get('id')}")
+                        if r.status_code == 200:
+                            cached = r.get_json()
+                            # Refresh cache so subsequent iterations see the new entry
+                            cache = _load_llm_cache()
+                except Exception as e:
+                    print(f"[bulk-preview] force_llm skip {it.get('id')}: {e}")
+                    cached = None
+
+            if not cached:
+                continue
+
+            rec, low, high, models_agreed, conf = _extract_consensus(cached)
+            if not rec or not isinstance(rec, (int, float)):
+                continue
+            if rec <= your_price * threshold:
+                continue
+
+            upside_dollars = round(float(rec) - your_price, 2)
+            upside_pct = round(((float(rec) - your_price) / your_price) * 100, 2)
+
+            candidates.append({
+                'id': it.get('id'),
+                'name': it.get('name') or it.get('title') or '',
+                'artist': it.get('artist') or '',
+                'your_price': round(your_price, 2),
+                'suggested_price': rec,
+                'consensus_low': low,
+                'consensus_high': high,
+                'upside_dollars': upside_dollars,
+                'upside_pct': upside_pct,
+                'comp_count': comp_count,
+                'comp_median': round(comp_median, 2) if comp_median else None,
+                'confidence_score': conf,
+                'models_agreed': models_agreed,
+            })
+        except Exception as e:
+            print(f"[bulk-preview] skip {it.get('id')}: {e}")
+            continue
+
+    candidates.sort(key=lambda x: x['upside_dollars'], reverse=True)
+    total_upside = round(sum(c['upside_dollars'] for c in candidates), 2)
+    print(f"[bulk-preview] exit: {len(candidates)} candidates, total_upside=${total_upside}")
+
+    return jsonify({
+        'candidates': candidates,
+        'total_candidates': len(candidates),
+        'total_upside': total_upside,
+        'filters_applied': filters,
+    })
+
+
+@app.route('/api/inventory/bulk-consensus-apply', methods=['POST'])
+def bulk_consensus_apply():
+    """Apply new prices to eBay for the user-approved bulk list.
+
+    Request body: {"items": [{"id": "LOCAL-25", "price": 210}, ...]}
+
+    Returns per-item status. In local dev mode (ebay.update_price raises or
+    returns False because no OAuth token is available), status='local_dev'.
+    """
+    print("[bulk-apply] entry")
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+    raw_items = data.get('items') or []
+    if not isinstance(raw_items, list):
+        return jsonify({
+            'applied': 0,
+            'failed': 0,
+            'total_new_revenue': 0.0,
+            'results': [],
+            'error': 'items must be a list',
+        }), 400
+
+    results = []
+    applied = 0
+    failed = 0
+    total_new_revenue = 0.0
+
+    # Detect local dev mode once (no token = no real eBay writes)
+    local_dev = False
+    try:
+        token = ebay.get_access_token()
+        if not token:
+            local_dev = True
+    except Exception as e:
+        print(f"[bulk-apply] token probe failed, assuming local_dev: {e}")
+        local_dev = True
+
+    for entry in raw_items:
+        try:
+            item_id = str(entry.get('id') or '').strip()
+            price = entry.get('price')
+            if not item_id or price is None:
+                results.append({
+                    'id': item_id,
+                    'price': price,
+                    'status': 'error',
+                    'message': 'missing id or price',
+                })
+                failed += 1
+                continue
+            try:
+                price_f = float(price)
+            except Exception:
+                results.append({
+                    'id': item_id,
+                    'price': price,
+                    'status': 'error',
+                    'message': 'price not numeric',
+                })
+                failed += 1
+                continue
+
+            if local_dev:
+                print(f"[bulk-apply] local_dev: would set {item_id} -> ${price_f:.2f}")
+                results.append({
+                    'id': item_id,
+                    'price': price_f,
+                    'status': 'local_dev',
+                    'message': 'no eBay token — logged only',
+                })
+                # Count for revenue projection so the UI can preview impact
+                total_new_revenue += price_f
+                continue
+
+            try:
+                ok = ebay.update_price(item_id, price_f)
+            except Exception as e:
+                print(f"[bulk-apply] update_price exception {item_id}: {e}")
+                results.append({
+                    'id': item_id,
+                    'price': price_f,
+                    'status': 'error',
+                    'message': str(e)[:200],
+                })
+                failed += 1
+                continue
+
+            if ok:
+                applied += 1
+                total_new_revenue += price_f
+                results.append({
+                    'id': item_id,
+                    'price': price_f,
+                    'status': 'ok',
+                })
+            else:
+                failed += 1
+                results.append({
+                    'id': item_id,
+                    'price': price_f,
+                    'status': 'error',
+                    'message': 'ebay revise failed (listing not found or policy rejection)',
+                })
+        except Exception as e:
+            print(f"[bulk-apply] unexpected error: {e}")
+            results.append({
+                'id': entry.get('id') if isinstance(entry, dict) else None,
+                'price': entry.get('price') if isinstance(entry, dict) else None,
+                'status': 'error',
+                'message': str(e)[:200],
+            })
+            failed += 1
+
+    print(f"[bulk-apply] exit: applied={applied} failed={failed} local_dev={local_dev}")
+    return jsonify({
+        'applied': applied,
+        'failed': failed,
+        'total_new_revenue': round(total_new_revenue, 2),
+        'results': results,
+        'local_dev': local_dev,
+    })
 
 
 # =============================================================================
