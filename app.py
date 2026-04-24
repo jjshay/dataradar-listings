@@ -6121,7 +6121,13 @@ def ebay_auth_callback():
     credentials = f"{client_id}:{client_secret}"
     encoded = base64.b64encode(credentials.encode()).decode()
 
-    callback_url = request.host_url.rstrip('/') + '/auth/ebay/callback'
+    # Match the HTTPS-forcing in /auth/ebay exactly — eBay validates byte-equal
+    # redirect_uri between authorize and token-exchange. Railway terminates TLS
+    # so request.host_url returns http:// for both; force https:// to match.
+    host = request.host_url.rstrip('/')
+    if host.startswith('http://') and 'localhost' not in host and '127.0.0.1' not in host:
+        host = 'https://' + host[len('http://'):]
+    callback_url = host + '/auth/ebay/callback'
 
     try:
         resp = requests.post(
