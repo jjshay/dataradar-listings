@@ -4482,6 +4482,16 @@ def get_full_inventory_analytics():
             'days_listed': days_listed,
             'watchers': listing_watchers,
             'your_price': listing.get('price', 0),
+            # Comp evidence — forwarded from the inventory build loop so
+            # _build_comp_summary and the UI Comps column have real numbers
+            'comp_evidence': item.get('comp_evidence'),
+            'comp_median': item.get('comp_median'),
+            'comp_p75': item.get('comp_p75'),
+            'comp_12mo_median': item.get('comp_12mo_median'),
+            'comp_count': item.get('comp_count', 0),
+            'comp_signed_only': item.get('comp_signed_only', False),
+            'comp_position': item.get('comp_position'),
+            'comp_delta_pct': item.get('comp_delta_pct'),
         })
 
     # Sort by signal priority
