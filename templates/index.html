@@ -5220,7 +5220,8 @@
             el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             if (sub) sub.textContent = 'Loading…';
             try {
-                const resp = await fetch('/api/opportunities');
+                const resp = await fetch('/api/inventory/opportunities');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 opportunitiesData = await resp.json();
             } catch (e) {
                 el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px;">Failed to load opportunities</div>';
