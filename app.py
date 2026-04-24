@@ -15470,6 +15470,601 @@ def api_prices_work(work_id):
 
 
 # =============================================================================
+# Communications Automation Engine
+# -----------------------------------------------------------------------------
+# Reads data/comm_rules.json (captured from 3dsellers.com exports) and fires
+# buyer-facing messages / reciprocal feedback on eBay events. Dry-run by default.
+# No live polling daemon in this pass — explicit manual fire or simulate only.
+# =============================================================================
+
+COMM_RULES_FILE = os.path.join(DATA_DIR, 'comm_rules.json')
+COMMS_LOG_FILE = os.path.join(DATA_DIR, 'comms_log.json')
+
+# Default store metadata used for template var fallbacks. Kept local so the
+# comms engine has no cross-module coupling.
+COMMS_DEFAULT_STORE = {
+    'store_name': 'Gauntlet Gallery',
+    'store_url': 'https://www.ebay.com/str/gauntletgallery',
+    'user_first_name': 'JJ',
+    'contact_url': 'https://www.ebay.com/str/gauntletgallery',
+    'carrier_phone': '',
+}
+
+
+def _load_comm_rules():
+    """Load communications rules config from data/comm_rules.json."""
+    try:
+        if os.path.exists(COMM_RULES_FILE):
+            with open(COMM_RULES_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[comms] _load_comm_rules error: {e}")
+    return {'schema_version': 1, 'policy': {}, 'rules': []}
+
+
+def _save_comm_rules(data):
+    """Persist the full comm_rules.json structure atomically."""
+    tmp = COMM_RULES_FILE + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, COMM_RULES_FILE)
+
+
+def _load_comms_log():
+    """Load the comms fire-log (append-only) from data/comms_log.json."""
+    try:
+        if os.path.exists(COMMS_LOG_FILE):
+            with open(COMMS_LOG_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[comms] _load_comms_log error: {e}")
+    return []
+
+
+def _append_comms_log(entry):
+    """Append a single log entry to data/comms_log.json and persist."""
+    log = _load_comms_log()
+    log.append(entry)
+    try:
+        with open(COMMS_LOG_FILE, 'w') as f:
+            json.dump(log, f, indent=2)
+    except Exception as e:
+        print(f"[comms] _append_comms_log persist error: {e}")
+    return entry
+
+
+def _interpolate_template(text, vars_dict):
+    """Substitute {var} tokens from vars_dict; unknown tokens stay in place."""
+    if not text:
+        return '', [], []
+    used = []
+    unknown = []
+    pattern = re.compile(r'\{([a-zA-Z_][a-zA-Z0-9_]*)\}')
+
+    def _sub(m):
+        key = m.group(1)
+        if key in vars_dict and vars_dict[key] is not None:
+            used.append(key)
+            return str(vars_dict[key])
+        unknown.append(key)
+        return m.group(0)  # preserve token
+
+    rendered = pattern.sub(_sub, text)
+    return rendered, used, unknown
+
+
+def _build_template_vars_from_order(order):
+    """Given an eBay Order-ish dict, build the full template var dict."""
+    order = order or {}
+    buyer_name = (
+        order.get('buyer_name')
+        or order.get('buyer')
+        or order.get('BuyerUserID')
+        or order.get('buyer_id')
+        or ''
+    )
+    # Fallback first name = first token of buyer_name, or buyer_id cleaned up
+    buyer_first_name = order.get('buyer_first_name') or ''
+    if not buyer_first_name and buyer_name:
+        buyer_first_name = str(buyer_name).split(' ', 1)[0].split('_')[0].split('-')[0]
+
+    shipping_street = order.get('shipping_street', '') or ''
+    shipping_city = order.get('shipping_city', '') or ''
+    shipping_state = order.get('shipping_state_or_province', '') or order.get('shipping_state', '') or ''
+    shipping_postal = order.get('shipping_postal_code', '') or ''
+
+    shipping_address = order.get('shipping_address') or ''
+    if not shipping_address:
+        parts = [p for p in [shipping_street, shipping_city, shipping_state, shipping_postal] if p]
+        shipping_address = ', '.join(parts)
+
+    item_id = order.get('item_id') or order.get('ItemID') or ''
+    item_link = order.get('item_link') or (f'https://www.ebay.com/itm/{item_id}' if item_id else '')
+    order_id = order.get('order_id') or order.get('OrderID') or ''
+    feedback_link = order.get('item_feedback_link') or (
+        f'https://www.ebay.com/fdbk/leave_feedback?item_id={item_id}' if item_id else ''
+    )
+
+    vars_dict = {
+        'buyer_first_name': buyer_first_name,
+        'buyer_name': buyer_name,
+        'user_first_name': order.get('user_first_name') or COMMS_DEFAULT_STORE['user_first_name'],
+        'store_name': order.get('store_name') or COMMS_DEFAULT_STORE['store_name'],
+        'store_url': order.get('store_url') or COMMS_DEFAULT_STORE['store_url'],
+        'item_name': order.get('item_name') or order.get('title') or '',
+        'item_link': item_link,
+        'item_feedback_link': feedback_link,
+        'product_review_link': order.get('product_review_link') or feedback_link,
+        'order_id': order_id,
+        'variation_specifics': order.get('variation_specifics') or '',
+        'shipping_street': shipping_street,
+        'shipping_city': shipping_city,
+        'shipping_state_or_province': shipping_state,
+        'shipping_postal_code': shipping_postal,
+        'shipping_address': shipping_address,
+        'shipping_date': order.get('shipping_date') or '',
+        'estimated_delivery_date': order.get('estimated_delivery_date') or '',
+        'min_est_delivery_date': order.get('min_est_delivery_date') or '',
+        'max_est_delivery_date': order.get('max_est_delivery_date') or '',
+        'tracking_number': order.get('tracking_number') or '',
+        'courier': order.get('courier') or '',
+        'carrier_phone': order.get('carrier_phone') or COMMS_DEFAULT_STORE['carrier_phone'],
+        'contact_url': order.get('contact_url') or COMMS_DEFAULT_STORE['contact_url'],
+    }
+    return vars_dict
+
+
+def _match_rules_for_event(trigger_type, payload):
+    """Return enabled rules matching trigger_type, respecting duplicate policy."""
+    cfg = _load_comm_rules()
+    policy = cfg.get('policy', {}) or {}
+    strategy = policy.get('duplicate_trigger_strategy', 'first_match_wins')
+    rules = [
+        r for r in (cfg.get('rules') or [])
+        if r.get('enabled') and (r.get('trigger') or {}).get('type') == trigger_type
+    ]
+    if strategy == 'first_match_wins':
+        primaries = [r for r in rules if r.get('match_priority') == 'primary']
+        if primaries:
+            return [primaries[0]]
+        # no primary; fall back to the first fallback match so the event still fires
+        return rules[:1]
+    return rules
+
+
+def _ebay_leave_feedback(order_id, buyer_id, text):
+    """Leave Positive feedback via eBay Trading API LeaveFeedback."""
+    try:
+        token = ebay.get_access_token()
+    except Exception as e:
+        return {'status': 'skipped_no_ebay', 'reason': f'token exception: {e}'}
+    if not token:
+        return {'status': 'skipped_no_ebay', 'reason': 'no ebay access token (OAuth not connected)'}
+
+    safe = (text or '')[:80].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    # order_id here is the eBay ItemID for feedback purposes; if caller passed an OrderID,
+    # eBay accepts OrderLineItemID syntax too. We fall back to ItemID only.
+    headers = {
+        'X-EBAY-API-SITEID': '0',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-CALL-NAME': 'LeaveFeedback',
+        'X-EBAY-API-IAF-TOKEN': token,
+        'Content-Type': 'text/xml',
+    }
+    xml = f'''<?xml version="1.0" encoding="utf-8"?>
+<LeaveFeedbackRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ItemID>{order_id}</ItemID>
+    <CommentText>{safe}</CommentText>
+    <CommentType>Positive</CommentType>
+    <TargetUser>{buyer_id}</TargetUser>
+</LeaveFeedbackRequest>'''
+    try:
+        resp = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml, timeout=20)
+        if 'Success' in resp.text and 'Failure' not in resp.text:
+            return {'status': 'ok', 'http': resp.status_code}
+        # Try to pull LongMessage out for context
+        err = re.findall(r'<LongMessage>(.*?)</LongMessage>', resp.text)
+        return {
+            'status': 'error',
+            'http': resp.status_code,
+            'error_msg': (err[0][:160] if err else resp.text[:160]),
+        }
+    except Exception as e:
+        return {'status': 'skipped_no_ebay', 'reason': f'request exception: {e}'}
+
+
+def _ebay_send_message(order_id, buyer_id, subject, text):
+    """Send a buyer message about an order via eBay AddMemberMessageAAQToPartner."""
+    try:
+        token = ebay.get_access_token()
+    except Exception as e:
+        return {'status': 'skipped_no_ebay', 'reason': f'token exception: {e}'}
+    if not token:
+        return {'status': 'skipped_no_ebay', 'reason': 'no ebay access token (OAuth not connected)'}
+
+    safe_subject = (subject or f"Message from {COMMS_DEFAULT_STORE['store_name']}")[:64]
+    safe_subject = safe_subject.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    safe_body = (text or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    headers = {
+        'X-EBAY-API-SITEID': '0',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-CALL-NAME': 'AddMemberMessageAAQToPartner',
+        'X-EBAY-API-IAF-TOKEN': token,
+        'Content-Type': 'text/xml',
+    }
+    # AAQToPartner is the Trading-API call that lets a seller initiate a message
+    # to a buyer referencing an ItemID. Plain AddMemberMessage is reply-only and
+    # requires a RecipientID that is already in a thread.
+    xml = f'''<?xml version="1.0" encoding="utf-8"?>
+<AddMemberMessageAAQToPartnerRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ItemID>{order_id}</ItemID>
+    <MemberMessage>
+        <Subject>{safe_subject}</Subject>
+        <Body>{safe_body}</Body>
+        <QuestionType>General</QuestionType>
+        <RecipientID>{buyer_id}</RecipientID>
+    </MemberMessage>
+</AddMemberMessageAAQToPartnerRequest>'''
+    try:
+        resp = requests.post('https://api.ebay.com/ws/api.dll', headers=headers, data=xml, timeout=20)
+        if 'Success' in resp.text and 'Failure' not in resp.text:
+            return {'status': 'ok', 'http': resp.status_code}
+        err = re.findall(r'<LongMessage>(.*?)</LongMessage>', resp.text)
+        return {
+            'status': 'error',
+            'http': resp.status_code,
+            'error_msg': (err[0][:200] if err else resp.text[:200]),
+        }
+    except Exception as e:
+        return {'status': 'skipped_no_ebay', 'reason': f'request exception: {e}'}
+
+
+def _fire_rule(rule, trigger_type, payload, dry_run=None):
+    """Render and dispatch a single rule; appends result to comms_log."""
+    import random as _random
+    cfg = _load_comm_rules()
+    policy = cfg.get('policy', {}) or {}
+    if dry_run is None:
+        dry_run = bool(policy.get('dry_run_by_default', True))
+
+    vars_dict = _build_template_vars_from_order(payload or {})
+    action = rule.get('action') or {}
+    action_type = action.get('type')
+    constraints = rule.get('constraints') or {}
+    warnings = []
+
+    # Pick template text — leave_feedback rules may have a random pool
+    template_text = action.get('template') or ''
+    if action_type == 'leave_feedback' and action.get('templates'):
+        templates = action.get('templates') or []
+        rotation = action.get('rotation', 'random')
+        if templates:
+            template_text = _random.choice(templates) if rotation == 'random' else templates[0]
+
+    rendered, used, unknown = _interpolate_template(template_text, vars_dict)
+    if unknown:
+        warnings.append(f'unknown_vars:{",".join(sorted(set(unknown)))}')
+
+    # Enforce feedback char cap — fall back to a safe short template if needed
+    if action_type == 'leave_feedback':
+        max_chars = int(constraints.get('max_chars_per_template', 80) or 80)
+        if len(rendered) > max_chars:
+            fb_idx = constraints.get('fallback_template_index')
+            if fb_idx is not None:
+                try:
+                    fallback_src = (action.get('templates') or [])[int(fb_idx)]
+                    rendered, used, unknown = _interpolate_template(fallback_src, vars_dict)
+                    if unknown:
+                        warnings.append(f'unknown_vars_fallback:{",".join(sorted(set(unknown)))}')
+                    warnings.append(f'template_over_cap:used_fallback_idx_{fb_idx}')
+                except Exception as e:
+                    warnings.append(f'fallback_template_error:{e}')
+                    rendered = rendered[:max_chars]
+            else:
+                rendered = rendered[:max_chars]
+                warnings.append('template_over_cap:hard_truncated')
+
+    order_id = (payload or {}).get('order_id') or (payload or {}).get('item_id') or ''
+    buyer_id = (
+        (payload or {}).get('buyer_id')
+        or (payload or {}).get('buyer')
+        or (payload or {}).get('buyer_name')
+        or ''
+    )
+
+    # Log entry skeleton
+    entry = {
+        'id': f'{int(datetime.now().timestamp() * 1000)}-{rule.get("id", "rule")}',
+        'rule_id': rule.get('id'),
+        'trigger_type': trigger_type,
+        'order_id': order_id,
+        'buyer_id': buyer_id,
+        'action': action_type,
+        'rendered_text': rendered,
+        'status': 'dry_run' if dry_run else 'fired',
+        'error_msg': None,
+        'warnings': warnings,
+        'template_vars_used': sorted(set(used)),
+        'unknown_vars_left': sorted(set(unknown)),
+        'fired_at': datetime.utcnow().isoformat() + 'Z',
+    }
+
+    if dry_run:
+        _append_comms_log(entry)
+        return entry
+
+    # Live fire
+    try:
+        if action_type == 'send_message_to_buyer':
+            subject = f"Message from {vars_dict.get('store_name') or COMMS_DEFAULT_STORE['store_name']}"
+            res = _ebay_send_message(order_id, buyer_id, subject, rendered)
+        elif action_type == 'leave_feedback':
+            res = _ebay_leave_feedback(order_id, buyer_id, rendered)
+        else:
+            res = {'status': 'error', 'error_msg': f'unknown action_type: {action_type}'}
+
+        if res.get('status') == 'ok':
+            entry['status'] = 'fired'
+        elif res.get('status') == 'skipped_no_ebay':
+            entry['status'] = 'skipped_no_ebay'
+            entry['error_msg'] = res.get('reason')
+        else:
+            entry['status'] = 'error'
+            entry['error_msg'] = res.get('error_msg') or res.get('reason') or 'unknown error'
+    except Exception as e:
+        entry['status'] = 'error'
+        entry['error_msg'] = f'dispatch exception: {e}'
+
+    _append_comms_log(entry)
+    return entry
+
+
+# -----------------------------------------------------------------------------
+# Comms Automation — HTTP endpoints
+# -----------------------------------------------------------------------------
+
+@app.route('/api/comms/rules', methods=['GET'])
+def api_comms_rules_list():
+    """List all communications rules (full comm_rules.json)."""
+    print('[comms] GET /api/comms/rules — entry')
+    data = _load_comm_rules()
+    print(f'[comms] GET /api/comms/rules — exit ({len(data.get("rules") or [])} rules)')
+    return jsonify(data)
+
+
+@app.route('/api/comms/rules/<rule_id>', methods=['GET'])
+def api_comms_rule_get(rule_id):
+    """Fetch a single comms rule by id."""
+    print(f'[comms] GET /api/comms/rules/{rule_id} — entry')
+    data = _load_comm_rules()
+    for r in (data.get('rules') or []):
+        if r.get('id') == rule_id:
+            print(f'[comms] GET /api/comms/rules/{rule_id} — exit (found)')
+            return jsonify(r)
+    print(f'[comms] GET /api/comms/rules/{rule_id} — exit (404)')
+    return jsonify({'error': 'rule_not_found', 'rule_id': rule_id}), 404
+
+
+@app.route('/api/comms/rules/<rule_id>/toggle', methods=['POST'])
+def api_comms_rule_toggle(rule_id):
+    """Flip the enabled flag on a comms rule and persist."""
+    print(f'[comms] POST /api/comms/rules/{rule_id}/toggle — entry')
+    data = _load_comm_rules()
+    found = None
+    for r in (data.get('rules') or []):
+        if r.get('id') == rule_id:
+            r['enabled'] = not bool(r.get('enabled'))
+            found = r
+            break
+    if not found:
+        print(f'[comms] POST /api/comms/rules/{rule_id}/toggle — exit (404)')
+        return jsonify({'error': 'rule_not_found', 'rule_id': rule_id}), 404
+    _save_comm_rules(data)
+    print(f'[comms] POST /api/comms/rules/{rule_id}/toggle — exit (enabled={found["enabled"]})')
+    return jsonify({'rule_id': rule_id, 'enabled': found['enabled']})
+
+
+@app.route('/api/comms/rules/<rule_id>/update', methods=['POST'])
+def api_comms_rule_update(rule_id):
+    """Partial-update a rule (enabled, trigger, action) and persist."""
+    print(f'[comms] POST /api/comms/rules/{rule_id}/update — entry')
+    body = request.get_json(silent=True) or {}
+    data = _load_comm_rules()
+    found = None
+    for r in (data.get('rules') or []):
+        if r.get('id') == rule_id:
+            if 'enabled' in body:
+                r['enabled'] = bool(body['enabled'])
+            if 'trigger' in body and isinstance(body['trigger'], dict):
+                r['trigger'] = body['trigger']
+            if 'action' in body and isinstance(body['action'], dict):
+                r['action'] = body['action']
+            found = r
+            break
+    if not found:
+        print(f'[comms] POST /api/comms/rules/{rule_id}/update — exit (404)')
+        return jsonify({'error': 'rule_not_found', 'rule_id': rule_id}), 404
+    _save_comm_rules(data)
+    print(f'[comms] POST /api/comms/rules/{rule_id}/update — exit (ok)')
+    return jsonify(found)
+
+
+@app.route('/api/comms/dry-run', methods=['POST'])
+def api_comms_dry_run():
+    """Render a rule's template with a real or MOCK order; does NOT fire."""
+    print('[comms] POST /api/comms/dry-run — entry')
+    body = request.get_json(silent=True) or {}
+    rule_id = body.get('rule_id')
+    test_order = body.get('test_order') or {}
+
+    data = _load_comm_rules()
+    rule = next((r for r in (data.get('rules') or []) if r.get('id') == rule_id), None)
+    if not rule:
+        print(f'[comms] POST /api/comms/dry-run — exit (404 rule={rule_id})')
+        return jsonify({'error': 'rule_not_found', 'rule_id': rule_id}), 404
+
+    # If test_order carries an order_id, we would look up the real eBay order.
+    # For safety and no-new-deps, we honor whatever fields the caller passes
+    # and merge them with a MOCK buyer profile when absent.
+    mock_payload = {
+        'order_id': test_order.get('order_id') or 'MOCK-ORDER-0001',
+        'item_id': test_order.get('item_id') or '123456789012',
+        'buyer_name': test_order.get('buyer_name') or 'Sarah Johnson',
+        'buyer_id': test_order.get('buyer_id') or 'sarahj_nyc',
+        'item_name': test_order.get('item_name') or 'Shepard Fairey "OBEY Giant" Signed Print',
+        'variation_specifics': test_order.get('variation_specifics') or 'Size: 18x24',
+        'shipping_street': test_order.get('shipping_street') or '123 Main St',
+        'shipping_city': test_order.get('shipping_city') or 'Brooklyn',
+        'shipping_state_or_province': test_order.get('shipping_state_or_province') or 'NY',
+        'shipping_postal_code': test_order.get('shipping_postal_code') or '11201',
+        'shipping_date': test_order.get('shipping_date') or datetime.now().strftime('%Y-%m-%d'),
+        'estimated_delivery_date': test_order.get('estimated_delivery_date') or (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d'),
+        'min_est_delivery_date': test_order.get('min_est_delivery_date') or (datetime.now() + timedelta(days=4)).strftime('%Y-%m-%d'),
+        'max_est_delivery_date': test_order.get('max_est_delivery_date') or (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d'),
+        'tracking_number': test_order.get('tracking_number') or '1Z999AA10123456784',
+        'courier': test_order.get('courier') or 'UPS',
+    }
+    # Caller-supplied fields override mock
+    for k, v in (test_order or {}).items():
+        if v is not None:
+            mock_payload[k] = v
+
+    vars_dict = _build_template_vars_from_order(mock_payload)
+    action = rule.get('action') or {}
+    action_type = action.get('type')
+    template_text = action.get('template') or ''
+    if action_type == 'leave_feedback' and action.get('templates'):
+        # deterministic for dry-run: use first template
+        template_text = action['templates'][0]
+    rendered, used, unknown = _interpolate_template(template_text, vars_dict)
+
+    resp = {
+        'rule_id': rule_id,
+        'action_type': action_type,
+        'rendered_text': rendered,
+        'template_vars_used': sorted(set(used)),
+        'unknown_vars_left': sorted(set(unknown)),
+        'mock_payload': mock_payload,
+    }
+    print(f'[comms] POST /api/comms/dry-run — exit (rule={rule_id}, chars={len(rendered)})')
+    return jsonify(resp)
+
+
+@app.route('/api/comms/fire-manual', methods=['POST'])
+def api_comms_fire_manual():
+    """Manually dispatch a rule for an order. dry_run defaults to true."""
+    print('[comms] POST /api/comms/fire-manual — entry')
+    body = request.get_json(silent=True) or {}
+    rule_id = body.get('rule_id')
+    order_id = body.get('order_id')
+    dry_run = body.get('dry_run')
+    if dry_run is None:
+        dry_run = True
+    else:
+        dry_run = bool(dry_run)
+
+    data = _load_comm_rules()
+    rule = next((r for r in (data.get('rules') or []) if r.get('id') == rule_id), None)
+    if not rule:
+        print(f'[comms] POST /api/comms/fire-manual — exit (404 rule={rule_id})')
+        return jsonify({'error': 'rule_not_found', 'rule_id': rule_id}), 404
+    if not order_id:
+        print('[comms] POST /api/comms/fire-manual — exit (400 missing order_id)')
+        return jsonify({'error': 'order_id_required'}), 400
+
+    # Minimal payload — real eBay order lookup is deferred to the follow-up
+    # trigger daemon. Callers can pass additional fields (buyer_name, item_name)
+    # alongside order_id to enrich template rendering right now.
+    payload = dict(body)
+    payload.pop('rule_id', None)
+    payload.pop('dry_run', None)
+    payload.setdefault('order_id', order_id)
+
+    trigger_type = (rule.get('trigger') or {}).get('type') or 'manual'
+    entry = _fire_rule(rule, trigger_type, payload, dry_run=dry_run)
+    print(f'[comms] POST /api/comms/fire-manual — exit (status={entry["status"]})')
+    return jsonify(entry)
+
+
+@app.route('/api/comms/log', methods=['GET'])
+def api_comms_log():
+    """Return recent comms log entries, filtered by rule_id / since."""
+    print('[comms] GET /api/comms/log — entry')
+    try:
+        limit = int(request.args.get('limit', 50))
+    except Exception:
+        limit = 50
+    rule_id = request.args.get('rule_id')
+    since = request.args.get('since')
+
+    log = _load_comms_log()
+    if rule_id:
+        log = [e for e in log if e.get('rule_id') == rule_id]
+    if since:
+        log = [e for e in log if (e.get('fired_at') or '') >= since]
+    # Newest first
+    log_sorted = sorted(log, key=lambda e: e.get('fired_at') or '', reverse=True)
+    out = log_sorted[:max(0, limit)]
+    print(f'[comms] GET /api/comms/log — exit ({len(out)} entries)')
+    return jsonify({'entries': out, 'count': len(out), 'total': len(log)})
+
+
+@app.route('/api/comms/status', methods=['GET'])
+def api_comms_status():
+    """Summary stats for the comms engine dashboard tile."""
+    print('[comms] GET /api/comms/status — entry')
+    cfg = _load_comm_rules()
+    policy = cfg.get('policy') or {}
+    rules = cfg.get('rules') or []
+    enabled_count = sum(1 for r in rules if r.get('enabled'))
+
+    log = _load_comms_log()
+    now = datetime.utcnow()
+    today_iso = now.strftime('%Y-%m-%d')
+    week_cutoff = (now - timedelta(days=7)).isoformat() + 'Z'
+    fired_today = sum(1 for e in log if (e.get('fired_at') or '').startswith(today_iso))
+    fired_week = sum(1 for e in log if (e.get('fired_at') or '') >= week_cutoff)
+    last_fire_at = max((e.get('fired_at') or '' for e in log), default='')
+
+    resp = {
+        'total_rules': len(rules),
+        'enabled_count': enabled_count,
+        'fired_today': fired_today,
+        'fired_this_week': fired_week,
+        'last_fire_at': last_fire_at or None,
+        'dry_run_active': bool(policy.get('dry_run_by_default', True)),
+    }
+    print(f'[comms] GET /api/comms/status — exit ({resp})')
+    return jsonify(resp)
+
+
+@app.route('/api/comms/simulate-event', methods=['POST'])
+def api_comms_simulate_event():
+    """Simulate a trigger event; matches + fires every applicable rule."""
+    print('[comms] POST /api/comms/simulate-event — entry')
+    body = request.get_json(silent=True) or {}
+    trigger_type = body.get('trigger_type')
+    payload = body.get('payload') or {}
+    dry_run = body.get('dry_run')
+    if dry_run is not None:
+        dry_run = bool(dry_run)
+
+    if not trigger_type:
+        print('[comms] POST /api/comms/simulate-event — exit (400 missing trigger_type)')
+        return jsonify({'error': 'trigger_type_required'}), 400
+
+    matched = _match_rules_for_event(trigger_type, payload)
+    results = [_fire_rule(r, trigger_type, payload, dry_run=dry_run) for r in matched]
+    print(f'[comms] POST /api/comms/simulate-event — exit (matched={len(matched)})')
+    return jsonify({
+        'trigger_type': trigger_type,
+        'matched_rule_ids': [r.get('id') for r in matched],
+        'results': results,
+    })
+
+
+# =============================================================================
 # Main
 # =============================================================================
 

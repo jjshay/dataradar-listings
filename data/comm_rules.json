@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "duplicate_trigger_strategy": "first_match_wins",
+    "dry_run_by_default": true,
+    "max_messages_per_buyer_per_order": 5,
+    "quiet_hours_buyer_local": null
+  },
+  "template_variables_supported": [
+    "{buyer_first_name}",
+    "{buyer_name}",
+    "{user_first_name}",
+    "{store_name}",
+    "{store_url}",
+    "{item_name}",
+    "{item_link}",
+    "{item_feedback_link}",
+    "{product_review_link}",
+    "{order_id}",
+    "{variation_specifics}",
+    "{shipping_street}",
+    "{shipping_city}",
+    "{shipping_state_or_province}",
+    "{shipping_postal_code}",
+    "{shipping_address}",
+    "{shipping_date}",
+    "{estimated_delivery_date}",
+    "{min_est_delivery_date}",
+    "{max_est_delivery_date}",
+    "{tracking_number}",
+    "{courier}",
+    "{carrier_phone}",
+    "{contact_url}"
+  ],
+  "rules": [
+    {
+      "id": "reciprocal_feedback_positive",
+      "name": "Leave feedback for buyer (random-pool reciprocal)",
+      "enabled": true,
+      "source": "manual_paste",
+      "trigger": {
+        "type": "buyer_left_positive_feedback",
+        "delay_minutes": 0
+      },
+      "action": {
+        "type": "leave_feedback",
+        "rotation": "random",
+        "templates": [
+          "Hey-thanks for the feedback. New drops happen frequently, so pop back anytime. And if you've got a quick photo of your {item_name}, we'd absolutely love to see-we blast it on Insta and it honestly keeps lights on for shops like us.",
+          "Hey {buyer_first_name}, you're one of our favorite buyers-hands down. We drop new street art and signed vinyl almost every week, so please come steal the next one before it sells out. And if you ever snap a pic? We would genuinely love to see it-those shots are what make small sellers like us feel like we matter. No pressure, just saying.",
+          "Hey {buyer_first_name}, you're lightning on payments-seriously appreciate it. New drops come fast, so peek {store_url}. And if you can, a quick photo of that {item_name}? Means everything.",
+          "Hey {buyer_first_name}, we'd love to see you back. As one of our very first customers, shoot me a DM anytime-I'll hook you up with a generous one-time code just for you.",
+          "Great communication. A pleasure to do business with."
+        ]
+      },
+      "constraints": {
+        "max_per_buyer_per_month": 1,
+        "max_chars_per_template": 80,
+        "fallback_template_index": 4
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "feedback_reminder_1",
+      "name": "First feedback reminder (3 days post-delivery)",
+      "enabled": true,
+      "source": "manual_paste",
+      "trigger": {
+        "type": "no_feedback_after_delivery",
+        "delay_days_after_estimated_delivery": 3,
+        "country_filter": "all",
+        "send_window_hours": {
+          "start": 0,
+          "end": 24
+        }
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hi {buyer_name},\n\nThank you very much for purchasing {item_name}.\n\nWe noticed that we haven't received feedback from you yet. Please let us know if you have any questions about your item, and if you are happy with your purchase, we would love it if you could leave us your thoughts on eBay!\n\nFeedback is very important and helps our business grow! You can easily leave feedback for your purchase by copy and pasting this link in your browser:\n\n{item_feedback_link}\n\nThank you very much for your support!\n\nBest wishes."
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "feedback_reminder_2",
+      "name": "Second feedback reminder (7 days post-delivery, only if reminder_1 sent)",
+      "enabled": true,
+      "source": "manual_paste",
+      "trigger": {
+        "type": "no_feedback_after_delivery",
+        "delay_days_after_estimated_delivery": 7,
+        "country_filter": "all",
+        "send_window_hours": {
+          "start": 0,
+          "end": 24
+        },
+        "only_if_rule_sent": "feedback_reminder_1"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hi {buyer_name},\n\nThank you very much for purchasing {item_name}.\n\nWe noticed that we haven't received feedback from you yet. Please let us know if you have any questions about your item, and if you are happy with your purchase, we would love it if you could leave us your thoughts on eBay!\n\nFeedback is very important and helps our business grow! You can easily leave feedback for your purchase by copy and pasting this link in your browser:\n\n{item_feedback_link}\n\nThank you very much for your support!\n\nBest wishes."
+      },
+      "duplicate_of_trigger": "feedback_reminder_1",
+      "match_priority": "fallback"
+    },
+    {
+      "id": "thank_you_on_purchase_personal_note",
+      "name": "Thank-you on purchase (personal note)",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 1,
+      "trigger": {
+        "type": "item_sold",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, just wanted to say thank you so much for picking up the {item_name}-it's such a game-changer for us! Running this little business while chasing after my one-year-old son means everything, and your support honestly warms my heart. Can't wait for you to get it at {shipping_address}! Check out more goodies at {store_url}. Talk soon!"
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "update_on_order_shipping",
+      "name": "Update on order shipping",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 2,
+      "trigger": {
+        "type": "item_shipped",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hi there!  Great news \u2014 your order from Gauntlet Gallery is currently out for delivery!  Just a friendly heads-up to keep an eye out for a package sent on {shipping_date} coming via {courier}with tracking number {tracking_number}.  It\u2019s estimated arrival date is {estimated_delivery_date}, so it should be in your hands very soon!  If you have any questions about the shipping status, the carrier can help you directly at {carrier_phone}[carrier phone number].  We hope you love your package as much as we do!  Please consider sharing photos if you're happy with the product, as it's what helps small companies like us stay relevant in Ebay's systems and would truly mean the world to us (Link to product review: {product_review_link}.    We love seeing our items in new homes and can't wait for you to get your package.   Thanks again,  The Gauntlet Gallery    Thanks again for supporting our gallery \u2014 we\u2019re excited for you to enjoy your new piece! \ud83c\udfa8 Have an awesome day!  Warm regards, Gauntlet Gallery"
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "thank_you_for_your_purchase",
+      "name": "Thank you for your purchase",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 3,
+      "trigger": {
+        "type": "item_sold",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "<p>Hey {buyer_first_name},</p><br><p>Thank you for your purchase of {item_name} - {variation_specifics}.</p><br><br><p>Your order has an estimated delivery date of {estimated_delivery_date} and will be shipped to:</p><br><p>{shipping_street}, {shipping_city}, {shipping_state_or_province} - {shipping_postal_code}</p><br><br><p>Order Number: {order_id}</p><br><p>Item: {item_link}</p><br><br><p>If you have any questions, please feel free to reach out to me anytime.</p><br><br><p>StoreNameStore:</p><br><p>StoreURLContact: {store_url}</p><br><p>ContactURL: {contact_url}</p>"
+      },
+      "duplicate_of_trigger": "thank_you_on_purchase_personal_note",
+      "match_priority": "fallback"
+    },
+    {
+      "id": "request_ebay_product_review",
+      "name": "Request eBay product review",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 4,
+      "trigger": {
+        "type": "positive_feedback_received",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "<p>Dear {buyer_name},</p><br><br><p>This is {user_first_name}, owner of {store_name}!</p><br><br><p>Thank you again for buying {item_name}.</p><br><p>I hope you are happy with your purchase and received it promptly!</p><br><br><p>If you're not completely satisfied with your purchase, please let us know as soon as possible! Our team is here to help and make things right!</p><br><br><p>If you are satisfied with your product and everything went well with your order, we would love it if you had a quick second to leave my store positive feedback!</p><br><br><p>I read every feedback our store receives, and they mean a LOT to a small business like us!</p><br><br><p>You can easily leave feedback for your order with this link: {item_feedback_link}</p><br><br><p>If you're loving it-and honestly, we think you will-could you spare thirty seconds to drop positive feedback? Click here: {item_feedback_link}  <p>I read them all. They matter huge. And if you snap a pic once it's up? Forward it-those shots are what fuel our walls and keep this twelve-year-old gallery smiling.</p>  <p>Thank you so much! Have a great day!.</p>"
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "past_handling_time",
+      "name": "Past Handling Time",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 5,
+      "trigger": {
+        "type": "handling_time_exceeded",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "<p>Hello {buyer_first_name},</p><br><p>We are truly sorry; due to high volume and unforeseen events, your order of {item_name}\" is currently delayed.</p><br><br><p>We're working hard to fulfill your order as fast as we can. We will reach out as soon as your items ships or for any other updates.</p><br><br><p>If you have any questions or concerns"
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "order_inquiery",
+      "name": "Order Inquiery",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 6,
+      "trigger": {
+        "type": "order_inquiry_opened",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, we saw the eBay case-please, just hold off for one second. Stores like ours-San Francisco, family-run, scraping by on five stars since twenty twelve-don't survive when buyers skip straight to claims. We'd rather lose the sale than lose you, so close it and let us overnight a refund or replacement ourselves. It takes two clicks, saves a small business from getting throttled. Will you give us the chance?"
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "negative_feedback",
+      "name": "Negative Feedback",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 7,
+      "trigger": {
+        "type": "negative_feedback_received",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, oof-saw that feedback on {item_name}. We're gutted, truly; one sour note tanks our eBay score harder than a dropped vinyl, and we've fought twelve years in San Francisco to keep it five-star pure-like our streak shows. Let's flip this: full refund's on us, no hassle, plus whatever we can do to help. Reply and we'll sort it-want you beaming, not biting."
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "neutral_feedback_received",
+      "name": "Neutral Feedback Received",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 8,
+      "trigger": {
+        "type": "neutral_feedback_received",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hi {buyer_first_name}, thank you-seriously-for taking time with that feedback on {item_name}.   Back since twenty twelve in San Francisco, happy folks like you have been our whole heartbeat. If anything's off, reply right now-we're built to fix it fast and turn you into our loudest cheerleader. We genuinely love our customers, so hit us up. We got this."
+      },
+      "match_priority": "primary"
+    },
+    {
+      "id": "positive_feedback_received",
+      "name": "Positive Feedback Received",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 9,
+      "trigger": {
+        "type": "positive_feedback_received",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, thanks heaps for the five-star glow-up on {item_name}! Means the world-Gauntlet Gallery's been cranking out authenticated street art since twenty twelve right here in San Francisco, blending old-school curation with AI smarts. We hope it looks killer wherever you've hung it; we'd love any photos you snap-that's what keeps this business growing. Swing by {store_url} for more drops, we're teasing a mystery box soon. And hey, if we can help in any other way, just say the word."
+      },
+      "duplicate_of_trigger": "request_ebay_product_review",
+      "match_priority": "fallback"
+    },
+    {
+      "id": "sold_not_paid",
+      "name": "Sold Not Paid",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 10,
+      "trigger": {
+        "type": "sold_not_paid",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, just a gentle reminder-your {item_name} is still waiting on payment after three days. We held it for you since you clicked buy first! Head over to {store_url} to finalize, and let's get this street art gem to {shipping_city}, {shipping_state_or_province} soon. Supporting Gauntlet Gallery keeps our San Francisco roots strong-thanks for making it happen. \nAll countries: Hey {buyer_first_name}, just a gentle reminder-your {item_name} is still waiting on payment after three days. We held it for you since you clicked buy first! Head over to {store_url} to finalize, and let's get this street art gem to {shipping_city}, {shipping_state_or_province} soon. Supporting Gauntlet Gallery keeps our San Francisco roots strong-thanks for making it happen, especially with my little one teething!"
+      },
+      "notes": "Original 3dsellers CSV had two country blocks (US + all); merged into single all-countries rule.",
+      "match_priority": "primary"
+    },
+    {
+      "id": "item_shipped",
+      "name": "item shipped",
+      "enabled": true,
+      "source": "csv_export",
+      "csv_row": 11,
+      "trigger": {
+        "type": "item_shipped",
+        "delay_minutes": 0,
+        "country_filter": "all"
+      },
+      "action": {
+        "type": "send_message_to_buyer",
+        "template": "Hey {buyer_first_name}, your {item_name} shipped out today from right here! Double-checking-looks like it's headed to {shipping_city}, {shipping_state_or_province}. The tracking number for your order is: {tracking_number} for {courier}.  Your estimated delivery date range falls between {min_est_delivery_date} and {max_est_delivery_date}.  Keep an eye on that eBay email for additional tracking details. You're amazing-thanks again for supporting us!"
+      },
+      "duplicate_of_trigger": "update_on_order_shipping",
+      "match_priority": "fallback"
+    }
+  ],
+  "known_issues": [
+    "Rule \"thank_you_on_purchase_personal_note\" includes {shipping_address} in buyer-facing text \u2014 potential spam flag (PII echo)",
+    "Typo in source CSV rule \"Order Inquiery\" ({buyer_firstrees_name}) auto-corrected on import"
+  ]
+}

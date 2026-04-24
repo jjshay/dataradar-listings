@@ -362,6 +362,22 @@
                     </div>
                 </div>
 
+                <!-- Comms summary tile -->
+                <div class="section" id="comms-summary-section">
+                    <div class="card card-click" style="padding:14px 16px;border-left:3px solid var(--purple);" onclick="showTab('comms')">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="font-size:18px;line-height:1;" aria-hidden="true">&#9993;&#65039;</span>
+                                <div>
+                                    <div style="font-size:15px;font-weight:700;letter-spacing:-0.2px;">Comms automation</div>
+                                    <div id="comms-dash-sub" style="font-size:11px;color:var(--dim);margin-top:2px;">Loading…</div>
+                                </div>
+                            </div>
+                            <span class="btn-ghost" style="font-size:11px;pointer-events:none;">Open &rarr;</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section">
                     <div class="section-title">Today's Brief</div>
                     <div id="d-brief" class="card"><div class="loading"><div class="spinner"></div></div></div>
@@ -753,6 +769,84 @@
             <div class="section" id="rtab-allsales" style="display:none;"><div class="loading"><div class="spinner"></div></div></div>
             <div class="section" id="rtab-whatworked" style="display:none;"><div style="text-align:center;padding:20px;"><a href="/reports/what-worked" target="_blank" class="btn btn-primary" style="font-size:16px;padding:16px 32px;">Open Full "What Worked" Report →</a><div style="margin-top:8px;font-size:12px;color:var(--dim);">Every sale, line by line, with category verdicts and profit analysis</div></div></div>
         </div>
+
+        <!-- ========== COMMS ========== -->
+        <div class="page" id="page-comms">
+            <div class="header">
+                <h1><span aria-hidden="true">&#9993;&#65039;</span> Comms Automation</h1>
+                <p id="comms-header-sub">Loading rules&hellip;</p>
+            </div>
+
+            <!-- Header action row -->
+            <div class="section">
+                <div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div id="comms-header-meta" style="font-size:12px;color:var(--dim);">&mdash;</div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <span id="comms-dry-badge" class="pill pill-orange" title="Dry-run active: no live messages fire">Dry-run: --</span>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="toggleCommsDryRun()">Toggle dry-run</button>
+                        <button class="btn-ghost" style="font-size:11px;" onclick="loadComms(true)">Refresh</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status strip -->
+            <div class="grid grid-3" id="comms-stats">
+                <div class="card" style="text-align:center;"><div class="stat-val" id="comms-stat-today">--</div><div class="stat-lbl">Fired today</div></div>
+                <div class="card" style="text-align:center;"><div class="stat-val" id="comms-stat-week">--</div><div class="stat-lbl">Fired this week</div></div>
+                <div class="card" style="text-align:center;"><div class="stat-val" id="comms-stat-last" style="font-size:16px;">--</div><div class="stat-lbl">Last fire</div></div>
+                <div class="card" style="text-align:center;"><div class="stat-val" id="comms-stat-active">--</div><div class="stat-lbl">Active rules</div></div>
+            </div>
+
+            <!-- Filters -->
+            <div class="section">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <div class="search" style="flex:1;min-width:180px;">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--dim);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <input type="text" id="comms-search" placeholder="Search rules&hellip;" oninput="onCommsFilterChange()">
+                    </div>
+                    <select id="comms-filter-trigger" onchange="onCommsFilterChange()" style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12px;">
+                        <option value="all">Trigger: all</option>
+                    </select>
+                    <select id="comms-filter-status" onchange="onCommsFilterChange()" style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12px;">
+                        <option value="all">Status: all</option>
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Rules table -->
+            <div class="section">
+                <div class="section-title">Rules</div>
+                <div class="table-wrap" id="comms-rules-wrap">
+                    <div class="loading"><div class="spinner"></div>Loading rules&hellip;</div>
+                </div>
+            </div>
+
+            <!-- Recent log -->
+            <div class="section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">Recent log</div>
+                    <span style="font-size:10px;color:var(--dim);">Auto-refresh 30s</span>
+                </div>
+                <div class="table-wrap" id="comms-log-wrap">
+                    <div class="loading"><div class="spinner"></div>Loading log&hellip;</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comms preview / test-fire modal -->
+    <div class="modal-bg" id="comms-preview-modal">
+        <div class="modal" style="max-width:680px;">
+            <div class="modal-head">
+                <h2 id="comms-preview-title">Preview</h2>
+                <button class="modal-x" onclick="closeCommsPreview()">&times;</button>
+            </div>
+            <div class="modal-body" id="comms-preview-body">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
     </div>
 
     <!-- Drill-down modal -->
@@ -849,6 +943,10 @@
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             Inventory
         </button>
+        <button class="nav-btn" data-tab="comms">
+            <span style="font-size:20px;line-height:1;" aria-hidden="true">&#9993;&#65039;</span>
+            Comms
+        </button>
         <button class="nav-btn" data-tab="promos">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             Promos
@@ -888,6 +986,7 @@
             if (tab === 'promos') loadPromos();
             if (tab === 'lookup') {}  // Manual search only
             if (tab === 'reports') loadReportsTab();
+            if (tab === 'comms') { loadComms(); startCommsLogAutoRefresh(); } else { stopCommsLogAutoRefresh(); }
         }
 
         function showDTab(tab) {
@@ -5767,11 +5866,409 @@
         };
 
         // ==========================================
+        // Comms Automation module
+        // ==========================================
+        let commsRulesData = null;
+        let commsLogData = null;
+        let commsStatusData = null;
+        let commsFilter = { search: '', trigger: 'all', status: 'all' };
+        let commsLogInterval = null;
+
+        function commsFmtTime(ts) {
+            if (!ts) return '--';
+            const t = new Date(ts);
+            if (isNaN(t)) return String(ts);
+            const diff = (Date.now() - t.getTime()) / 1000;
+            if (diff < 60) return Math.round(diff) + 's ago';
+            if (diff < 3600) return Math.round(diff/60) + 'm ago';
+            if (diff < 86400) return Math.round(diff/3600) + 'h ago';
+            return Math.round(diff/86400) + 'd ago';
+        }
+
+        async function loadComms(force) {
+            if (commsRulesData && !force) { renderComms(); return; }
+            try {
+                const [rulesResp, statusResp, logResp] = await Promise.all([
+                    fetch('/api/comms/rules'),
+                    fetch('/api/comms/status'),
+                    fetch('/api/comms/log?limit=20')
+                ]);
+                if (!rulesResp.ok || !statusResp.ok || !logResp.ok) throw new Error('api');
+                commsRulesData = await rulesResp.json();
+                commsStatusData = await statusResp.json();
+                commsLogData = await logResp.json();
+            } catch (e) {
+                renderCommsError();
+                return;
+            }
+            renderComms();
+        }
+
+        function renderCommsError() {
+            const wrap = document.getElementById('comms-rules-wrap');
+            const lwrap = document.getElementById('comms-log-wrap');
+            const msg = '<div class="loading" style="color:var(--red);">Comms backend not responding. Endpoints may not be deployed yet.</div>';
+            if (wrap) wrap.innerHTML = msg;
+            if (lwrap) lwrap.innerHTML = msg;
+            const sub = document.getElementById('comms-header-sub');
+            if (sub) sub.textContent = 'Backend unreachable';
+            const dashSub = document.getElementById('comms-dash-sub');
+            if (dashSub) dashSub.textContent = 'Backend offline';
+        }
+
+        function commsRulesList() {
+            if (!commsRulesData) return [];
+            if (Array.isArray(commsRulesData)) return commsRulesData;
+            if (Array.isArray(commsRulesData.rules)) return commsRulesData.rules;
+            return [];
+        }
+
+        function commsLogList() {
+            if (!commsLogData) return [];
+            if (Array.isArray(commsLogData)) return commsLogData;
+            if (Array.isArray(commsLogData.entries)) return commsLogData.entries;
+            if (Array.isArray(commsLogData.log)) return commsLogData.log;
+            return [];
+        }
+
+        function renderComms() {
+            const rules = commsRulesList();
+            const status = commsStatusData || {};
+            const enabled = rules.filter(r => r.enabled).length;
+            const total = status.total_rules != null ? status.total_rules : rules.length;
+            const week = status.fired_this_week != null ? status.fired_this_week : '--';
+            const dryRun = status.dry_run_active;
+
+            const sub = document.getElementById('comms-header-sub');
+            if (sub) sub.textContent = `${total} rules · ${enabled} enabled · ${week} fired this week`;
+            const meta = document.getElementById('comms-header-meta');
+            if (meta) meta.textContent = `${total} rules loaded · ${enabled} active`;
+            const dryBadge = document.getElementById('comms-dry-badge');
+            if (dryBadge) {
+                dryBadge.textContent = 'Dry-run: ' + (dryRun ? 'ON' : 'OFF');
+                dryBadge.className = 'pill ' + (dryRun ? 'pill-orange' : 'pill-green');
+            }
+
+            document.getElementById('comms-stat-today').textContent = status.fired_today != null ? status.fired_today : '--';
+            document.getElementById('comms-stat-week').textContent = week;
+            document.getElementById('comms-stat-last').textContent = commsFmtTime(status.last_fire_at);
+            document.getElementById('comms-stat-active').textContent = enabled;
+
+            // Dashboard tile
+            const dashSub = document.getElementById('comms-dash-sub');
+            if (dashSub) {
+                const today = status.fired_today != null ? status.fired_today : 0;
+                dashSub.textContent = `${today} fired today · ${enabled} enabled rules${dryRun ? ' · dry-run ON' : ''}`;
+            }
+
+            // Populate trigger filter
+            const triggerSel = document.getElementById('comms-filter-trigger');
+            if (triggerSel && triggerSel.options.length <= 1) {
+                const triggers = [...new Set(rules.map(r => r.trigger_type).filter(Boolean))].sort();
+                triggers.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t; opt.textContent = t;
+                    triggerSel.appendChild(opt);
+                });
+            }
+
+            renderCommsRules();
+            renderCommsLog();
+        }
+
+        function onCommsFilterChange() {
+            commsFilter.search = (document.getElementById('comms-search').value || '').toLowerCase();
+            commsFilter.trigger = document.getElementById('comms-filter-trigger').value;
+            commsFilter.status = document.getElementById('comms-filter-status').value;
+            renderCommsRules();
+        }
+
+        function renderCommsRules() {
+            const wrap = document.getElementById('comms-rules-wrap');
+            if (!wrap) return;
+            const rules = commsRulesList();
+            if (!rules.length) {
+                wrap.innerHTML = '<div class="loading" style="color:var(--dim);">Import your automation rules — see data/comm_rules.json</div>';
+                return;
+            }
+            const f = commsFilter;
+            const filtered = rules.filter(r => {
+                if (f.trigger !== 'all' && r.trigger_type !== f.trigger) return false;
+                if (f.status === 'enabled' && !r.enabled) return false;
+                if (f.status === 'disabled' && r.enabled) return false;
+                if (f.search) {
+                    const hay = ((r.name||'') + ' ' + (r.trigger_type||'') + ' ' + (r.id||'')).toLowerCase();
+                    if (!hay.includes(f.search)) return false;
+                }
+                return true;
+            });
+            if (!filtered.length) {
+                wrap.innerHTML = '<div class="loading" style="color:var(--dim);">No rules match filters.</div>';
+                return;
+            }
+            wrap.innerHTML = `<table>
+                <thead><tr>
+                    <th style="width:40px;">On</th>
+                    <th>Rule name</th>
+                    <th>Trigger</th>
+                    <th>Priority</th>
+                    <th class="r">Fires</th>
+                    <th style="width:220px;">Actions</th>
+                </tr></thead>
+                <tbody>${filtered.map(r => {
+                    const rid = esc(String(r.id||''));
+                    const name = esc(r.name||r.id||'(unnamed)');
+                    const trig = esc(r.trigger_type||'--');
+                    const prio = esc(r.priority||'--');
+                    const fires = (r.fire_count != null ? r.fire_count : (r.fires != null ? r.fires : 0));
+                    const checked = r.enabled ? 'checked' : '';
+                    return `<tr>
+                        <td><input type="checkbox" ${checked} onchange="toggleCommsRule('${rid}', this)" style="accent-color:var(--accent);cursor:pointer;"></td>
+                        <td><b>${name}</b><div style="font-size:10px;color:var(--dim);">${rid}</div></td>
+                        <td><span class="pill pill-blue">${trig}</span></td>
+                        <td><span class="pill pill-dim">${prio}</span></td>
+                        <td class="r b">${fires}</td>
+                        <td>
+                            <button class="btn-ghost" style="font-size:10px;padding:4px 10px;" onclick="openCommsPreview('${rid}', false)">Preview</button>
+                            <button class="btn-ghost" style="font-size:10px;padding:4px 10px;color:var(--orange);border-color:rgba(255,159,10,0.3);" onclick="openCommsPreview('${rid}', true)">Test fire</button>
+                        </td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        }
+
+        function renderCommsLog() {
+            const wrap = document.getElementById('comms-log-wrap');
+            if (!wrap) return;
+            const log = commsLogList();
+            if (!log.length) {
+                wrap.innerHTML = '<div class="loading" style="color:var(--dim);">No comms fired yet. Toggle dry-run and hit Test fire on any rule to see a preview.</div>';
+                return;
+            }
+            wrap.innerHTML = `<table>
+                <thead><tr>
+                    <th>Time</th>
+                    <th>Rule</th>
+                    <th>Order</th>
+                    <th>Status</th>
+                    <th>Preview</th>
+                </tr></thead>
+                <tbody>${log.slice(0, 50).map(e => {
+                    const status = esc(e.status || (e.dry_run ? 'dry_run' : 'fired'));
+                    const pillClass = status === 'fired' ? 'pill-green' : status === 'dry_run' ? 'pill-orange' : status.includes('err') || status.includes('fail') ? 'pill-red' : 'pill-dim';
+                    const preview = esc((e.preview || e.rendered_text || '').substring(0, 80));
+                    return `<tr>
+                        <td class="d">${commsFmtTime(e.fired_at || e.timestamp || e.ts)}</td>
+                        <td><b>${esc(e.rule_name || e.rule_id || '--')}</b></td>
+                        <td class="d">${esc(e.order_id || '--')}</td>
+                        <td><span class="pill ${pillClass}">${status}</span></td>
+                        <td class="trunc d" title="${preview}">${preview || '--'}</td>
+                    </tr>`;
+                }).join('')}</tbody>
+            </table>`;
+        }
+
+        async function toggleCommsRule(ruleId, checkbox) {
+            const desired = checkbox.checked;
+            // optimistic
+            const rule = commsRulesList().find(r => String(r.id) === String(ruleId));
+            if (rule) rule.enabled = desired;
+            try {
+                const resp = await fetch(`/api/comms/rules/${encodeURIComponent(ruleId)}/toggle`, { method:'POST' });
+                if (!resp.ok) throw new Error('toggle failed');
+                const data = await resp.json();
+                if (rule && typeof data.enabled === 'boolean') rule.enabled = data.enabled;
+                toast(`Rule ${desired ? 'enabled' : 'disabled'}`);
+                renderComms();
+            } catch (e) {
+                if (rule) rule.enabled = !desired;
+                checkbox.checked = !desired;
+                toast('Toggle failed');
+            }
+        }
+
+        async function toggleCommsDryRun() {
+            const current = commsStatusData && commsStatusData.dry_run_active;
+            try {
+                const resp = await fetch('/api/comms/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dry_run_active: !current })
+                });
+                if (!resp.ok) throw new Error('fail');
+                commsStatusData = await resp.json();
+                toast('Dry-run ' + (commsStatusData.dry_run_active ? 'ON' : 'OFF'));
+                renderComms();
+            } catch (e) {
+                toast('Dry-run toggle not available yet');
+            }
+        }
+
+        function closeCommsPreview() {
+            document.getElementById('comms-preview-modal').classList.remove('show');
+        }
+
+        function openCommsPreview(ruleId, asTestFire) {
+            const rule = commsRulesList().find(r => String(r.id) === String(ruleId));
+            if (!rule) { toast('Rule not found'); return; }
+            const modal = document.getElementById('comms-preview-modal');
+            const title = document.getElementById('comms-preview-title');
+            const body = document.getElementById('comms-preview-body');
+            title.textContent = (asTestFire ? 'Test fire: ' : 'Preview: ') + (rule.name || rule.id);
+            body.innerHTML = `
+                <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">
+                    Trigger: <b style="color:var(--text);">${esc(rule.trigger_type||'--')}</b>
+                    &nbsp;&middot;&nbsp; Action: <b style="color:var(--text);">${esc(rule.action_type||'--')}</b>
+                </div>
+                <div class="card" style="padding:12px;margin-bottom:12px;">
+                    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Test context</div>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px;cursor:pointer;">
+                        <input type="radio" name="cpx-ctx" value="mock" checked style="accent-color:var(--accent);"> Mock buyer (default)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                        <input type="radio" name="cpx-ctx" value="order" style="accent-color:var(--accent);"> Real eBay order:
+                        <input type="text" id="cpx-order-id" placeholder="order_id" style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;margin-left:4px;">
+                    </label>
+                </div>
+                <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Rendered text</div>
+                <div id="cpx-rendered" class="card" style="padding:12px;min-height:90px;font-size:13px;line-height:1.5;white-space:pre-wrap;">
+                    <div class="loading" style="padding:12px;"><div class="spinner"></div>Rendering&hellip;</div>
+                </div>
+                <div id="cpx-unresolved" style="margin-top:10px;"></div>
+                <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);cursor:pointer;margin-right:auto;">
+                        <input type="checkbox" id="cpx-dryrun" ${asTestFire ? '' : 'checked disabled'} ${asTestFire ? 'checked' : ''} style="accent-color:var(--accent);"> Dry run only
+                    </label>
+                    <button class="btn-ghost" onclick="closeCommsPreview()">Cancel</button>
+                    <button class="btn btn-primary" style="padding:8px 18px;font-size:13px;" id="cpx-rerender" onclick="rerenderCommsPreview('${esc(String(rule.id))}')">Re-render</button>
+                    ${asTestFire ? `<button class="btn btn-green" style="padding:8px 18px;font-size:13px;" onclick="fireCommsRule('${esc(String(rule.id))}')">Fire</button>` : ''}
+                </div>
+            `;
+            modal.classList.add('show');
+            // initial render (mock)
+            rerenderCommsPreview(rule.id);
+        }
+
+        async function rerenderCommsPreview(ruleId) {
+            const renderedEl = document.getElementById('cpx-rendered');
+            const unresEl = document.getElementById('cpx-unresolved');
+            const ctxRadio = document.querySelector('input[name="cpx-ctx"]:checked');
+            const ctx = ctxRadio ? ctxRadio.value : 'mock';
+            const orderId = (document.getElementById('cpx-order-id')||{}).value || '';
+            renderedEl.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div>Rendering&hellip;</div>';
+            unresEl.innerHTML = '';
+            try {
+                const body = { rule_id: ruleId };
+                if (ctx === 'order' && orderId) body.test_order = orderId;
+                const resp = await fetch('/api/comms/dry-run', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(body)
+                });
+                if (!resp.ok) throw new Error('dry-run fail');
+                const data = await resp.json();
+                renderedEl.textContent = data.rendered_text || '(no output)';
+                const unresolved = data.unknown_vars_left || data.unresolved_tokens || [];
+                if (unresolved.length) {
+                    unresEl.innerHTML = `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">Unresolved tokens</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">${unresolved.map(t =>
+                            `<span class="pill pill-orange" style="cursor:pointer;" onclick="toast('Unresolved: ' + ${JSON.stringify(t)} + ' — not in template context')">{${esc(t)}}</span>`
+                        ).join('')}</div>`;
+                }
+            } catch (e) {
+                renderedEl.innerHTML = '<div style="color:var(--red);font-size:12px;">Render failed. Backend may be offline.</div>';
+            }
+        }
+
+        async function fireCommsRule(ruleId) {
+            const dryRun = (document.getElementById('cpx-dryrun')||{}).checked !== false;
+            const orderInput = (document.getElementById('cpx-order-id')||{}).value || '';
+            if (!orderInput) {
+                if (!confirm('No order_id entered — fire with mock buyer?')) return;
+            }
+            try {
+                const resp = await fetch('/api/comms/fire-manual', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ rule_id: ruleId, order_id: orderInput, dry_run: dryRun })
+                });
+                if (!resp.ok) throw new Error('fire fail');
+                const data = await resp.json();
+                toast(dryRun ? 'Dry-run complete' : 'Fired!');
+                // append to local log
+                if (!commsLogData) commsLogData = { entries: [] };
+                const list = commsLogData.entries || commsLogData.log || commsLogData;
+                if (Array.isArray(list)) {
+                    list.unshift({
+                        fired_at: new Date().toISOString(),
+                        rule_id: ruleId,
+                        rule_name: (commsRulesList().find(r => String(r.id)===String(ruleId))||{}).name || ruleId,
+                        order_id: orderInput || '(mock)',
+                        status: dryRun ? 'dry_run' : 'fired',
+                        preview: data.rendered_text || ''
+                    });
+                }
+                renderCommsLog();
+                closeCommsPreview();
+            } catch (e) {
+                toast('Fire failed');
+            }
+        }
+
+        async function refreshCommsLog() {
+            try {
+                const resp = await fetch('/api/comms/log?limit=20');
+                if (!resp.ok) return;
+                commsLogData = await resp.json();
+                const statusResp = await fetch('/api/comms/status');
+                if (statusResp.ok) commsStatusData = await statusResp.json();
+                renderCommsLog();
+                // refresh stats
+                const status = commsStatusData || {};
+                const el1 = document.getElementById('comms-stat-today');
+                if (el1) el1.textContent = status.fired_today != null ? status.fired_today : '--';
+                const el2 = document.getElementById('comms-stat-week');
+                if (el2) el2.textContent = status.fired_this_week != null ? status.fired_this_week : '--';
+                const el3 = document.getElementById('comms-stat-last');
+                if (el3) el3.textContent = commsFmtTime(status.last_fire_at);
+            } catch (e) { /* ignore */ }
+        }
+
+        function startCommsLogAutoRefresh() {
+            stopCommsLogAutoRefresh();
+            commsLogInterval = setInterval(refreshCommsLog, 30000);
+        }
+
+        function stopCommsLogAutoRefresh() {
+            if (commsLogInterval) { clearInterval(commsLogInterval); commsLogInterval = null; }
+        }
+
+        // Preload status for dashboard tile (lightweight)
+        async function loadCommsDashTile() {
+            try {
+                const resp = await fetch('/api/comms/status');
+                if (!resp.ok) throw new Error('fail');
+                const data = await resp.json();
+                commsStatusData = data;
+                const el = document.getElementById('comms-dash-sub');
+                if (el) {
+                    const today = data.fired_today != null ? data.fired_today : 0;
+                    const enabled = data.enabled_count != null ? data.enabled_count : '--';
+                    el.textContent = `${today} fired today · ${enabled} enabled rules${data.dry_run_active ? ' · dry-run ON' : ''}`;
+                }
+            } catch (e) {
+                const el = document.getElementById('comms-dash-sub');
+                if (el) el.textContent = 'Backend offline';
+            }
+        }
+
+        // ==========================================
         // Init
         // ==========================================
         loadDash();
         loadOpportunities(false);
         loadDriftAlerts(false);
+        loadCommsDashTile();
     </script>
 </body>
 </html>
