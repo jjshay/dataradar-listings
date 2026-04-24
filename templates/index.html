@@ -3225,6 +3225,73 @@
         // ==========================================
         let reportsLoaded = {};
 
+        // ==========================================
+        // Universal table sorting for Reports page.
+        // One event-delegated handler — works on every table rendered inside
+        // #page-reports without requiring each renderer to opt in.
+        // ==========================================
+        const _reportsSortState = new WeakMap();  // table → {colIdx, dir}
+        function _extractSortValue(cell) {
+            const raw = (cell.getAttribute('data-sort') || cell.textContent || '').trim();
+            // Strip currency + thousands separators, detect numeric
+            const numish = raw.replace(/[$,%\s+]/g, '').replace(/,/g, '');
+            const n = parseFloat(numish);
+            if (!isNaN(n) && /^[-$]?[0-9]/.test(raw)) return { n, s: raw.toLowerCase() };
+            return { n: NaN, s: raw.toLowerCase() };
+        }
+        function _sortTable(table, colIdx) {
+            const prev = _reportsSortState.get(table) || { colIdx: -1, dir: 'desc' };
+            const dir = (prev.colIdx === colIdx && prev.dir === 'desc') ? 'asc' : 'desc';
+            _reportsSortState.set(table, { colIdx, dir });
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const av = _extractSortValue(a.children[colIdx]);
+                const bv = _extractSortValue(b.children[colIdx]);
+                let cmp;
+                if (!isNaN(av.n) && !isNaN(bv.n)) {
+                    cmp = av.n - bv.n;
+                } else {
+                    cmp = av.s.localeCompare(bv.s);
+                }
+                return dir === 'asc' ? cmp : -cmp;
+            });
+            rows.forEach(r => tbody.appendChild(r));
+            // Update header arrow indicators
+            table.querySelectorAll('thead th').forEach((th, i) => {
+                th.classList.toggle('sort-active', i === colIdx);
+                const existing = th.querySelector('.sort-arrow');
+                if (existing) existing.remove();
+                if (i === colIdx) {
+                    const arrow = document.createElement('span');
+                    arrow.className = 'sort-arrow';
+                    arrow.textContent = dir === 'asc' ? ' ▲' : ' ▼';
+                    arrow.style.cssText = 'opacity:0.7;font-size:9px;margin-left:3px;';
+                    th.appendChild(arrow);
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const root = document.getElementById('page-reports');
+            if (!root) return;
+            root.addEventListener('click', (e) => {
+                const th = e.target.closest('th');
+                if (!th) return;
+                const tr = th.parentElement;
+                if (!tr || !tr.parentElement || tr.parentElement.tagName !== 'THEAD') return;
+                const table = th.closest('table');
+                if (!table) return;
+                const colIdx = Array.from(tr.children).indexOf(th);
+                if (colIdx < 0) return;
+                _sortTable(table, colIdx);
+            });
+            // Hover affordance: make Reports ths look clickable
+            const style = document.createElement('style');
+            style.textContent = '#page-reports thead th{cursor:pointer;user-select:none;}#page-reports thead th:hover{color:var(--accent);}#page-reports thead th.sort-active{color:var(--accent);}';
+            document.head.appendChild(style);
+        });
+
         function showRTab(tab) {
             document.querySelectorAll('[data-rtab]').forEach(c => c.classList.remove('active'));
             document.querySelector(`[data-rtab="${tab}"]`).classList.add('active');
