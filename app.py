@@ -78,7 +78,12 @@ def load_env():
                     env_vars[key] = value
     # Fall back to OS environment variables (for Railway, Heroku, etc.)
     for key in ['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET', 'EBAY_REFRESH_TOKEN',
-                'EBAY_DEV_ID', 'DATARADAR_SHEET_ID']:
+                'EBAY_DEV_ID', 'DATARADAR_SHEET_ID',
+                # LLM keys — used by /api/inventory/llm-price-review and other LLM routes
+                'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY',
+                'OPENAI_API_KEY',
+                'GEMINI_API_KEY', 'GOOGLE_API_KEY',
+                'XAI_API_KEY', 'GROK_API_KEY']:
         if key not in env_vars and os.environ.get(key):
             env_vars[key] = os.environ[key]
     return env_vars
@@ -4578,33 +4583,60 @@ def _save_llm_cache(cache):
         print(f"[LLM] cache save error: {e}")
 
 
-def _parse_llm_json(text):
-    """Extract {price, reason} JSON from an LLM response text."""
-    if not text:
-        return {'price': None, 'reason': 'empty response', 'status': 'parse_error'}
+def _coerce_int(v):
     try:
-        m = re.search(r'\{[^{}]*"price"[^{}]*\}', text, re.DOTALL)
-        if m:
-            parsed = json.loads(m.group(0))
-            raw_price = parsed.get('price', None)
-            try:
-                price_int = int(round(float(raw_price))) if raw_price is not None else None
-                if price_int == 0:
-                    price_int = None
-            except Exception:
-                price_int = None
-            return {
-                'price': price_int,
-                'reason': str(parsed.get('reason', ''))[:300],
-                'status': 'ok',
-            }
-        return {'price': None, 'reason': f'parse_error: {text[:150]}', 'status': 'parse_error'}
+        n = int(round(float(v))) if v is not None else None
+        return n if n and n > 0 else None
+    except Exception:
+        return None
+
+
+def _parse_llm_json(text):
+    """Extract {low, high, recommended, reason} JSON from an LLM response text.
+
+    Also accepts legacy {price, reason} — treats price as 'recommended' and
+    derives low/high as 0.9x / 1.1x for graceful degradation.
+    """
+    blank = {'low': None, 'high': None, 'recommended': None, 'price': None, 'reason': '', 'status': 'parse_error'}
+    if not text:
+        return {**blank, 'reason': 'empty response'}
+    try:
+        m = re.search(r'\{[^{}]*("recommended"|"price")[^{}]*\}', text, re.DOTALL)
+        if not m:
+            return {**blank, 'reason': f'parse_error: {text[:150]}'}
+        parsed = json.loads(m.group(0))
+        low = _coerce_int(parsed.get('low'))
+        high = _coerce_int(parsed.get('high'))
+        rec = _coerce_int(parsed.get('recommended') or parsed.get('price'))
+        # Legacy fallback — single price returned
+        if rec and not low:
+            low = int(round(rec * 0.9))
+        if rec and not high:
+            high = int(round(rec * 1.1))
+        # Sanity: low <= rec <= high
+        if low and high and rec and not (low <= rec <= high):
+            low, high = min(low, rec), max(high, rec)
+        reason = str(parsed.get('reason', ''))[:320]
+        if not rec:
+            return {**blank, 'reason': f'parse_error: missing price fields in {text[:120]}'}
+        return {
+            'low': low,
+            'high': high,
+            'recommended': rec,
+            'price': rec,  # back-compat
+            'reason': reason,
+            'status': 'ok',
+        }
     except Exception as e:
-        return {'price': None, 'reason': f'parse_error: {str(e)[:120]}', 'status': 'parse_error'}
+        return {**blank, 'reason': f'parse_error: {str(e)[:120]}'}
 
 
-def _build_llm_prompt(listing, comp_stats, recent_comps, supply_count):
-    """Build the shared LLM prompt used by all 4 models."""
+def _build_llm_prompt(listing, comp_stats, recent_comps, active_comps):
+    """Build the shared LLM prompt used by all 4 models.
+
+    active_comps is a list of CURRENT eBay listings competing for this item.
+    Each entry: {title, price, url}.
+    """
     title = listing.get('title', '') or listing.get('name', '')
     artist = listing.get('_artist', 'Unknown')
     your_price = listing.get('price', 0) or 0
@@ -4621,7 +4653,7 @@ def _build_llm_prompt(listing, comp_stats, recent_comps, supply_count):
             f"  Signed-only filter: {comp_stats.get('signed_only', False)}\n"
         )
     else:
-        comp_section = "No historical comps in DB, use your own knowledge of this artist/work.\n"
+        comp_section = "No historical comps in DB — use your own knowledge of this artist/work.\n"
 
     if recent_comps:
         bullets = []
@@ -4631,22 +4663,51 @@ def _build_llm_prompt(listing, comp_stats, recent_comps, supply_count):
                 f"{(c.get('name', '') or '')[:60]} "
                 f"({c.get('date', '?')})"
             )
-        bullet_text = '\n'.join(bullets)
+        recent_text = '\n'.join(bullets)
     else:
-        bullet_text = "  (none)"
+        recent_text = "  (none)"
+
+    # Current competition — active eBay listings right now
+    if active_comps:
+        active_prices = sorted([c.get('price', 0) for c in active_comps if c.get('price', 0) > 0])
+        act_lo = active_prices[0] if active_prices else 0
+        act_hi = active_prices[-1] if active_prices else 0
+        act_med = active_prices[len(active_prices) // 2] if active_prices else 0
+        active_header = (
+            f"Current eBay competition (active listings right now):\n"
+            f"  Count: {len(active_comps)}\n"
+            f"  Price range: ${act_lo:.0f}-${act_hi:.0f}\n"
+            f"  Median active price: ${act_med:.0f}\n"
+            f"  Top 5 current listings:\n"
+        )
+        act_bullets = []
+        for c in active_comps[:5]:
+            act_bullets.append(
+                f"    - ${c.get('price', 0):.0f} "
+                f"{(c.get('title', '') or '')[:60]}"
+            )
+        active_section = active_header + '\n'.join(act_bullets)
+    else:
+        active_section = "Current eBay competition: none visible right now (low supply or narrow match)."
 
     return (
-        "You are pricing an eBay listing for an authenticated art reseller.\n\n"
+        "You are pricing an eBay listing for an authenticated art reseller. "
+        "Your job is to return a PRICE RANGE — floor (fast-sale), recommended (best balance), "
+        "and ceiling (patient-seller maximum).\n\n"
         f"Artist: {artist}\n"
         f"Title: {title}\n"
         f"Current listing price: ${your_price}\n\n"
         f"{comp_section}\n"
-        f"Recent comparable sales (top 5):\n{bullet_text}\n\n"
-        f"eBay supply: {supply_count} active competing listings right now\n\n"
-        "What eBay price maximizes speed-to-sale without leaving money on the table? "
-        "Consider the comp distribution, recency, and current supply.\n\n"
+        f"Recent closed sales (top 5):\n{recent_text}\n\n"
+        f"{active_section}\n\n"
+        "Considering (a) historical comp distribution, (b) recency/trend, "
+        "(c) current live competition and their pricing, and (d) the signed/edition nature of this piece, "
+        "what range of eBay prices makes sense?\n\n"
+        "- `low` = price to sell within 48 hours (aggressive floor)\n"
+        "- `recommended` = best balance of speed and margin\n"
+        "- `high` = patient-seller ceiling (willing to wait 30+ days)\n\n"
         "Respond in STRICT JSON only, no prose, no markdown code fences:\n"
-        '{"price": <integer dollars>, "reason": "<1-2 sentences, max 30 words>"}'
+        '{"low": <int>, "recommended": <int>, "high": <int>, "reason": "<1-2 sentences, max 35 words>"}'
     )
 
 
@@ -4866,11 +4927,24 @@ def llm_price_review(listing_id):
         print(f"[LLM] recent_comps error: {e}")
         recent_comps = []
 
-    # 5. Supply count — complex to extract cheaply, default to 0 per spec fallback
-    supply_count = 0
+    # 5. Current competition — search eBay Browse API for active listings matching this title
+    active_comps = []
+    try:
+        # Price filter: within 0.3x-3x of your price (or $10-$5000 if no price)
+        max_p = int((your_price * 3) if your_price else 5000)
+        min_p = int((your_price * 0.3) if your_price else 10)
+        raw_active = search_ebay(title, max_price=max_p, min_price=min_p, limit=15)
+        active_comps = [
+            {'title': c.get('title', ''), 'price': c.get('price', 0), 'url': c.get('url', '')}
+            for c in raw_active if c.get('price', 0) > 0
+        ]
+    except Exception as e:
+        print(f"[LLM] search_ebay error: {e}")
+        active_comps = []
+    supply_count = len(active_comps)
 
     # 6. Build prompt + fan out to 4 LLMs in parallel
-    prompt = _build_llm_prompt(listing, comp_stats, recent_comps, supply_count)
+    prompt = _build_llm_prompt(listing, comp_stats, recent_comps, active_comps)
 
     model_callers = {
         'claude': _llm_claude,
@@ -4878,7 +4952,10 @@ def llm_price_review(listing_id):
         'gemini': _llm_gemini,
         'grok': _llm_grok,
     }
-    models_out = {name: {'price': None, 'reason': '', 'status': 'error'} for name in model_callers}
+    models_out = {
+        name: {'low': None, 'high': None, 'recommended': None, 'price': None, 'reason': '', 'status': 'error'}
+        for name in model_callers
+    }
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         future_to_name = {
@@ -4892,24 +4969,45 @@ def llm_price_review(listing_id):
             except Exception as e:
                 print(f"[LLM] {name} future error: {e}")
                 models_out[name] = {
+                    'low': None,
+                    'high': None,
+                    'recommended': None,
                     'price': None,
                     'reason': f'error: {str(e)[:120]}',
                     'status': 'error',
                 }
 
-    # 7. Consensus median over valid integer prices
-    valid_prices = sorted([
-        m['price'] for m in models_out.values()
-        if m.get('status') == 'ok' and isinstance(m.get('price'), int) and m['price'] > 0
-    ])
-    if valid_prices:
-        mid = len(valid_prices) // 2
-        if len(valid_prices) % 2 == 1:
-            consensus_median = valid_prices[mid]
-        else:
-            consensus_median = int(round((valid_prices[mid - 1] + valid_prices[mid]) / 2))
-    else:
-        consensus_median = None
+    # 7. Consensus — median of each column (low, recommended, high) across valid models
+    def _median(vals):
+        vs = sorted([v for v in vals if isinstance(v, int) and v > 0])
+        if not vs:
+            return None
+        mid = len(vs) // 2
+        if len(vs) % 2:
+            return vs[mid]
+        return int(round((vs[mid - 1] + vs[mid]) / 2))
+
+    ok_models = [m for m in models_out.values() if m.get('status') == 'ok']
+    consensus = {
+        'low': _median([m.get('low') for m in ok_models]),
+        'recommended': _median([m.get('recommended') for m in ok_models]),
+        'high': _median([m.get('high') for m in ok_models]),
+    }
+    # Back-compat scalar for any older caller
+    consensus_median = consensus['recommended']
+
+    # Active competition summary for the UI
+    active_summary = None
+    if active_comps:
+        ap = sorted([c['price'] for c in active_comps if c.get('price', 0) > 0])
+        if ap:
+            active_summary = {
+                'count': len(ap),
+                'min': round(ap[0], 2),
+                'max': round(ap[-1], 2),
+                'median': round(ap[len(ap) // 2], 2),
+                'top5': active_comps[:5],
+            }
 
     response = {
         'listing_id': listing_id,
@@ -4917,9 +5015,11 @@ def llm_price_review(listing_id):
         'artist': artist,
         'your_price': your_price,
         'comp_stats': comp_stats,
+        'active_competition': active_summary,
         'models': models_out,
-        'consensus_median': consensus_median,
-        'consensus_count': len(valid_prices),
+        'consensus': consensus,
+        'consensus_median': consensus_median,  # back-compat
+        'consensus_count': len(ok_models),
         'cached_at': None,
     }
 

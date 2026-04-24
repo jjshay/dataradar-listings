@@ -4812,50 +4812,91 @@
                 claude: { border: 'var(--purple)', val: 'var(--purple)' },
                 gpt:    { border: 'var(--green)',  val: 'var(--green)' },
                 gemini: { border: 'var(--accent)', val: 'var(--accent)' },
-                grok:   { border: 'var(--dim)',    val: 'var(--text)' }
+                grok:   { border: 'var(--gold)',   val: 'var(--gold)' }
             };
-            const modelEnvKey = { claude: 'ANTHROPIC_API_KEY', gpt: 'OPENAI_API_KEY', gemini: 'GOOGLE_API_KEY', grok: 'XAI_API_KEY' };
+            const modelEnvKey = { claude: 'ANTHROPIC_API_KEY', gpt: 'OPENAI_API_KEY', gemini: 'GEMINI_API_KEY', grok: 'GROK_API_KEY' };
             const order = ['claude','gpt','gemini','grok'];
+            const yp = Math.round(item.your_price || 0);
+
+            // Global range for the per-card range bar — span all low/high across all valid models
+            const allLows = order.map(k => models[k]?.low).filter(v => typeof v === 'number' && v > 0);
+            const allHighs = order.map(k => models[k]?.high).filter(v => typeof v === 'number' && v > 0);
+            const globalLo = allLows.length ? Math.min(...allLows, yp || Infinity) : null;
+            const globalHi = allHighs.length ? Math.max(...allHighs, yp || 0) : null;
 
             const cardHTML = order.map(key => {
                 const m = models[key] || { status: 'not_configured' };
                 const c = modelColors[key];
                 const statusOff = (m.status && m.status !== 'ok');
-                let priceHTML = '';
-                let reasonHTML = '';
-                if (m.status === 'ok' && m.price != null) {
-                    priceHTML = `<div class="llm-card-price" style="color:${c.val};">$${Math.round(m.price)}</div>`;
-                    reasonHTML = `<div class="llm-card-reason" title="${(m.reason||'').replace(/"/g,'&quot;')}">${(m.reason||'').replace(/</g,'&lt;') || '—'}</div>`;
+                let body = '';
+                if (m.status === 'ok' && m.recommended != null) {
+                    const low = m.low ?? m.recommended;
+                    const high = m.high ?? m.recommended;
+                    const rec = m.recommended;
+                    // Range bar — show low | rec | high with your_price marker
+                    let barHTML = '';
+                    if (globalLo != null && globalHi != null && globalHi > globalLo) {
+                        const pos = (v) => Math.max(0, Math.min(100, ((v - globalLo) / (globalHi - globalLo)) * 100));
+                        const lowPct = pos(low), recPct = pos(rec), highPct = pos(high);
+                        const ypPct = yp > 0 ? pos(yp) : null;
+                        barHTML = `<div style="position:relative;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin:6px 0 4px;">
+                            <div style="position:absolute;left:${lowPct}%;width:${Math.max(2, highPct - lowPct)}%;top:0;bottom:0;background:${c.border};opacity:0.35;border-radius:3px;"></div>
+                            <div style="position:absolute;left:${recPct}%;top:-3px;width:2px;height:12px;background:${c.val};" title="recommended $${rec}"></div>
+                            ${ypPct != null ? `<div style="position:absolute;left:${ypPct}%;top:-4px;width:10px;height:14px;margin-left:-5px;background:transparent;border:1.5px solid var(--text);border-radius:2px;" title="your price $${yp}"></div>` : ''}
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-bottom:4px;">
+                            <span>$${low}</span><span style="color:${c.val};font-weight:700;">$${rec}</span><span>$${high}</span>
+                        </div>`;
+                    } else {
+                        barHTML = `<div class="llm-card-price" style="color:${c.val};">$${rec}</div>`;
+                    }
+                    body = `${barHTML}
+                        <div class="llm-card-reason" title="${(m.reason||'').replace(/"/g,'&quot;')}">${(m.reason||'').replace(/</g,'&lt;') || '—'}</div>`;
                 } else if (m.status === 'not_configured') {
-                    priceHTML = `<div class="llm-card-price" style="color:var(--dim);font-size:14px;">—</div>`;
-                    reasonHTML = `<div class="llm-card-reason">Add ${modelEnvKey[key] || 'API_KEY'} env var</div>`;
+                    body = `<div class="llm-card-price" style="color:var(--dim);font-size:14px;">—</div>
+                        <div class="llm-card-reason">Add ${modelEnvKey[key] || 'API_KEY'} env var</div>`;
                 } else if (m.status === 'parse_error') {
-                    priceHTML = `<div class="llm-card-price" style="color:var(--orange);font-size:14px;">parse</div>`;
-                    reasonHTML = `<div class="llm-card-reason">parse issue — check logs</div>`;
+                    body = `<div class="llm-card-price" style="color:var(--orange);font-size:14px;">parse</div>
+                        <div class="llm-card-reason" title="${(m.reason||'').replace(/"/g,'&quot;')}">parse issue — check logs</div>`;
                 } else {
-                    priceHTML = `<div class="llm-card-price" style="color:var(--red);font-size:14px;">error</div>`;
-                    reasonHTML = `<div class="llm-card-reason" title="${(m.reason||'').replace(/"/g,'&quot;')}">${((m.reason || m.status || 'error') + '').substring(0, 120).replace(/</g,'&lt;')}</div>`;
+                    body = `<div class="llm-card-price" style="color:var(--red);font-size:14px;">error</div>
+                        <div class="llm-card-reason" title="${(m.reason||'').replace(/"/g,'&quot;')}">${((m.reason || m.status || 'error') + '').substring(0, 120).replace(/</g,'&lt;')}</div>`;
                 }
                 return `<div class="llm-card ${statusOff?'status-off':''}" style="border-left-color:${c.border};">
                     <div class="llm-card-name" style="color:${c.val};">${key}</div>
-                    ${priceHTML}
-                    ${reasonHTML}
+                    ${body}
                 </div>`;
             }).join('');
 
-            const consensus = data.consensus_median;
+            const cons = data.consensus || {};
+            const recCons = cons.recommended ?? data.consensus_median;
             const count = data.consensus_count || 0;
             const cs = data.comp_stats || {};
+            const ac = data.active_competition;
+
+            // Active competition strip — only if present
+            const activeHTML = ac ? `
+                <div style="margin-bottom:8px;padding:8px 10px;background:rgba(74,158,255,0.08);border:1px solid rgba(74,158,255,0.25);border-radius:8px;font-size:11px;">
+                    <span style="color:var(--accent);font-weight:600;">Live eBay competition:</span>
+                    <b style="color:var(--text);">${ac.count}</b> active ·
+                    range <b style="color:var(--text);">$${Math.round(ac.min)}–$${Math.round(ac.max)}</b> ·
+                    median <b style="color:var(--text);">$${Math.round(ac.median)}</b>
+                </div>` : `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:11px;color:var(--dim);">No live competition data (eBay Browse API unavailable in local dev)</div>`;
 
             el.innerHTML = `
+                ${activeHTML}
                 <div class="llm-grid">${cardHTML}</div>
-                <div class="llm-consensus-row">
+                <div class="llm-consensus-row" style="align-items:flex-start;">
                     <div>
-                        <div class="llm-consensus-lbl">Consensus (median of ${count} model${count===1?'':'s'})</div>
-                        <div class="llm-consensus-val">${consensus != null ? '$'+Math.round(consensus) : '—'}</div>
+                        <div class="llm-consensus-lbl">Consensus range (${count} model${count===1?'':'s'})</div>
+                        <div style="display:flex;gap:14px;align-items:baseline;margin-top:2px;">
+                            <div style="font-size:11px;color:var(--dim);">floor<br><b style="color:var(--text);font-size:16px;">${cons.low != null ? '$'+Math.round(cons.low) : '—'}</b></div>
+                            <div class="llm-consensus-val" title="median recommended across models">${recCons != null ? '$'+Math.round(recCons) : '—'}</div>
+                            <div style="font-size:11px;color:var(--dim);">ceiling<br><b style="color:var(--text);font-size:16px;">${cons.high != null ? '$'+Math.round(cons.high) : '—'}</b></div>
+                        </div>
                     </div>
                     <div style="font-size:11px;color:var(--dim);text-align:right;">
-                        Your price <b style="color:var(--text);">$${Math.round(item.your_price||0)}</b><br>
+                        Your price <b style="color:var(--text);">$${yp}</b><br>
                         Comp median ${cs.median != null ? '<b style="color:var(--text);">$'+Math.round(cs.median)+'</b>' : '—'}${cs.count ? ' <span>(n='+cs.count+')</span>' : ''}<br>
                         ${cs.trailing_12mo_median ? '12mo <b style="color:var(--text);">$'+Math.round(cs.trailing_12mo_median)+'</b>' : ''}${cs.signed_only ? ' · signed-only' : ''}
                     </div>
@@ -4864,12 +4905,16 @@
             `;
 
             const matchBtn = document.getElementById('swipe-match');
-            if (consensus != null) {
+            if (recCons != null) {
                 matchBtn.disabled = false;
-                matchBtn.textContent = `Match Consensus $${Math.round(consensus)}`;
+                matchBtn.textContent = `Match $${Math.round(recCons)}`;
+                matchBtn.title = cons.low != null && cons.high != null
+                    ? `Match recommended $${Math.round(recCons)} · range $${Math.round(cons.low)}–$${Math.round(cons.high)}`
+                    : `Match consensus $${Math.round(recCons)}`;
             } else {
                 matchBtn.disabled = true;
                 matchBtn.textContent = 'Match Consensus';
+                matchBtn.title = '';
             }
         }
 
@@ -4877,10 +4922,11 @@
             const item = swipeItems[swipeIdx];
             if (!item) return;
             const data = llmReviewCache[item.id];
-            if (!data || data.consensus_median == null) return;
-            const price = Math.round(data.consensus_median);
-            setExactPrice(item.id, price);
-            toast(`Price set to consensus $${price}`);
+            if (!data) return;
+            const price = data.consensus?.recommended ?? data.consensus_median;
+            if (price == null) return;
+            setExactPrice(item.id, Math.round(price));
+            toast(`Price set to consensus $${Math.round(price)}`);
         }
 
         // Click-outside-container closes the swipe modal
