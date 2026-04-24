@@ -6081,8 +6081,13 @@ def ebay_auth_start():
     if not client_id:
         return jsonify({'error': 'EBAY_CLIENT_ID not configured'}), 500
 
-    # Build callback URL
-    callback_url = request.host_url.rstrip('/') + '/auth/ebay/callback'
+    # Build callback URL — force HTTPS since eBay production app registrations
+    # require HTTPS redirect URIs. Railway / most PaaS proxies terminate TLS
+    # upstream so request.host_url can return http://
+    host = request.host_url.rstrip('/')
+    if host.startswith('http://') and 'localhost' not in host and '127.0.0.1' not in host:
+        host = 'https://' + host[len('http://'):]
+    callback_url = host + '/auth/ebay/callback'
 
     params = {
         'client_id': client_id,
