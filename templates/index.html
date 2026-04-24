@@ -741,7 +741,16 @@
                             <option value="">All artists</option>
                         </select>
                     </div>
-                    <button class="btn btn-primary" style="padding:8px 18px;font-size:12px;" onclick="previewBulkReprice()">Preview</button>
+                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">
+                        <label title="Ignore cached consensus and query all 4 LLMs fresh. Slower (~8s per item) and costs API credits — use when comps have shifted or you want the latest scores." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;">
+                            <input type="checkbox" id="brp-force-llm" style="accent-color:var(--accent);cursor:pointer;">
+                            Re-query LLMs <span style="color:var(--orange);">*</span>
+                        </label>
+                        <button class="btn btn-primary" style="padding:8px 18px;font-size:12px;" onclick="previewBulkReprice()">Preview</button>
+                    </div>
+                </div>
+                <div style="font-size:10px;color:var(--dim);margin:-4px 0 8px;">
+                    <span style="color:var(--orange);">*</span> Re-query hits all 4 LLMs live — costs ~$0.02 per item and takes 5-10s each. Leave off to use cached consensus.
                 </div>
 
                 <!-- Results -->
@@ -5159,16 +5168,24 @@
             const upside = document.getElementById('brp-upside').value;
             const comps = document.getElementById('brp-comps').value;
             const artist = document.getElementById('brp-artist').value;
+            const forceLLM = document.getElementById('brp-force-llm')?.checked;
             const el = document.getElementById('brp-results');
-            el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            el.innerHTML = forceLLM
+                ? `<div style="padding:30px;text-align:center;">
+                     <div class="loading"><div class="spinner"></div></div>
+                     <div style="font-size:12px;color:var(--dim);margin-top:12px;">Querying 4 LLMs per candidate — this can take 30-90s…</div>
+                   </div>`
+                : '<div class="loading"><div class="spinner"></div></div>';
             document.getElementById('brp-footer').style.display = 'none';
             const params = new URLSearchParams({ min_upside_pct: upside, min_comp_count: comps });
             if (artist) params.append('artist', artist);
+            if (forceLLM) params.append('force_llm', '1');
             try {
                 const resp = await fetch('/api/inventory/bulk-consensus-preview?' + params.toString());
                 const data = await resp.json();
                 bulkRepriceCandidates = (data.candidates || []).map(c => ({ ...c, _selected: true }));
                 renderBulkRepriceResults(data);
+                if (forceLLM) toast(`Re-queried LLMs — ${data.total_candidates || 0} candidates`);
             } catch (e) {
                 el.innerHTML = '<div style="color:var(--red);padding:20px;text-align:center;font-size:12px;">Failed to fetch preview</div>';
             }
