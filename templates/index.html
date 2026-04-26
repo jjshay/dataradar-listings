@@ -2547,6 +2547,14 @@
         // Inventory
         // ==========================================
         let invFilter = 'all';
+        let invActionFilter = 'all';  // 'all' | 'PROMOTE' | 'DISCOUNT' | 'RELIST' | 'HOLD'
+        function setInvActionFilter(action) {
+            invActionFilter = (invActionFilter === action) ? 'all' : action;
+            // Auto-switch to action sort so the filtered set is meaningful
+            const sortEl = document.getElementById('inv-sort');
+            if (sortEl && invActionFilter !== 'all') sortEl.value = 'action';
+            renderInv();
+        }
 
         async function loadInv() {
             if (invData) { renderInv(); return; }
@@ -2583,6 +2591,7 @@
             const sort = document.getElementById('inv-sort')?.value || 'signal';
 
             if (invFilter !== 'all') items = items.filter(i => i.artist === invFilter);
+            if (invActionFilter !== 'all') items = items.filter(i => i.action === invActionFilter);
             if (query) items = items.filter(i => i.name.toLowerCase().includes(query));
 
             const order = {'SELL NOW':0,'GOOD TO SELL':1,'SET PRICE':2,'HOLD':3,'WAIT':4,'RESEARCH':5};
@@ -2611,15 +2620,25 @@
             const acts = invData?.action_summary || {};
             const cap = invData?.capital_efficiency || {};
             const cs = invData?.comp_summary || {};
+            const isAct = (a) => invActionFilter === a;
+            const actSel = (a, c) => isAct(a) ? `box-shadow:inset 0 0 0 2px ${c};background:rgba(255,255,255,0.04);` : '';
             const actBar = `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--accent);"><div style="font-size:18px;font-weight:700;color:var(--accent);">${acts.PROMOTE||0}</div><div class="stat-lbl">Promote</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);"><div style="font-size:18px;font-weight:700;color:var(--orange);">${acts.DISCOUNT||0}</div><div class="stat-lbl">Discount</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);"><div style="font-size:18px;font-weight:700;color:var(--red);">${acts.RELIST||0}</div><div class="stat-lbl">Relist</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);"><div style="font-size:18px;font-weight:700;color:var(--green);">${acts.HOLD||0}</div><div class="stat-lbl">Hold</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--accent);cursor:pointer;${actSel('PROMOTE','var(--accent)')}" onclick="setInvActionFilter('PROMOTE')" title="Click to filter to Promote-action items">
+                    <div style="font-size:18px;font-weight:700;color:var(--accent);">${acts.PROMOTE||0}</div><div class="stat-lbl">Promote${isAct('PROMOTE')?' ✓':''}</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);cursor:pointer;${actSel('DISCOUNT','var(--orange)')}" onclick="setInvActionFilter('DISCOUNT')" title="Click to filter to Discount-action items">
+                    <div style="font-size:18px;font-weight:700;color:var(--orange);">${acts.DISCOUNT||0}</div><div class="stat-lbl">Discount${isAct('DISCOUNT')?' ✓':''}</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);cursor:pointer;${actSel('RELIST','var(--red)')}" onclick="setInvActionFilter('RELIST')" title="Click to filter to Relist-action items">
+                    <div style="font-size:18px;font-weight:700;color:var(--red);">${acts.RELIST||0}</div><div class="stat-lbl">Relist${isAct('RELIST')?' ✓':''}</div></div>
+                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);cursor:pointer;${actSel('HOLD','var(--green)')}" onclick="setInvActionFilter('HOLD')" title="Click to filter to Hold-action items">
+                    <div style="font-size:18px;font-weight:700;color:var(--green);">${acts.HOLD||0}</div><div class="stat-lbl">Hold${isAct('HOLD')?' ✓':''}</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">$${Math.round(cap.total_locked||0).toLocaleString()}</div><div class="stat-lbl">Capital</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.inventory_turnover||0}x</div><div class="stat-lbl">Turns/Yr</div></div>
                 <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.avg_days_listed||0}d</div><div class="stat-lbl">Avg Age</div></div>
             </div>
+            ${invActionFilter !== 'all' ? `<div style="font-size:11px;color:var(--dim);margin:-4px 0 8px;">
+              Filtered to <b style="color:var(--text);">${invActionFilter}</b> items.
+              <a onclick="setInvActionFilter('${invActionFilter}')" style="color:var(--accent);cursor:pointer;text-decoration:underline;">Clear filter</a>
+            </div>` : ''}
             <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;" title="Comparison against the 54k-record historical price database. Click Comp Upside sort to see biggest underpriced items first.">
                 <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--green);cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_upside';renderInv();" title="Items listed below comp median — click to sort by biggest upside">
                     <div style="font-size:18px;font-weight:700;color:var(--green);">${cs.under_median||0}</div><div class="stat-lbl">Under Comp</div>
