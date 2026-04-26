@@ -6195,6 +6195,121 @@ def ebay_auth_callback():
             <a href="/" style="color:#0a84ff;">Back to Dashboard</a></body></html>"""
 
 
+@app.route('/admin/paste-token', methods=['GET', 'POST'])
+def admin_paste_token():
+    """Bypass the OAuth round-trip — paste a refresh token directly.
+
+    Use when eBay's authorize/redirect handshake is failing (invalid_request)
+    and you have a working refresh token from eBay dev console
+    User Tokens tab. The pasted token is loaded into memory immediately
+    and written to .env so it survives this deploy. For permanence
+    across redeploys, also paste the token into the Railway Variables UI
+    as EBAY_REFRESH_TOKEN.
+    """
+    if request.method == 'GET':
+        current_set = bool(EBAY_CONFIG.get('refresh_token') and
+                           EBAY_CONFIG['refresh_token'] not in ('', 'your_ebay_refresh_token'))
+        try:
+            tok_test = ebay.get_access_token()
+            access_ok = bool(tok_test)
+        except Exception:
+            access_ok = False
+        return f"""<!doctype html><html><head><title>Paste eBay Refresh Token</title>
+            <style>
+              body{{font-family:-apple-system,system-ui,sans-serif;background:#0b0f1a;color:#fff;padding:40px;max-width:780px;margin:0 auto;line-height:1.55;}}
+              h2{{color:#c9a227;}} code{{background:#1a1f2e;padding:2px 6px;border-radius:3px;color:#9eebcf;}}
+              textarea{{width:100%;height:180px;background:#1a1f2e;color:#fff;border:1px solid #333;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:11px;border-radius:6px;}}
+              button{{background:#c9a227;color:#0b0f1a;border:none;padding:12px 32px;font-weight:700;border-radius:6px;cursor:pointer;font-size:14px;margin-top:12px;}}
+              .pill{{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;}}
+              .ok{{background:#30d158;color:#0b0f1a;}} .bad{{background:#ff453a;color:#fff;}}
+              ul{{padding-left:20px;}} li{{margin-bottom:6px;}}
+            </style></head><body>
+            <h2>Paste eBay Refresh Token</h2>
+            <p>Status:
+              refresh-token-set <span class="pill {'ok' if current_set else 'bad'}">{'YES' if current_set else 'NO'}</span>
+              · access-token-fetch <span class="pill {'ok' if access_ok else 'bad'}">{'OK' if access_ok else 'FAILS'}</span>
+            </p>
+            <ol>
+              <li>Open <a href="https://developer.ebay.com/my/auth/?env=production&index=0" target="_blank" style="color:#4a9eff;">eBay dev console User Tokens (Production)</a></li>
+              <li>Click <b>"Sign in to Production for OAuth"</b> → sign in as your <b>Gauntlet Gallery seller account</b> → Approve</li>
+              <li>You'll be returned to the dev console with a token displayed at the bottom — click <b>"Copy Token to Clipboard"</b></li>
+              <li>Paste it below and click Save</li>
+            </ol>
+            <form method="POST">
+              <textarea name="refresh_token" placeholder="v^1.1#i^1#p^3#f^0#r^1#... (long string starting with v^1.1#)" required></textarea>
+              <br><button type="submit">Save token + smoke-test eBay</button>
+            </form>
+            <p style="color:#8e8e93;font-size:12px;margin-top:20px;">⚠️ For permanence across Railway redeploys, also paste the same token into Railway → Variables → <code>EBAY_REFRESH_TOKEN</code>. The on-disk write here only survives until the next deploy.</p>
+            </body></html>"""
+
+    # POST — save token, refresh access, test
+    token = (request.form.get('refresh_token') or '').strip()
+    if not token or len(token) < 50:
+        return jsonify({'error': 'Refresh token looks too short to be valid'}), 400
+
+    # 1. Set in-memory immediately
+    EBAY_CONFIG['refresh_token'] = token
+
+    # 2. Persist to .env (survives this deploy; not next deploy on Railway)
+    try:
+        env_path = os.path.join(os.path.dirname(__file__), '.env')
+        env_lines = []
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as f:
+                env_lines = f.readlines()
+        found = False
+        for i, line in enumerate(env_lines):
+            if line.startswith('EBAY_REFRESH_TOKEN='):
+                env_lines[i] = f'EBAY_REFRESH_TOKEN={token}\n'
+                found = True
+                break
+        if not found:
+            env_lines.append(f'EBAY_REFRESH_TOKEN={token}\n')
+        with open(env_path, 'w') as f:
+            f.writelines(env_lines)
+    except Exception as e:
+        print(f"[admin_paste_token] .env write skipped: {e}")
+
+    # 3. Force a fresh access-token fetch using the pasted refresh token
+    ebay._token = None
+    ebay._token_expires = None
+    try:
+        access = ebay.get_access_token()
+    except Exception as e:
+        return f"""<html><body style="background:#0b0f1a;color:#fff;font-family:system-ui;padding:40px;">
+            <h2 style="color:#ff453a;">Token saved, but access-token fetch failed</h2>
+            <p>{str(e)[:600]}</p>
+            <p>Most common cause: the pasted token is an <b>access</b> token, not a <b>refresh</b> token. Refresh tokens are 400+ chars and last 18 months. Access tokens are short and expire in 2 hours.</p>
+            <a href="/admin/paste-token" style="color:#4a9eff;">Try again</a>
+            </body></html>"""
+
+    if not access:
+        return """<html><body style="background:#0b0f1a;color:#fff;font-family:system-ui;padding:40px;">
+            <h2 style="color:#ff453a;">Refresh token rejected by eBay</h2>
+            <p>The token was saved but eBay's token-refresh endpoint returned no access token. The token may be malformed, expired, or for the wrong app.</p>
+            <a href="/admin/paste-token" style="color:#4a9eff;">Try a different token</a>
+            </body></html>"""
+
+    # 4. Smoke-test by pulling listing count
+    try:
+        listings = ebay.get_all_listings()
+        count = len(listings)
+    except Exception as e:
+        count = -1
+        err = str(e)[:200]
+
+    if count >= 0:
+        return f"""<html><body style="background:#0b0f1a;color:#fff;font-family:system-ui;padding:40px;text-align:center;">
+            <h2 style="color:#30d158;">eBay token working — {count} listings</h2>
+            <p>Refresh token saved + access token fetched + Trading API responsive.</p>
+            <p style="color:#8e8e93;">Don't forget to also paste the same token into Railway → Variables → <code style="background:#1a1f2e;padding:2px 6px;border-radius:3px;">EBAY_REFRESH_TOKEN</code> for permanence.</p>
+            <a href="/" style="color:#4a9eff;font-size:18px;">→ Back to Dashboard</a>
+            </body></html>"""
+    return f"""<html><body style="background:#0b0f1a;color:#fff;font-family:system-ui;padding:40px;">
+        <h2 style="color:#ffa500;">Token works but GetMyeBaySelling failed</h2>
+        <p>{err}</p></body></html>"""
+
+
 @app.route('/api/auth/status')
 def auth_status():
     """Check if eBay auth is working and what scopes are active"""
