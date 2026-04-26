@@ -230,12 +230,15 @@ if os.path.exists(ma_path):
                 })
     add_records(ma_recs, 'MutualArt')
 
-# 8. Artsy CSVs
+# 8. Artsy CSVs (legacy schema — line1/line2/price)
 for f in glob.glob(f'{DOWNLOADS}/artsy_*.csv'):
     artsy_recs = []
     with open(f, newline='', encoding='utf-8', errors='ignore') as fh:
         reader = csv.DictReader(fh)
         for row in reader:
+            # Price Radar schema (new scraper) has explicit columns
+            if 'artist' in row and 'name' in row:
+                continue  # handled by section 9 below
             title = f"{row.get('line1','')} {row.get('line2','')}".strip()
             price = parse_price(row.get('price', ''))
             if title and price > 0:
@@ -247,7 +250,106 @@ for f in glob.glob(f'{DOWNLOADS}/artsy_*.csv'):
                     'source': 'Artsy',
                     'url': row.get('url', ''),
                 })
-    add_records(artsy_recs, f'Artsy {os.path.basename(f)}')
+    if artsy_recs:
+        add_records(artsy_recs, f'Artsy {os.path.basename(f)}')
+
+
+# ============================================================
+# 9. NEW: Price Radar schema CSVs from the 4-scraper kit
+#    (ebay-scraper, artnet-scraper, artsy-scraper, liveauctioneers-scraper)
+#    + Artnet PDF data parsed by scripts/parse_artnet_pdfs.py
+# ============================================================
+
+def ingest_price_radar_csv(path, source_label, mark_signed_for_auction=True):
+    """Ingest a CSV in the Price Radar schema produced by the 4 scrapers."""
+    recs = []
+    with open(path, newline='', encoding='utf-8', errors='ignore') as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            artist = (row.get('artist') or '').strip()
+            name = (row.get('name') or '').strip()
+            if not artist or not name:
+                continue
+            price = parse_price(row.get('price', ''))
+            if not price or price <= 0:
+                continue
+            # Auction-source records: mark signed=True (auction lots are
+            # authenticated by definition) so they survive clean_historical's
+            # require_signed filter for Fairey/Banksy/MBW/Death NYC.
+            is_auction = source_label in ('Artnet', 'LiveAuctioneers') or \
+                         (row.get('_artsy_kind') == 'auction')
+            recs.append({
+                'name': name[:120],
+                'artist': artist,
+                'price': price,
+                'date': parse_date(row.get('date', '')),
+                'source': source_label,
+                'medium': row.get('medium', ''),
+                'signed': True if (mark_signed_for_auction and is_auction) else
+                          (str(row.get('signed', '')).lower() in ('true', '1', 'yes')),
+                'url': row.get('url', ''),
+            })
+    return recs
+
+# 9a. eBay scraper CSVs (ebay_<mode>_<keyword>_<ts>.csv)
+for f in sorted(glob.glob(f'{DOWNLOADS}/ebay_*.csv')):
+    base = os.path.basename(f)
+    # Sniff for Price Radar schema (has 'itemId' + 'priceLow' OR 'artist'+'name')
+    with open(f, encoding='utf-8', errors='ignore') as fh:
+        head = fh.readline()
+    if 'artist' in head and 'name' in head:
+        recs = ingest_price_radar_csv(f, 'eBay')
+        if recs: add_records(recs, f'eBay scraper {base}')
+
+# 9b. Artnet scraper CSVs (web scraper, distinct from PDF data)
+for f in sorted(glob.glob(f'{DOWNLOADS}/artnet_*.csv')):
+    base = os.path.basename(f)
+    with open(f, encoding='utf-8', errors='ignore') as fh:
+        head = fh.readline()
+    if 'artist' in head and 'name' in head:
+        recs = ingest_price_radar_csv(f, 'Artnet')
+        if recs: add_records(recs, f'Artnet scraper {base}')
+
+# 9c. Artsy scraper CSVs (new Price Radar schema)
+for f in sorted(glob.glob(f'{DOWNLOADS}/artsy_*.csv')):
+    base = os.path.basename(f)
+    with open(f, encoding='utf-8', errors='ignore') as fh:
+        head = fh.readline()
+    if 'artist' in head and 'name' in head and '_artsy_kind' in head:
+        recs = ingest_price_radar_csv(f, 'Artsy')
+        if recs: add_records(recs, f'Artsy scraper {base}')
+
+# 9d. LiveAuctioneers scraper CSVs
+for f in sorted(glob.glob(f'{DOWNLOADS}/liveauctioneers_*.csv')):
+    base = os.path.basename(f)
+    with open(f, encoding='utf-8', errors='ignore') as fh:
+        head = fh.readline()
+    if 'artist' in head and 'name' in head:
+        recs = ingest_price_radar_csv(f, 'LiveAuctioneers')
+        if recs: add_records(recs, f'LiveAuctioneers {base}')
+
+# 9e. Artnet PDF data (output of scripts/parse_artnet_pdfs.py)
+artnet_pdf_path = os.path.join(DATA_DIR, 'artnet_data.json')
+if os.path.exists(artnet_pdf_path):
+    with open(artnet_pdf_path) as f:
+        artnet_data = json.load(f)
+    # Records already in consolidator schema (signed=True for auction lots);
+    # just normalize date and add.
+    artnet_recs = []
+    for r in artnet_data:
+        if r.get('name') and (r.get('price') or 0) > 0:
+            artnet_recs.append({
+                'name': r['name'][:120],
+                'artist': r.get('artist', ''),
+                'price': float(r['price']),
+                'date': parse_date(r.get('date', '')),
+                'source': 'Artnet',
+                'medium': r.get('medium', ''),
+                'signed': True,
+                'url': r.get('url', ''),
+            })
+    if artnet_recs:
+        add_records(artnet_recs, 'Artnet PDFs')
 
 
 # ============================================================

@@ -41,3 +41,4 @@ data/watchlist.json
 # Large data files (deploy separately)
 data/shepard_fairey_data.json
 data/artist_price_summaries.json
+data/historical_clean.csv.bak
