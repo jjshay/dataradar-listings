@@ -2214,8 +2214,14 @@ def lookup_historical_prices(title, artist='', limit=50):
             rec_words = set(w for w in re.findall(r'\w+', rec.get('name', '').lower()) if w not in noise and len(w) > 2)
 
         overlap = len(title_words & rec_words)
-        # Clean data is already quality-filtered, so 1 word overlap is enough
-        if overlap < 1:
+        # Require 2+ shared distinguishing words — 1-word matches cause n=500
+        # blowouts where every Death NYC item matches every other Death NYC
+        # item just on a generic shared word. With 2-word minimum the comp
+        # set converges to actually-similar pieces (typical n is now 5-50).
+        # If the inventory title is too generic to have 2 distinguishing
+        # words, fall back to single-word match so we don't return zero.
+        threshold = 2 if len(title_words) >= 2 else 1
+        if overlap < threshold:
             continue
 
         # Manual curation — skip rejections, flag approvals.
@@ -4511,9 +4517,24 @@ def get_full_inventory_analytics():
         else:
             signal = 'RESEARCH'
 
-        # Smart pricing engine
+        # Smart pricing engine. Priority order:
+        #   1. comp_p75 from the 54k DB (wins when ≥3 matching comps) — was
+        #      being overridden by compute_smart_price falling back to a
+        #      uniform $83 across items because the eBay-side history
+        #      market.price_history is empty in fallback mode.
+        #   2. compute_smart_price's market-data result
+        #   3. item.suggested_price (cached enrichment value)
         pricing = compute_smart_price(item)
-        suggested = pricing['smart_price'] or item.get('suggested_price', 0)
+        comp_p75_anchor = item.get('comp_p75') if (item.get('comp_count') or 0) >= 3 else None
+        if comp_p75_anchor:
+            mult, _ = _event_multiplier(item.get('name', ''))
+            suggested = round(comp_p75_anchor * mult, 2)
+            pricing['smart_price'] = suggested
+            pricing['adjustment_reason'] = (pricing.get('adjustment_reason') or '') + (
+                f' | Comp p75 ${comp_p75_anchor} × event {round(mult, 2)}'
+            )
+        else:
+            suggested = pricing['smart_price'] or item.get('suggested_price', 0)
 
         ebay_count = supply.get('ebay_count', 0)
         ebay_avg = supply.get('ebay_avg_price', 0)

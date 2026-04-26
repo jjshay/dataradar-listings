@@ -552,11 +552,20 @@
             </div>
 
             <div class="section">
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                    <div class="search" style="flex:1;min-width:200px;">
-                        <input type="text" id="inv-search" placeholder="Search inventory..." oninput="renderInv()">
+                <!-- Two-row toolbar: row 1 = primary actions (Swipe + Bulk Reprice), row 2 = search + sort + secondary actions -->
+                <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+                    <button class="btn-primary btn" style="padding:9px 16px;font-size:13px;background:var(--purple);font-weight:600;" onclick="openSwipeMode()">🃏 Swipe</button>
+                    <button class="btn-primary btn" style="padding:9px 16px;font-size:13px;background:var(--green);color:#000;font-weight:600;" onclick="openBulkRepriceModal()">💰 Bulk Reprice</button>
+                    <div style="flex:1;"></div>
+                    <button class="btn-ghost" style="font-size:12px;" onclick="refreshInv()">Refresh</button>
+                    <button class="btn-ghost" style="font-size:12px;" onclick="showCostBasis()">Set Costs</button>
+                    <button class="btn-ghost" style="font-size:12px;" onclick="exportInv()">Export</button>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+                    <div class="search" style="flex:1;min-width:240px;">
+                        <input type="text" id="inv-search" placeholder="Search inventory…" oninput="renderInv()">
                     </div>
-                    <select id="inv-sort" onchange="renderInv()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;padding:8px 12px;">
+                    <select id="inv-sort" onchange="renderInv()" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:12px;padding:8px 12px;min-width:150px;">
                         <option value="signal">By Signal</option>
                         <option value="action">By Next Move</option>
                         <option value="alpha">A-Z</option>
@@ -569,11 +578,6 @@
                         <option value="comp_overpriced">Overpriced vs Comps</option>
                         <option value="comp_count">Most Comps</option>
                     </select>
-                    <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;background:var(--purple);" onclick="openSwipeMode()">🃏 Swipe</button>
-                    <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;background:var(--green);color:#000;" onclick="openBulkRepriceModal()">💰 Bulk Reprice</button>
-                    <button class="btn-primary btn" style="padding:8px 14px;font-size:12px;" onclick="refreshInv()">Refresh</button>
-                    <button class="btn-ghost" onclick="showCostBasis()">Set Costs</button>
-                    <button class="btn-ghost" onclick="exportInv()">Export</button>
                 </div>
 
                 <div class="chips" id="inv-chips"></div>
@@ -2620,44 +2624,43 @@
             const acts = invData?.action_summary || {};
             const cap = invData?.capital_efficiency || {};
             const cs = invData?.comp_summary || {};
+            // Card style helpers — full-border card, optional action color via tinted bg, no side-stripes.
             const isAct = (a) => invActionFilter === a;
-            const actSel = (a, c) => isAct(a) ? `box-shadow:inset 0 0 0 2px ${c};background:rgba(255,255,255,0.04);` : '';
+            const baseCard = 'flex:1;text-align:center;min-width:80px;padding:10px 6px;border:1px solid var(--border);border-radius:10px;background:var(--card);transition:background 120ms,border-color 120ms;';
+            const tintBg = (c) => `background:color-mix(in oklch, ${c} 12%, var(--card));border-color:color-mix(in oklch, ${c} 30%, var(--border));`;
+            const selRing = (c) => `box-shadow:inset 0 0 0 1.5px ${c};${tintBg(c)}`;
+            const cardStat = (label, value, color) =>
+                `<div style="font-size:19px;font-weight:700;color:${color||'var(--text)'};line-height:1;margin-bottom:4px;">${value}</div>` +
+                `<div class="stat-lbl">${label}</div>`;
+
+            const actCard = (key, label, color) => {
+                const sel = isAct(key);
+                const tip = sel ? `Click to clear filter` : `Click to filter to ${label} items`;
+                const cursor = (acts[key] || 0) > 0 ? 'cursor:pointer;' : 'cursor:default;opacity:0.5;';
+                const style = `${baseCard}${cursor}${sel ? selRing(color) : ''}`;
+                return `<div style="${style}" onclick="setInvActionFilter('${key}')" title="${tip}">${cardStat(sel ? label + ' ✓' : label, acts[key]||0, color)}</div>`;
+            };
+
             const actBar = `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--accent);cursor:pointer;${actSel('PROMOTE','var(--accent)')}" onclick="setInvActionFilter('PROMOTE')" title="Click to filter to Promote-action items">
-                    <div style="font-size:18px;font-weight:700;color:var(--accent);">${acts.PROMOTE||0}</div><div class="stat-lbl">Promote${isAct('PROMOTE')?' ✓':''}</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--orange);cursor:pointer;${actSel('DISCOUNT','var(--orange)')}" onclick="setInvActionFilter('DISCOUNT')" title="Click to filter to Discount-action items">
-                    <div style="font-size:18px;font-weight:700;color:var(--orange);">${acts.DISCOUNT||0}</div><div class="stat-lbl">Discount${isAct('DISCOUNT')?' ✓':''}</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--red);cursor:pointer;${actSel('RELIST','var(--red)')}" onclick="setInvActionFilter('RELIST')" title="Click to filter to Relist-action items">
-                    <div style="font-size:18px;font-weight:700;color:var(--red);">${acts.RELIST||0}</div><div class="stat-lbl">Relist${isAct('RELIST')?' ✓':''}</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;border-left:3px solid var(--green);cursor:pointer;${actSel('HOLD','var(--green)')}" onclick="setInvActionFilter('HOLD')" title="Click to filter to Hold-action items">
-                    <div style="font-size:18px;font-weight:700;color:var(--green);">${acts.HOLD||0}</div><div class="stat-lbl">Hold${isAct('HOLD')?' ✓':''}</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">$${Math.round(cap.total_locked||0).toLocaleString()}</div><div class="stat-lbl">Capital</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.inventory_turnover||0}x</div><div class="stat-lbl">Turns/Yr</div></div>
-                <div class="card" style="flex:1;text-align:center;min-width:70px;"><div style="font-size:18px;font-weight:700;">${cap.avg_days_listed||0}d</div><div class="stat-lbl">Avg Age</div></div>
+                ${actCard('PROMOTE',  'Promote',  'var(--accent)')}
+                ${actCard('DISCOUNT', 'Discount', 'var(--orange)')}
+                ${actCard('RELIST',   'Relist',   'var(--red)')}
+                ${actCard('HOLD',     'Hold',     'var(--green)')}
+                <div style="${baseCard}">${cardStat('Capital', '$' + Math.round(cap.total_locked||0).toLocaleString())}</div>
+                <div style="${baseCard}">${cardStat('Turns/Yr', (cap.inventory_turnover||0) + 'x')}</div>
+                <div style="${baseCard}">${cardStat('Avg Age', (cap.avg_days_listed||0) + 'd')}</div>
             </div>
             ${invActionFilter !== 'all' ? `<div style="font-size:11px;color:var(--dim);margin:-4px 0 8px;">
-              Filtered to <b style="color:var(--text);">${invActionFilter}</b> items.
-              <a onclick="setInvActionFilter('${invActionFilter}')" style="color:var(--accent);cursor:pointer;text-decoration:underline;">Clear filter</a>
+              Showing only <b style="color:var(--text);">${invActionFilter}</b> items.
+              <a onclick="setInvActionFilter('${invActionFilter}')" style="color:var(--accent);cursor:pointer;text-decoration:underline;">Clear</a>
             </div>` : ''}
-            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;" title="Comparison against the 54k-record historical price database. Click Comp Upside sort to see biggest underpriced items first.">
-                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--green);cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_upside';renderInv();" title="Items listed below comp median — click to sort by biggest upside">
-                    <div style="font-size:18px;font-weight:700;color:var(--green);">${cs.under_median||0}</div><div class="stat-lbl">Under Comp</div>
-                </div>
-                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--accent);">
-                    <div style="font-size:18px;font-weight:700;color:var(--accent);">${cs.at_median||0}</div><div class="stat-lbl">At Median</div>
-                </div>
-                <div class="card" style="flex:1;text-align:center;min-width:80px;border-left:3px solid var(--orange);cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_overpriced';renderInv();" title="Items listed above comp p75 — click to sort">
-                    <div style="font-size:18px;font-weight:700;color:var(--orange);">${cs.over_p75||0}</div><div class="stat-lbl">Over p75</div>
-                </div>
-                <div class="card" style="flex:1;text-align:center;min-width:80px;">
-                    <div style="font-size:18px;font-weight:700;color:var(--green);">$${Math.round(cs.total_upside_to_median||0).toLocaleString()}</div><div class="stat-lbl">Upside to Median</div>
-                </div>
-                <div class="card" style="flex:1;text-align:center;min-width:80px;" title="Listings with ≥3 matching comps in the 54k DB">
-                    <div style="font-size:18px;font-weight:700;">${cs.coverage||0}</div><div class="stat-lbl">With Comps</div>
-                </div>
-                <div class="card" style="flex:1;text-align:center;min-width:80px;" title="Listings with no matching comps — title may be too unique">
-                    <div style="font-size:18px;font-weight:700;color:var(--dim);">${cs.no_comps||0}</div><div class="stat-lbl">No Comps</div>
-                </div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+                <div style="${baseCard}cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_upside';renderInv();" title="Items listed below comp median — click to sort by biggest upside">${cardStat('Under Comp', cs.under_median||0, 'var(--green)')}</div>
+                <div style="${baseCard}" title="Items priced within ±5% of comp median">${cardStat('At Median', cs.at_median||0, 'var(--accent)')}</div>
+                <div style="${baseCard}cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_overpriced';renderInv();" title="Items listed above comp p75 — click to sort">${cardStat('Over p75', cs.over_p75||0, 'var(--orange)')}</div>
+                <div style="${baseCard}" title="Total $ between your prices and comp medians on under-comp items">${cardStat('Upside to Median', '$' + Math.round(cs.total_upside_to_median||0).toLocaleString(), 'var(--green)')}</div>
+                <div style="${baseCard}cursor:pointer;" onclick="document.getElementById('inv-sort').value='comp_count';renderInv();" title="Listings with ≥3 matching comps in the 54k DB">${cardStat('With Comps', cs.coverage||0)}</div>
+                <div style="${baseCard}" title="Listings with no matching comps — title may be too unique">${cardStat('No Comps', cs.no_comps||0, 'var(--dim)')}</div>
             </div>`;
 
             el.innerHTML = actBar + `<div class="table-wrap"><table>
